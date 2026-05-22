@@ -1,13 +1,120 @@
-# XRWorkout Outreach
+# XRWorkout Outreach Monitor
 
-Python automation for monitoring VR fitness conversations, scoring opportunities, drafting outreach, and sending only human-approved emails.
+Agentic outreach infrastructure for XRWorkout: a scheduled Python system that finds relevant VR fitness conversations, scores real opportunities, drafts personalized outreach, and sends only emails that a human has approved.
+
+The goal is simple: turn scattered creator and community signals into a reliable outreach queue without losing human judgment.
+
+## Why This Exists
+
+XRWorkout needs to stay close to the people already talking about VR fitness, mixed reality workouts, Quest apps, creator reviews, and alternatives to apps like FitXR, Supernatural, Les Mills BodyCombat, and Beat Saber workouts.
+
+Doing that manually is slow and inconsistent. This repo builds the operating layer:
+
+- Collect relevant signals from Reddit, YouTube, and Twitch.
+- Deduplicate source items before they enter the pipeline.
+- Use an LLM to classify, score, and summarize opportunities.
+- Promote promising creators into a reviewable prospect table.
+- Generate outreach drafts for high-fit opportunities.
+- Require human approval before any email is sent.
+- Track sent drafts, follow-ups, and creator offers in Supabase.
+- Run on GitHub Actions without a custom server.
+
+## Operating Principle
+
+Agents collect, classify, score, draft, log, and report. Humans approve. Automation sends only approved email drafts.
+
+That rule is enforced in code: the sender only processes drafts with `status = approved`. Drafts marked `needs_review`, `edit_needed`, `rejected`, or `sent` are not eligible for sending.
+
+## System Overview
+
+```text
+Reddit / YouTube / Twitch
+        |
+        v
+Collectors write deduped raw_items
+        |
+        v
+LLM classification creates opportunities
+        |
+        v
+Creator discovery creates creator prospects
+        |
+        v
+Draft generation creates needs_review drafts
+        |
+        v
+Human review happens in Supabase Studio
+        |
+        v
+Approved-only sender sends email through Brevo
+        |
+        v
+Follow-up tasks and reporting keep the loop visible
+```
+
+## What Is Implemented
+
+- Python package for outreach collection, scoring, drafting, and sending.
+- Supabase schema for `raw_items`, `opportunities`, `creators`, `drafts`, `followups`, and `offers`.
+- Reddit collector using PRAW.
+- YouTube collector using the YouTube Data API.
+- Twitch collector using the Twitch Helix API.
+- OpenAI wrapper for classification, creator discovery, and draft generation.
+- Brevo email sender with dry-run support.
+- Approval-only sending logic.
+- Follow-up task creation after sent emails.
+- Weekly report script.
+- GitHub Actions schedules for collection, drafts, approved sends, and weekly reporting.
+- Unit tests for deduplication, scoring rules, follow-up timing, database batch dedupe, and sender recipient extraction.
+
+## Tech Stack
+
+| Layer | Choice |
+|---|---|
+| Runtime | Python 3.11+ |
+| Scheduler | GitHub Actions cron |
+| Database | Supabase Postgres |
+| Review UI | Supabase Studio |
+| LLM | OpenAI API |
+| Reddit | PRAW / Reddit Data API |
+| YouTube | YouTube Data API |
+| Twitch | Twitch Helix API |
+| Email | Brevo |
+| Tests | Pytest |
+
+## Repository Structure
+
+```text
+.
+├── .github/workflows/       # Scheduled jobs
+├── docs/                    # Runbook and secrets guide
+├── prompts/                 # Outreach and reply prompt templates
+├── scripts/                 # CLI entrypoints for each pipeline stage
+├── supabase/schema.sql      # Database schema
+├── tests/                   # Unit tests
+└── xroutreach/              # Shared package code
+```
+
+## Pipeline Scripts
+
+| Script | Purpose |
+|---|---|
+| `scripts/collect_reddit.py` | Collects subreddit posts matching VR fitness keywords. |
+| `scripts/collect_youtube.py` | Collects relevant YouTube videos and channel context. |
+| `scripts/collect_twitch.py` | Collects relevant Twitch channel records. |
+| `scripts/classify_opportunities.py` | Scores raw items and creates outreach opportunities. |
+| `scripts/discover_creators.py` | Promotes strong creator prospects into `creators`. |
+| `scripts/generate_drafts.py` | Creates outreach drafts for high-priority safe opportunities. |
+| `scripts/send_approved.py` | Sends only approved email drafts and creates follow-up tasks. |
+| `scripts/weekly_report.py` | Prints operational counts and review reminders. |
 
 ## Setup
 
 1. Create a Supabase project.
 2. Run `supabase/schema.sql` in the Supabase SQL editor.
-3. Copy `.env.example` to `.env` locally and fill credentials.
-4. Install dependencies:
+3. Copy `.env.example` to `.env`.
+4. Fill the required credentials in `.env`.
+5. Install the project locally:
 
 ```bash
 python -m venv .venv
@@ -15,13 +122,40 @@ python -m venv .venv
 pip install -e ".[dev]"
 ```
 
-5. Run tests:
+6. Run the tests:
 
 ```bash
 pytest
 ```
 
-## Local dry run
+## Required Credentials
+
+Local `.env` values and GitHub repository secrets should include:
+
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `OPENAI_API_KEY`
+- `REDDIT_CLIENT_ID`
+- `REDDIT_CLIENT_SECRET`
+- `REDDIT_USER_AGENT`
+- `YOUTUBE_API_KEY`
+- `TWITCH_CLIENT_ID`
+- `TWITCH_CLIENT_SECRET`
+- `BREVO_API_KEY`
+- `BREVO_FROM_EMAIL`
+- `BREVO_FROM_NAME`
+
+Optional settings:
+
+- `OPENAI_MODEL`, defaults to `gpt-4.1-mini`
+- `XRWORKOUT_FOUNDER_NAME`
+- `XRWORKOUT_SITE`, defaults to `https://xrworkout.ai`
+- `EMAIL_PROVIDER`, defaults to `brevo`
+- `DRY_RUN_SEND`, keep `true` until approved-send behavior is verified
+
+## Local Dry Run
+
+Run the pipeline in small batches while validating credentials and data quality:
 
 ```bash
 python scripts/collect_reddit.py --limit 10
@@ -34,8 +168,68 @@ python scripts/send_approved.py --dry-run
 python scripts/weekly_report.py
 ```
 
-`send_approved.py` only sends drafts with status `approved`. Set `DRY_RUN_SEND=true` while testing.
+Keep `DRY_RUN_SEND=true` during setup. The send script can also be run with `--dry-run` for an explicit no-send check.
+
+## Daily Operation
+
+1. Open Supabase Studio.
+2. Review high-priority rows in `opportunities`.
+3. Review drafts where `status = needs_review`.
+4. Edit weak drafts or mark them `edit_needed`.
+5. Mark only safe, useful email drafts as `approved`.
+6. Let the approved-send job process approved email drafts.
+7. Review follow-up tasks and weekly reporting to track outcomes.
+
+Public comments and DMs remain manual in v1.
+
+## GitHub Actions
+
+The repo includes four scheduled workflows:
+
+| Workflow | Schedule | Purpose |
+|---|---:|---|
+| `daily-collection.yml` | Daily 14:00 UTC | Collects source items, classifies opportunities, and discovers creators. |
+| `daily-drafts.yml` | Daily 16:00 UTC | Generates outreach drafts for high-priority opportunities. |
+| `daily-send.yml` | Daily 17:00 UTC | Sends only approved email drafts. |
+| `weekly-report.yml` | Friday 18:00 UTC | Prints weekly operational counts. |
+
+All workflows can also be run manually from GitHub Actions.
+
+## Safety Rules
+
+Automation may:
+
+- Collect source items.
+- Deduplicate records.
+- Classify and score opportunities.
+- Identify creator prospects.
+- Generate outreach drafts.
+- Create follow-up tasks.
+- Produce reports.
+
+Automation must not:
+
+- Send drafts unless `status = approved`.
+- Send rejected, edit-needed, needs-review, or already-sent drafts.
+- Auto-post public comments.
+- Auto-DM people.
+- Make medical, weight-loss, or guaranteed health-outcome claims.
+- Pretend to be a neutral user when representing XRWorkout.
+
+## Current Launch Status
+
+The core system is implemented and tested locally. YouTube and Twitch collection have been validated against Supabase, the dry-run sender has been validated, and the repository is configured for GitHub push access.
+
+Remaining launch blockers:
+
+- Reddit API app credentials are still needed.
+- OpenAI API access is needed, unless a deterministic local test mode is added.
+- Full end-to-end dry run is pending those credentials.
+- GitHub Actions secrets should be added after the local dry run passes.
+- Live email sending should remain disabled until at least one approved draft is dry-run and manually checked.
 
 ## Maintenance
 
-Keep this README current when setup steps, required secrets, scheduled workflows, or operational assumptions change. Project work should be committed with clear messages and pushed to the configured GitHub remote after verification.
+Keep this README current when setup steps, scripts, required secrets, workflow schedules, providers, or safety assumptions change.
+
+Meaningful changes should be committed with clear messages and pushed to the configured `origin/main` remote after verification.
