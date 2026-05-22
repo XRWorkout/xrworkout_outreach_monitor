@@ -1,0 +1,30 @@
+[project]
+name = "xrworkout-outreach"
+version = "0.1.0"
+description = "Agentic outreach pipeline for XRWorkout."
+requires-python = ">=3.11"
+dependencies = [
+  "google-api-python-client>=2.130.0",
+  "openai>=1.40.0",
+  "praw>=7.7.1",
+  "python-dotenv>=1.0.1",
+  "requests>=2.32.0",
+  "supabase>=2.6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.2.0",
+  "responses>=0.25.0",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["xroutreach*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
