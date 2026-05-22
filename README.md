@@ -36,3 +36,6 @@ python scripts/weekly_report.py
 
 `send_approved.py` only sends drafts with status `approved`. Set `DRY_RUN_SEND=true` while testing.
 
+## Maintenance
+
+Keep this README current when setup steps, required secrets, scheduled workflows, or operational assumptions change. Project work should be committed with clear messages and pushed to the configured GitHub remote after verification.

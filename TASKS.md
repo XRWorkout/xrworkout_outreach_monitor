@@ -20,6 +20,8 @@ Updated on 2026-05-22.
 - [x] Ran weekly report: Supabase is reachable and currently reports `raw_items: 103`, `opportunities: 0`, `creators: 0`, `drafts: 0`, `offers: 0`.
 - [x] Initialized local Git repository on branch `main`; `.env` remains ignored.
 - [x] Added `scripts/save_checkpoint.sh` to save local commits and push to GitHub once a remote is connected.
+- [x] Published the local repository to `yorgobekaii/xr_workout_outreach_monitor` and configured SSH push access.
+- [x] Added standing repository operating rules in `AGENTS.md` for future commits, pushes, summaries, and README maintenance.
 
 ## Current Next Tasks
 
@@ -38,7 +40,6 @@ Updated on 2026-05-22.
 - [ ] After opportunity classification and draft generation work, review generated `opportunities`, `creators`, and `drafts` rows in Supabase Studio.
 - [ ] Approve only safe, useful email drafts in Supabase Studio; keep public comments and DMs manual.
 - [ ] Run `python scripts/send_approved.py --dry-run` again after at least one draft is approved.
-- [ ] Publish the local repository to your own GitHub account and connect it as the `origin` remote.
 - [ ] Add required GitHub Actions secrets after the full local dry-run pipeline works.
 - [ ] Keep `DRY_RUN_SEND=true` until one approved email has been dry-run and manually checked.
 
