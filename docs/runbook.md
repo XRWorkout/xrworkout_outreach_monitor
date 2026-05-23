@@ -22,6 +22,21 @@ The LLM-dependent workflows must run on a self-hosted runner whose service accou
 
 Use XRWorkout-owned accounts for production automation. The personal development account can commit and push code to `yorgobekaii/xr_workout_outreach_monitor`, but GitHub Actions should run from `XRWorkout/xrworkout_outreach_monitor`. The GitHub runner, Codex CLI auth, Reddit app, Supabase, and email provider credentials should belong to XRWorkout.
 
+## GitHub remotes
+
+This machine is configured for two GitHub remotes:
+
+- `origin`: `git@github.com:yorgobekaii/xr_workout_outreach_monitor.git`
+- `xrworkout`: `git@github-xrworkout:XRWorkout/xrworkout_outreach_monitor.git`
+
+The `github-xrworkout` SSH host alias uses `/home/yorgobekaii/.ssh/id_ed25519_github_xrworkout`. Add the public key from `/home/yorgobekaii/.ssh/id_ed25519_github_xrworkout.pub` to `XRWorkout/xrworkout_outreach_monitor` as a deploy key with write access.
+
+To push the current branch to both remotes:
+
+```bash
+scripts/push_remotes.sh
+```
+
 On the server, install and configure the GitHub runner from `XRWorkout/xrworkout_outreach_monitor` repository settings, then start it from the XRWorkout-owned server account that has Codex CLI authentication. Verify from that account:
 
 ```bash

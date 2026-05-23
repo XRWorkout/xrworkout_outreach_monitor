@@ -19,3 +19,7 @@ if git remote get-url origin >/dev/null 2>&1; then
 else
   echo "Saved locally. Add a GitHub remote named origin to push this checkpoint online."
 fi
+
+if git remote get-url xrworkout >/dev/null 2>&1; then
+  git push xrworkout HEAD
+fi

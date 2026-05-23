@@ -22,6 +22,10 @@ Updated on 2026-05-23.
 - [x] Clarified that project automation must use XRWorkout-owned accounts and credentials, not the personal commit account.
 - [x] Confirmed the personal repository remains the development push target: `yorgobekaii/xr_workout_outreach_monitor`.
 - [x] Confirmed GitHub Actions should run from the XRWorkout-owned repository: `XRWorkout/xrworkout_outreach_monitor`.
+- [x] Generated a separate XRWorkout GitHub SSH key at `/home/yorgobekaii/.ssh/id_ed25519_github_xrworkout`.
+- [x] Added local SSH host alias `github-xrworkout` for the XRWorkout GitHub key.
+- [x] Added local git remote `xrworkout` for `XRWorkout/xrworkout_outreach_monitor`.
+- [x] Added `scripts/push_remotes.sh` and updated `scripts/save_checkpoint.sh` to push both remotes once XRWorkout access is enabled.
 - [x] Ran local tests with the project virtual environment: 10 tests passed.
 - [x] Fixed a live validation bug where duplicate raw items inside one collector batch caused Supabase upserts to fail.
 - [x] Added a regression test for batch-level raw item deduplication.
@@ -41,6 +45,8 @@ Updated on 2026-05-23.
 - [ ] Create a dedicated Reddit automated/app account for the outreach monitor and register it during Reddit Data API app setup. Do not use the normal human Reddit account as the app account.
 - [ ] Fill the remaining Reddit fields in `.env`: `REDDIT_CLIENT_ID` and `REDDIT_CLIENT_SECRET`.
 - [ ] Ensure `XRWorkout/xrworkout_outreach_monitor` exists and contains the current project files and workflows.
+- [ ] Add `/home/yorgobekaii/.ssh/id_ed25519_github_xrworkout.pub` to `XRWorkout/xrworkout_outreach_monitor` as a write deploy key.
+- [ ] Verify `git push xrworkout main` succeeds.
 - [ ] Authenticate Codex CLI on the server using XRWorkout's Codex/OpenAI account, not the personal `yorgobekaii` account.
 - [ ] Install and start the GitHub self-hosted runner registered from `XRWorkout/xrworkout_outreach_monitor` on the server.
 - [ ] Confirm the GitHub self-hosted runner uses the XRWorkout-owned server account with authenticated Codex CLI access.
