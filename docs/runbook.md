@@ -20,7 +20,9 @@
 
 The LLM-dependent workflows must run on a self-hosted runner whose service account can run Codex CLI non-interactively.
 
-On the server, install and configure the GitHub runner from the repository settings, then start it from the same account that has Codex CLI authentication. Verify from that account:
+Use XRWorkout-owned accounts for production automation. The personal development account can commit code, but the GitHub runner, Codex CLI auth, Reddit app, Supabase, and email provider credentials should belong to XRWorkout.
+
+On the server, install and configure the GitHub runner from the XRWorkout-owned repository or organization settings, then start it from the XRWorkout-owned server account that has Codex CLI authentication. Verify from that account:
 
 ```bash
 cd /home/yorgobekaii/xrworkout-outreach

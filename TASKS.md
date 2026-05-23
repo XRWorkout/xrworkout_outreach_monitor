@@ -19,6 +19,7 @@ Updated on 2026-05-23.
 - [x] Confirmed Codex CLI auth works for the current `yorgobekaii` server account.
 - [x] Checked this server for a GitHub self-hosted runner process, service, or install files; none were found.
 - [x] Added `scripts/check_codex_cli.py` so workflows can verify Codex CLI auth from the actual runner account before LLM jobs run.
+- [x] Clarified that project automation must use XRWorkout-owned accounts and credentials, not the personal commit account.
 - [x] Ran local tests with the project virtual environment: 10 tests passed.
 - [x] Fixed a live validation bug where duplicate raw items inside one collector batch caused Supabase upserts to fail.
 - [x] Added a regression test for batch-level raw item deduplication.
@@ -37,8 +38,10 @@ Updated on 2026-05-23.
 
 - [ ] Create a dedicated Reddit automated/app account for the outreach monitor and register it during Reddit Data API app setup. Do not use the normal human Reddit account as the app account.
 - [ ] Fill the remaining Reddit fields in `.env`: `REDDIT_CLIENT_ID` and `REDDIT_CLIENT_SECRET`.
+- [ ] Create or select the XRWorkout-owned GitHub account or organization that will own the repository and self-hosted runner.
+- [ ] Authenticate Codex CLI on the server using XRWorkout's Codex/OpenAI account, not the personal `yorgobekaii` account.
 - [ ] Install and start the GitHub self-hosted runner for this repository on the server.
-- [ ] Confirm the GitHub self-hosted runner uses the same server account or another account with authenticated Codex CLI access.
+- [ ] Confirm the GitHub self-hosted runner uses the XRWorkout-owned server account with authenticated Codex CLI access.
 - [ ] Run the blocked Reddit collector after Reddit credentials are ready:
   - `python scripts/collect_reddit.py --limit 5`
 - [ ] After reviewing the first classified opportunity, continue the local LLM pipeline in small batches:
