@@ -45,8 +45,9 @@ SUBREDDITS = [
 class Settings:
     supabase_url: str
     supabase_service_role_key: str
-    openai_api_key: str
-    openai_model: str
+    codex_bin: str
+    codex_model: str
+    codex_timeout_seconds: int
     reddit_client_id: str
     reddit_client_secret: str
     reddit_user_agent: str
@@ -67,12 +68,23 @@ def env(name: str, default: str = "") -> str:
     return os.getenv(name, default).strip()
 
 
+def env_int(name: str, default: int) -> int:
+    value = env(name)
+    if not value:
+        return default
+    try:
+        return int(value)
+    except ValueError as exc:
+        raise RuntimeError(f"{name} must be an integer") from exc
+
+
 def settings() -> Settings:
     return Settings(
         supabase_url=env("SUPABASE_URL"),
         supabase_service_role_key=env("SUPABASE_SERVICE_ROLE_KEY"),
-        openai_api_key=env("OPENAI_API_KEY"),
-        openai_model=env("OPENAI_MODEL", "gpt-4.1-mini"),
+        codex_bin=env("CODEX_BIN", "codex"),
+        codex_model=env("CODEX_MODEL"),
+        codex_timeout_seconds=env_int("CODEX_TIMEOUT_SECONDS", 300),
         reddit_client_id=env("REDDIT_CLIENT_ID"),
         reddit_client_secret=env("REDDIT_CLIENT_SECRET"),
         reddit_user_agent=env("REDDIT_USER_AGENT", "XRWorkout outreach monitor"),

@@ -19,8 +19,9 @@ def test_emailer_sends_brevo_api_key_header():
     cfg = Settings(
         supabase_url="",
         supabase_service_role_key="",
-        openai_api_key="",
-        openai_model="",
+        codex_bin="codex",
+        codex_model="",
+        codex_timeout_seconds=300,
         reddit_client_id="",
         reddit_client_secret="",
         reddit_user_agent="",

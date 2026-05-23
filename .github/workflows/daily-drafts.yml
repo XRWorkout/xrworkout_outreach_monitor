@@ -7,18 +7,23 @@ on:
 
 jobs:
   drafts:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
       - run: pip install -e .
+      - run: |
+          "${CODEX_BIN:-codex}" --version
+        env:
+          CODEX_BIN: ${{ vars.CODEX_BIN || 'codex' }}
       - run: python scripts/generate_drafts.py --limit 25
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'gpt-4.1-mini' }}
+          CODEX_BIN: ${{ vars.CODEX_BIN || 'codex' }}
+          CODEX_MODEL: ${{ vars.CODEX_MODEL }}
+          CODEX_TIMEOUT_SECONDS: ${{ vars.CODEX_TIMEOUT_SECONDS || '300' }}
           XRWORKOUT_FOUNDER_NAME: ${{ vars.XRWORKOUT_FOUNDER_NAME }}
           XRWORKOUT_SITE: https://xrworkout.ai

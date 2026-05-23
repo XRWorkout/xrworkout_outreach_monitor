@@ -12,12 +12,12 @@ Doing that manually is slow and inconsistent. This repo builds the operating lay
 
 - Collect relevant signals from Reddit, YouTube, and Twitch.
 - Deduplicate source items before they enter the pipeline.
-- Use an LLM to classify, score, and summarize opportunities.
+- Use Codex CLI to classify, score, and summarize opportunities.
 - Promote promising creators into a reviewable prospect table.
 - Generate outreach drafts for high-fit opportunities.
 - Require human approval before any email is sent.
 - Track sent drafts, follow-ups, and creator offers in Supabase.
-- Run on GitHub Actions without a custom server.
+- Run on GitHub Actions, with LLM-dependent jobs on a self-hosted server runner that has Codex CLI installed and authenticated.
 
 ## Operating Principle
 
@@ -59,7 +59,7 @@ Follow-up tasks and reporting keep the loop visible
 - Reddit collector using PRAW.
 - YouTube collector using the YouTube Data API.
 - Twitch collector using the Twitch Helix API.
-- OpenAI wrapper for classification, creator discovery, and draft generation.
+- Codex CLI wrapper for classification, creator discovery, and draft generation.
 - Brevo email sender with dry-run support.
 - Approval-only sending logic.
 - Follow-up task creation after sent emails.
@@ -72,10 +72,10 @@ Follow-up tasks and reporting keep the loop visible
 | Layer | Choice |
 |---|---|
 | Runtime | Python 3.11+ |
-| Scheduler | GitHub Actions cron |
+| Scheduler | GitHub Actions cron, with Codex jobs on a self-hosted runner |
 | Database | Supabase Postgres |
 | Review UI | Supabase Studio |
-| LLM | OpenAI API |
+| LLM | Codex CLI on the server |
 | Reddit | PRAW / Reddit Data API |
 | YouTube | YouTube Data API |
 | Twitch | Twitch Helix API |
@@ -114,7 +114,8 @@ Follow-up tasks and reporting keep the loop visible
 2. Run `supabase/schema.sql` in the Supabase SQL editor.
 3. Copy `.env.example` to `.env`.
 4. Fill the required credentials in `.env`.
-5. Install the project locally:
+5. Install and authenticate Codex CLI on the server account that will run the LLM-dependent jobs.
+6. Install the project locally:
 
 ```bash
 python -m venv .venv
@@ -122,7 +123,7 @@ python -m venv .venv
 pip install -e ".[dev]"
 ```
 
-6. Run the tests:
+7. Run the tests:
 
 ```bash
 pytest
@@ -134,7 +135,6 @@ Local `.env` values and GitHub repository secrets should include:
 
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
-- `OPENAI_API_KEY`
 - `REDDIT_CLIENT_ID`
 - `REDDIT_CLIENT_SECRET`
 - `REDDIT_USER_AGENT`
@@ -147,7 +147,9 @@ Local `.env` values and GitHub repository secrets should include:
 
 Optional settings:
 
-- `OPENAI_MODEL`, defaults to `gpt-4.1-mini`
+- `CODEX_BIN`, defaults to `codex`
+- `CODEX_MODEL`, optional; when empty, Codex CLI uses its configured default model
+- `CODEX_TIMEOUT_SECONDS`, defaults to `300`
 - `XRWORKOUT_FOUNDER_NAME`
 - `XRWORKOUT_SITE`, defaults to `https://xrworkout.ai`
 - `EMAIL_PROVIDER`, defaults to `brevo`
@@ -223,7 +225,7 @@ The core system is implemented and tested locally. YouTube and Twitch collection
 Remaining launch blockers:
 
 - Reddit API app credentials are still needed.
-- OpenAI API access is needed, unless a deterministic local test mode is added.
+- Codex CLI must be installed and authenticated on the server or self-hosted runner.
 - Full end-to-end dry run is pending those credentials.
 - GitHub Actions secrets should be added after the local dry run passes.
 - Live email sending should remain disabled until at least one approved draft is dry-run and manually checked.

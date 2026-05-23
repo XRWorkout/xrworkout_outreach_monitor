@@ -4,11 +4,18 @@ This file tracks concrete setup, validation, and launch tasks for the outreach s
 
 ## Latest Validation Notes
 
-Updated on 2026-05-22.
+Updated on 2026-05-23.
 
 - [x] Verified `.env` exists at `/home/yorgobekaii/xrworkout-outreach/.env`.
 - [x] Verified configured values are present for Supabase, YouTube, Twitch, Brevo, founder name, site URL, and `DRY_RUN_SEND`.
-- [x] Confirmed `OPENAI_API_KEY`, `REDDIT_CLIENT_ID`, and `REDDIT_CLIENT_SECRET` are still empty.
+- [x] Confirmed `REDDIT_CLIENT_ID` and `REDDIT_CLIENT_SECRET` are still empty.
+- [x] Replaced the previous API-key LLM path with server-installed Codex CLI for classification, creator discovery, and draft generation.
+- [x] Ran local tests after the Codex CLI change: 11 tests passed.
+- [x] Ran a direct Codex wrapper smoke test: structured classification JSON returned successfully.
+- [x] Ran `python scripts/classify_opportunities.py --limit 1`: succeeded and created the first opportunity row.
+- [x] Ran `python scripts/discover_creators.py --limit 1`: succeeded with `Upserted 0 creator prospects`.
+- [x] Ran `python scripts/generate_drafts.py --limit 1`: succeeded with `Generated 0 drafts`.
+- [x] Ran weekly report after the Codex validation: `raw_items: 103`, `opportunities: 1`, `creators: 0`, `drafts: 0`, `offers: 0`.
 - [x] Ran local tests with the project virtual environment: 10 tests passed.
 - [x] Fixed a live validation bug where duplicate raw items inside one collector batch caused Supabase upserts to fail.
 - [x] Added a regression test for batch-level raw item deduplication.
@@ -25,14 +32,12 @@ Updated on 2026-05-22.
 
 ## Current Next Tasks
 
-- [ ] Decide how to handle OpenAI for Phase 2:
-  - Option A: create an OpenAI API key for `OPENAI_API_KEY`.
-  - Option B: add a local deterministic test mode so classification, creator discovery, and draft generation can be validated without OpenAI.
 - [ ] Create a dedicated Reddit automated/app account for the outreach monitor and register it during Reddit Data API app setup. Do not use the normal human Reddit account as the app account.
 - [ ] Fill the remaining Reddit fields in `.env`: `REDDIT_CLIENT_ID` and `REDDIT_CLIENT_SECRET`.
-- [ ] Fill `OPENAI_API_KEY` in `.env` if OpenAI remains the selected LLM path.
-- [ ] Run the blocked Reddit and LLM-dependent local pipeline steps after credentials or local test mode are ready:
+- [ ] Confirm the GitHub self-hosted runner uses the same server account or another account with authenticated Codex CLI access.
+- [ ] Run the blocked Reddit collector after Reddit credentials are ready:
   - `python scripts/collect_reddit.py --limit 5`
+- [ ] After reviewing the first classified opportunity, continue the local LLM pipeline in small batches:
   - `python scripts/classify_opportunities.py --limit 10`
   - `python scripts/discover_creators.py --limit 10`
   - `python scripts/generate_drafts.py --limit 10`
@@ -55,6 +60,5 @@ Updated on 2026-05-22.
 ## Still Undone Or Blocked
 
 - [ ] Reddit collection is blocked until Reddit API app credentials are available.
-- [ ] OpenAI-based classification, creator discovery, and draft generation are blocked until an API key is created or a no-OpenAI local test mode is implemented.
-- [ ] Full end-to-end dry-run pipeline is not complete because Reddit and OpenAI-dependent steps are blocked.
+- [ ] Full end-to-end dry-run pipeline is not complete because Reddit collection is still blocked and no reviewable draft has been generated yet.
 - [ ] Live email sending has not been tested and should stay disabled.
