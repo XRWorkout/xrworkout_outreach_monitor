@@ -31,6 +31,7 @@ Updated on 2026-05-23.
 - [x] Verified personal-account access to `XRWorkout/xrworkout_outreach_monitor` with `git ls-remote xrworkout`.
 - [x] Pushed `main` to `XRWorkout/xrworkout_outreach_monitor` using the personal collaborator account.
 - [x] Added GitHub Actions secrets and variables in `XRWorkout/xrworkout_outreach_monitor` for Supabase, YouTube, Twitch, Brevo, Codex CLI settings, founder name, site URL, and dry-run mode.
+- [x] Confirmed `python scripts/check_codex_cli.py` returned `Codex CLI auth check passed` during self-hosted runner setup.
 - [x] Ran local tests with the project virtual environment: 10 tests passed.
 - [x] Fixed a live validation bug where duplicate raw items inside one collector batch caused Supabase upserts to fail.
 - [x] Added a regression test for batch-level raw item deduplication.
@@ -47,11 +48,17 @@ Updated on 2026-05-23.
 
 ## Current Next Tasks
 
+- [ ] Reminder for the first Codex session on 2026-05-24: install the GitHub Actions runner as a system service with sudo:
+  - `cd /home/yorgobekaii/actions-runner`
+  - `sudo ./svc.sh install yorgobekaii`
+  - `sudo ./svc.sh start`
+  - `sudo ./svc.sh status`
+  - Why: the runner can run manually with `./run.sh`, but it will stop when the terminal closes or the server restarts. Installing it as a service keeps XRWorkout GitHub Actions online reliably.
 - [ ] Create a dedicated Reddit automated/app account for the outreach monitor and register it during Reddit Data API app setup. Do not use the normal human Reddit account as the app account.
 - [ ] Fill the remaining Reddit fields in `.env`: `REDDIT_CLIENT_ID` and `REDDIT_CLIENT_SECRET`.
 - [ ] Add Reddit GitHub Actions secrets in `XRWorkout/xrworkout_outreach_monitor`: `REDDIT_CLIENT_ID` and `REDDIT_CLIENT_SECRET`.
 - [ ] Authenticate Codex CLI on the server using XRWorkout's Codex/OpenAI account, not the personal `yorgobekaii` account.
-- [ ] Install and start the GitHub self-hosted runner registered from `XRWorkout/xrworkout_outreach_monitor` on the server.
+- [ ] Keep the GitHub self-hosted runner registered from `XRWorkout/xrworkout_outreach_monitor` running manually with `./run.sh` until the service install reminder is complete.
 - [ ] Confirm the GitHub self-hosted runner uses the XRWorkout-owned server account with authenticated Codex CLI access.
 - [ ] Run the blocked Reddit collector after Reddit credentials are ready:
   - `python scripts/collect_reddit.py --limit 5`
