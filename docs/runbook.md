@@ -27,9 +27,12 @@ Use XRWorkout-owned accounts for production automation. The personal development
 This machine is configured for two GitHub remotes:
 
 - `origin`: `git@github.com:yorgobekaii/xr_workout_outreach_monitor.git`
-- `xrworkout`: `git@github-xrworkout:XRWorkout/xrworkout_outreach_monitor.git`
+- `xrworkout`: `git@github.com:XRWorkout/xrworkout_outreach_monitor.git`
+- `xrworkout-deploy`: `git@github-xrworkout:XRWorkout/xrworkout_outreach_monitor.git`
 
-The `github-xrworkout` SSH host alias uses `/home/yorgobekaii/.ssh/id_ed25519_github_xrworkout`. Add the public key from `/home/yorgobekaii/.ssh/id_ed25519_github_xrworkout.pub` to `XRWorkout/xrworkout_outreach_monitor` as a deploy key with write access.
+The `xrworkout` remote uses the normal personal GitHub SSH identity, so the personal account must be added to `XRWorkout/xrworkout_outreach_monitor` as an admin or maintainer collaborator. Commits use the repo's local `user.name` and `user.email`, currently configured as the personal GitHub no-reply identity.
+
+The `github-xrworkout` SSH host alias uses `/home/yorgobekaii/.ssh/id_ed25519_github_xrworkout`. The matching public key is also installed as a write deploy key on `XRWorkout/xrworkout_outreach_monitor` and is available through the `xrworkout-deploy` remote if a machine/service key is needed.
 
 To push the current branch to both remotes:
 
