@@ -16,6 +16,9 @@ Updated on 2026-05-23.
 - [x] Ran `python scripts/discover_creators.py --limit 1`: succeeded with `Upserted 0 creator prospects`.
 - [x] Ran `python scripts/generate_drafts.py --limit 1`: succeeded with `Generated 0 drafts`.
 - [x] Ran weekly report after the Codex validation: `raw_items: 103`, `opportunities: 1`, `creators: 0`, `drafts: 0`, `offers: 0`.
+- [x] Confirmed Codex CLI auth works for the current `yorgobekaii` server account.
+- [x] Checked this server for a GitHub self-hosted runner process, service, or install files; none were found.
+- [x] Added `scripts/check_codex_cli.py` so workflows can verify Codex CLI auth from the actual runner account before LLM jobs run.
 - [x] Ran local tests with the project virtual environment: 10 tests passed.
 - [x] Fixed a live validation bug where duplicate raw items inside one collector batch caused Supabase upserts to fail.
 - [x] Added a regression test for batch-level raw item deduplication.
@@ -34,6 +37,7 @@ Updated on 2026-05-23.
 
 - [ ] Create a dedicated Reddit automated/app account for the outreach monitor and register it during Reddit Data API app setup. Do not use the normal human Reddit account as the app account.
 - [ ] Fill the remaining Reddit fields in `.env`: `REDDIT_CLIENT_ID` and `REDDIT_CLIENT_SECRET`.
+- [ ] Install and start the GitHub self-hosted runner for this repository on the server.
 - [ ] Confirm the GitHub self-hosted runner uses the same server account or another account with authenticated Codex CLI access.
 - [ ] Run the blocked Reddit collector after Reddit credentials are ready:
   - `python scripts/collect_reddit.py --limit 5`

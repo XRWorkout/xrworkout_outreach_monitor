@@ -14,10 +14,11 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install -e .
-      - run: |
-          "${CODEX_BIN:-codex}" --version
+      - run: python scripts/check_codex_cli.py
         env:
           CODEX_BIN: ${{ vars.CODEX_BIN || 'codex' }}
+          CODEX_MODEL: ${{ vars.CODEX_MODEL }}
+          CODEX_TIMEOUT_SECONDS: ${{ vars.CODEX_TIMEOUT_SECONDS || '300' }}
       - run: python scripts/collect_reddit.py --limit 25
         env: &env
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
