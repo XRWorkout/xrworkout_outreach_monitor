@@ -28,6 +28,8 @@ Updated on 2026-05-23.
 - [x] Added local git remote `xrworkout-deploy` for deploy-key pushes to `XRWorkout/xrworkout_outreach_monitor`.
 - [x] Verified the XRWorkout deploy-key remote is reachable.
 - [x] Added `scripts/push_remotes.sh` and updated `scripts/save_checkpoint.sh` to push both remotes once XRWorkout access is enabled.
+- [x] Verified personal-account access to `XRWorkout/xrworkout_outreach_monitor` with `git ls-remote xrworkout`.
+- [x] Pushed `main` to `XRWorkout/xrworkout_outreach_monitor` using the personal collaborator account.
 - [x] Ran local tests with the project virtual environment: 10 tests passed.
 - [x] Fixed a live validation bug where duplicate raw items inside one collector batch caused Supabase upserts to fail.
 - [x] Added a regression test for batch-level raw item deduplication.
@@ -46,10 +48,6 @@ Updated on 2026-05-23.
 
 - [ ] Create a dedicated Reddit automated/app account for the outreach monitor and register it during Reddit Data API app setup. Do not use the normal human Reddit account as the app account.
 - [ ] Fill the remaining Reddit fields in `.env`: `REDDIT_CLIENT_ID` and `REDDIT_CLIENT_SECRET`.
-- [ ] Ensure `XRWorkout/xrworkout_outreach_monitor` exists and contains the current project files and workflows.
-- [ ] Add the personal `yorgobekaii` GitHub account to `XRWorkout/xrworkout_outreach_monitor` as an admin or maintainer collaborator.
-- [ ] Verify personal-account access with `git ls-remote xrworkout`.
-- [ ] Verify `git push xrworkout main` succeeds using the personal account.
 - [ ] Authenticate Codex CLI on the server using XRWorkout's Codex/OpenAI account, not the personal `yorgobekaii` account.
 - [ ] Install and start the GitHub self-hosted runner registered from `XRWorkout/xrworkout_outreach_monitor` on the server.
 - [ ] Confirm the GitHub self-hosted runner uses the XRWorkout-owned server account with authenticated Codex CLI access.
