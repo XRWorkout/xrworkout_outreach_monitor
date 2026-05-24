@@ -1,0 +1,21 @@
+name: Self-hosted smoke
+
+on:
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: self-hosted
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e .
+      - run: python scripts/check_codex_cli.py
+        env:
+          CODEX_BIN: ${{ vars.CODEX_BIN || 'codex' }}
+          CODEX_MODEL: ${{ vars.CODEX_MODEL }}
+          CODEX_TIMEOUT_SECONDS: ${{ vars.CODEX_TIMEOUT_SECONDS || '300' }}

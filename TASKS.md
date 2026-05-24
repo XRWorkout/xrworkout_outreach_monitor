@@ -45,15 +45,21 @@ Updated on 2026-05-23.
 - [x] Added `scripts/save_checkpoint.sh` to save local commits and push to GitHub once a remote is connected.
 - [x] Published the local repository to `yorgobekaii/xr_workout_outreach_monitor` and configured SSH push access.
 - [x] Added standing repository operating rules in `AGENTS.md` for future commits, pushes, summaries, and README maintenance.
+- [x] Attempted a manual `Daily drafts` workflow dispatch on 2026-05-23 while the self-hosted runner was running with `./run.sh`.
+- [x] Observed no local `Runner.Worker`, no `_work` checkout, and no worker diagnostic log after the dispatch; the job did not visibly reach this server-side runner.
+- [x] Stopped the manual self-hosted runner process on 2026-05-23 to avoid stale or duplicate runner sessions.
+- [x] Noted the GitHub Actions Node.js 20 deprecation warning for `actions/checkout@v4` and `actions/setup-python@v5`; this is warning-level for now, but should be cleaned up before relying on scheduled automation.
+- [x] User confirmed on 2026-05-24 that the GitHub self-hosted runner shows a green dot and `idle` after service setup.
+- [x] Added `.github/workflows/self-hosted-smoke.yml` to verify checkout, Python setup, package install, and `python scripts/check_codex_cli.py` on the self-hosted runner.
+- [x] Added `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true` to GitHub Actions jobs to opt into Node.js 24 for JavaScript actions.
 
 ## Current Next Tasks
 
-- [ ] Reminder for the first Codex session on 2026-05-24: install the GitHub Actions runner as a system service with sudo:
-  - `cd /home/yorgobekaii/actions-runner`
-  - `sudo ./svc.sh install yorgobekaii`
-  - `sudo ./svc.sh start`
-  - `sudo ./svc.sh status`
-  - Why: the runner can run manually with `./run.sh`, but it will stop when the terminal closes or the server restarts. Installing it as a service keeps XRWorkout GitHub Actions online reliably.
+- [ ] Cancel any queued or in-progress `Daily drafts` run from 2026-05-23 in the GitHub Actions UI if it is still waiting for a runner.
+- [ ] In `XRWorkout/xrworkout_outreach_monitor` → Settings → Actions → Runners, remove stale/offline duplicate entries for `xrworkout-outreach-server` if GitHub shows more than one or shows a stuck session.
+- [ ] Decide the exact Linux user that should own production automation, then authenticate Codex CLI under that same user before reinstalling or starting the runner.
+- [ ] Run the new `Self-hosted smoke` workflow manually and confirm it passes.
+- [ ] Retry `Daily drafts` only after the runner is online, idle, service-managed, and the smoke workflow passes.
 - [ ] Create a dedicated Reddit automated/app account for the outreach monitor and register it during Reddit Data API app setup. Do not use the normal human Reddit account as the app account.
 - [ ] Fill the remaining Reddit fields in `.env`: `REDDIT_CLIENT_ID` and `REDDIT_CLIENT_SECRET`.
 - [ ] Add Reddit GitHub Actions secrets in `XRWorkout/xrworkout_outreach_monitor`: `REDDIT_CLIENT_ID` and `REDDIT_CLIENT_SECRET`.
