@@ -52,13 +52,13 @@ Updated on 2026-05-23.
 - [x] User confirmed on 2026-05-24 that the GitHub self-hosted runner shows a green dot and `idle` after service setup.
 - [x] Added `.github/workflows/self-hosted-smoke.yml` to verify checkout, Python setup, package install, and `python scripts/check_codex_cli.py` on the self-hosted runner.
 - [x] Added `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true` to GitHub Actions jobs to opt into Node.js 24 for JavaScript actions.
+- [x] User confirmed the `Self-hosted smoke` GitHub Actions workflow completed successfully on 2026-05-24.
 
 ## Current Next Tasks
 
 - [ ] Cancel any queued or in-progress `Daily drafts` run from 2026-05-23 in the GitHub Actions UI if it is still waiting for a runner.
 - [ ] In `XRWorkout/xrworkout_outreach_monitor` → Settings → Actions → Runners, remove stale/offline duplicate entries for `xrworkout-outreach-server` if GitHub shows more than one or shows a stuck session.
 - [ ] Decide the exact Linux user that should own production automation, then authenticate Codex CLI under that same user before reinstalling or starting the runner.
-- [ ] Run the new `Self-hosted smoke` workflow manually and confirm it passes.
 - [ ] Retry `Daily drafts` only after the runner is online, idle, service-managed, and the smoke workflow passes.
 - [ ] Create a dedicated Reddit automated/app account for the outreach monitor and register it during Reddit Data API app setup. Do not use the normal human Reddit account as the app account.
 - [ ] Fill the remaining Reddit fields in `.env`: `REDDIT_CLIENT_ID` and `REDDIT_CLIENT_SECRET`.
