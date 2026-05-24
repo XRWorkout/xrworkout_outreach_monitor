@@ -59,6 +59,7 @@ Updated on 2026-05-23.
 - [x] Updated `daily-collection.yml` to use Reddit RSS instead of the PRAW collector.
 - [x] Ran local RSS Reddit collection on 2026-05-24: `python scripts/collect_reddit_rss.py --limit 2 --max-total 5 --sleep-seconds 0 --timeout-seconds 20`, which succeeded with `Upserted 5 Reddit RSS raw items`.
 - [x] Ran weekly report after RSS collection: `raw_items: 108`, `opportunities: 1`, `creators: 0`, `drafts: 0`, `offers: 0`.
+- [x] User confirmed the updated `Daily collection` GitHub Actions workflow succeeded on 2026-05-24 after switching Reddit collection to RSS.
 
 ## Current Next Tasks
 
@@ -66,7 +67,6 @@ Updated on 2026-05-23.
 - [ ] In `XRWorkout/xrworkout_outreach_monitor` → Settings → Actions → Runners, remove stale/offline duplicate entries for `xrworkout-outreach-server` if GitHub shows more than one or shows a stuck session.
 - [ ] Decide the exact Linux user that should own production automation, then authenticate Codex CLI under that same user before reinstalling or starting the runner.
 - [ ] Treat Reddit API credentials as a future upgrade only if RSS collection becomes unreliable.
-- [ ] Run the updated `Daily collection` workflow manually in GitHub Actions and confirm RSS Reddit, YouTube, Twitch, classification, and creator discovery complete.
 - [ ] Authenticate Codex CLI on the server using XRWorkout's Codex/OpenAI account, not the personal `yorgobekaii` account, when that account is available.
 - [ ] After reviewing the first classified opportunity, continue the local LLM pipeline in small batches:
   - `python scripts/classify_opportunities.py --limit 10`
