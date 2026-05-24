@@ -18,6 +18,8 @@ Doing that manually is slow and inconsistent. This repo builds the operating lay
 - Require human approval before any email is sent.
 - Track sent drafts, follow-ups, and creator offers in Supabase.
 - Run on GitHub Actions, with LLM-dependent jobs on a self-hosted server runner that has Codex CLI installed and authenticated.
+- Use an `AUTOMATION_ENABLED` switch before treating scheduled jobs as always-on production automation.
+- Add a planned visual dashboard once Supabase Studio becomes too hard to use for daily review.
 
 ## Operating Principle
 
@@ -50,6 +52,9 @@ Approved-only sender sends email through Brevo
         |
         v
 Follow-up tasks and reporting keep the loop visible
+        |
+        v
+Future dashboard presents queues, charts, and automation status
 ```
 
 ## What Is Implemented
@@ -65,14 +70,20 @@ Follow-up tasks and reporting keep the loop visible
 - Follow-up task creation after sent emails.
 - Weekly report script.
 - GitHub Actions schedules for collection, drafts, approved sends, and weekly reporting.
+- Scheduled workflow jobs are gated by `AUTOMATION_ENABLED`; manual runs still work for validation.
 - Unit tests for deduplication, scoring rules, follow-up timing, database batch dedupe, and sender recipient extraction.
+
+## What Is Planned
+
+- A human-friendly Supabase-backed dashboard for review queues, graphs, filtering, sorting, follow-up visibility, and automation status.
+- Dashboard actions for narrow review operations such as approving, rejecting, or marking drafts as edit-needed.
 
 ## Tech Stack
 
 | Layer | Choice |
 |---|---|
 | Runtime | Python 3.11+ |
-| Scheduler | GitHub Actions cron, with Codex jobs on a self-hosted runner |
+| Scheduler | GitHub Actions cron, with Codex jobs on a self-hosted runner and scheduled jobs gated by `AUTOMATION_ENABLED` |
 | Database | Supabase Postgres |
 | Review UI | Supabase Studio |
 | LLM | Codex CLI on the server |
@@ -81,6 +92,7 @@ Follow-up tasks and reporting keep the loop visible
 | Twitch | Twitch Helix API |
 | Email | Brevo |
 | Tests | Pytest |
+| Planned dashboard | Supabase-backed web dashboard |
 
 ## Repository Structure
 
@@ -145,6 +157,7 @@ Local `.env` values and GitHub repository secrets should include:
 
 Optional settings:
 
+- `AUTOMATION_ENABLED`, global switch for scheduled workflows; set to `true` only when scheduled automation should run
 - `CODEX_BIN`, defaults to `codex`
 - `CODEX_MODEL`, optional; when empty, Codex CLI uses its configured default model
 - `CODEX_TIMEOUT_SECONDS`, defaults to `300`
@@ -196,6 +209,29 @@ The repo includes four scheduled workflows:
 
 All workflows can also be run manually from GitHub Actions.
 
+Launch control:
+
+- Keep the cron schedules in the workflow files so automation is ready.
+- Make scheduled jobs stop early unless `AUTOMATION_ENABLED` is explicitly `true`.
+- If `AUTOMATION_ENABLED` is missing, scheduled jobs behave as disabled.
+- Keep manual runs available for testing while scheduled automation is disabled.
+- Keep `DRY_RUN_SEND=true` as the separate email safety switch until one approved email has been dry-run and checked.
+
+## Planned Dashboard
+
+The dashboard should read from Supabase and make the outreach queue easier to operate than Supabase Studio. It should not replace Supabase as the source of truth.
+
+Planned views:
+
+- Overview metrics for raw items, opportunities, creators, drafts, sent emails, follow-ups, and offers.
+- Source charts showing platform volume, source quality, classification rate, and high-priority rate.
+- Opportunity queue with filters for platform, priority, score, age, safety status, and recommended action.
+- Draft review view with source context, creator context, subject/body, safety notes, and approve/reject/edit-needed actions.
+- Creator pipeline with contact availability, niche, fit reason, offer angle, and outreach history.
+- Follow-up queue for due and overdue follow-ups.
+- Offer tracking for the 3-month-free creator offer and content outcomes.
+- Automation status showing schedule state, last workflow runs, failures, `AUTOMATION_ENABLED`, and `DRY_RUN_SEND`.
+
 ## Safety Rules
 
 Automation may:
@@ -223,9 +259,10 @@ The core system is implemented and tested locally. YouTube and Twitch collection
 
 Remaining launch blockers:
 
-- Reddit RSS collection should be validated in GitHub Actions before enabling the full scheduled daily collection.
 - Reddit API app credentials are optional future fallback work if RSS becomes unreliable.
+- Review real Supabase rows and generate at least one reviewable draft.
 - Live email sending should remain disabled until at least one approved draft is dry-run and manually checked.
+- The visual dashboard is planned but intentionally not implemented yet.
 
 ## Maintenance
 

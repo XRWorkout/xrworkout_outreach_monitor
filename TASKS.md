@@ -4,7 +4,7 @@ This file tracks concrete setup, validation, and launch tasks for the outreach s
 
 ## Latest Validation Notes
 
-Updated on 2026-05-23.
+Updated on 2026-05-24.
 
 - [x] Verified `.env` exists at `/home/yorgobekaii/xrworkout-outreach/.env`.
 - [x] Verified configured values are present for Supabase, YouTube, Twitch, Brevo, founder name, site URL, and `DRY_RUN_SEND`.
@@ -60,6 +60,9 @@ Updated on 2026-05-23.
 - [x] Ran local RSS Reddit collection on 2026-05-24: `python scripts/collect_reddit_rss.py --limit 2 --max-total 5 --sleep-seconds 0 --timeout-seconds 20`, which succeeded with `Upserted 5 Reddit RSS raw items`.
 - [x] Ran weekly report after RSS collection: `raw_items: 108`, `opportunities: 1`, `creators: 0`, `drafts: 0`, `offers: 0`.
 - [x] User confirmed the updated `Daily collection` GitHub Actions workflow succeeded on 2026-05-24 after switching Reddit collection to RSS.
+- [x] User reviewed some Supabase rows on 2026-05-24 and said they looked legitimate enough to continue.
+- [x] Added an `AUTOMATION_ENABLED` job-level gate to scheduled GitHub Actions workflows; manual `workflow_dispatch` runs still work.
+- [x] Kept the daily pipeline schedule at once per day: collection at 14:00 UTC, drafts at 16:00 UTC, and approved sends at 17:00 UTC. Weekly reporting remains Friday at 18:00 UTC.
 
 ## Current Next Tasks
 
@@ -68,11 +71,11 @@ Updated on 2026-05-23.
 - [ ] Decide the exact Linux user that should own production automation, then authenticate Codex CLI under that same user before reinstalling or starting the runner.
 - [ ] Treat Reddit API credentials as a future upgrade only if RSS collection becomes unreliable.
 - [ ] Authenticate Codex CLI on the server using XRWorkout's Codex/OpenAI account, not the personal `yorgobekaii` account, when that account is available.
+- [ ] Keep `AUTOMATION_ENABLED` unset or `false` until the first approved-draft dry run is clean; set it to `true` only when scheduled automation should start.
 - [ ] After reviewing the first classified opportunity, continue the local LLM pipeline in small batches:
   - `python scripts/classify_opportunities.py --limit 10`
   - `python scripts/discover_creators.py --limit 10`
   - `python scripts/generate_drafts.py --limit 10`
-- [ ] Review `raw_items` in Supabase Studio, especially the latest YouTube and Twitch rows.
 - [ ] After opportunity classification and draft generation work, review generated `opportunities`, `creators`, and `drafts` rows in Supabase Studio.
 - [ ] Approve only safe, useful email drafts in Supabase Studio; keep public comments and DMs manual.
 - [ ] Run `python scripts/send_approved.py --dry-run` again after at least one draft is approved.
