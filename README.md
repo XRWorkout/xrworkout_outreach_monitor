@@ -10,7 +10,7 @@ XRWorkout needs to stay close to the people already talking about VR fitness, mi
 
 Doing that manually is slow and inconsistent. This repo builds the operating layer:
 
-- Collect relevant signals from Reddit, YouTube, and Twitch.
+- Collect relevant signals from Reddit RSS, YouTube, and Twitch.
 - Deduplicate source items before they enter the pipeline.
 - Use Codex CLI to classify, score, and summarize opportunities.
 - Promote promising creators into a reviewable prospect table.
@@ -56,7 +56,7 @@ Follow-up tasks and reporting keep the loop visible
 
 - Python package for outreach collection, scoring, drafting, and sending.
 - Supabase schema for `raw_items`, `opportunities`, `creators`, `drafts`, `followups`, and `offers`.
-- Reddit collector using PRAW.
+- Reddit RSS collector for low-volume public Reddit monitoring, with the PRAW collector retained as a future OAuth/API fallback.
 - YouTube collector using the YouTube Data API.
 - Twitch collector using the Twitch Helix API.
 - Codex CLI wrapper for classification, creator discovery, and draft generation.
@@ -76,7 +76,7 @@ Follow-up tasks and reporting keep the loop visible
 | Database | Supabase Postgres |
 | Review UI | Supabase Studio |
 | LLM | Codex CLI on the server |
-| Reddit | PRAW / Reddit Data API |
+| Reddit | Reddit RSS for v1, PRAW / Reddit Data API as a future fallback |
 | YouTube | YouTube Data API |
 | Twitch | Twitch Helix API |
 | Email | Brevo |
@@ -99,7 +99,8 @@ Follow-up tasks and reporting keep the loop visible
 
 | Script | Purpose |
 |---|---|
-| `scripts/collect_reddit.py` | Collects subreddit posts matching VR fitness keywords. |
+| `scripts/collect_reddit_rss.py` | Collects low-volume public Reddit RSS entries matching VR fitness keywords. |
+| `scripts/collect_reddit.py` | Legacy PRAW collector retained for a future Reddit API upgrade. |
 | `scripts/collect_youtube.py` | Collects relevant YouTube videos and channel context. |
 | `scripts/collect_twitch.py` | Collects relevant Twitch channel records. |
 | `scripts/classify_opportunities.py` | Scores raw items and creates outreach opportunities. |
@@ -135,9 +136,6 @@ Local `.env` values and GitHub repository secrets should include:
 
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
-- `REDDIT_CLIENT_ID`
-- `REDDIT_CLIENT_SECRET`
-- `REDDIT_USER_AGENT`
 - `YOUTUBE_API_KEY`
 - `TWITCH_CLIENT_ID`
 - `TWITCH_CLIENT_SECRET`
@@ -154,13 +152,14 @@ Optional settings:
 - `XRWORKOUT_SITE`, defaults to `https://xrworkout.ai`
 - `EMAIL_PROVIDER`, defaults to `brevo`
 - `DRY_RUN_SEND`, keep `true` until approved-send behavior is verified
+- `REDDIT_USER_AGENT`, optional; defaults to a clear XRWorkout monitoring user agent
 
 ## Local Dry Run
 
 Run the pipeline in small batches while validating credentials and data quality:
 
 ```bash
-python scripts/collect_reddit.py --limit 10
+python scripts/collect_reddit_rss.py --limit 5 --max-total 25 --sleep-seconds 2
 python scripts/collect_youtube.py --limit 10
 python scripts/collect_twitch.py --limit 10
 python scripts/classify_opportunities.py --limit 10
@@ -224,10 +223,8 @@ The core system is implemented and tested locally. YouTube and Twitch collection
 
 Remaining launch blockers:
 
-- Reddit API app credentials are still needed.
-- Codex CLI must be installed and authenticated on the server or self-hosted runner.
-- Full end-to-end dry run is pending those credentials.
-- GitHub Actions secrets should be added after the local dry run passes.
+- Reddit RSS collection should be validated in GitHub Actions before enabling the full scheduled daily collection.
+- Reddit API app credentials are optional future fallback work if RSS becomes unreliable.
 - Live email sending should remain disabled until at least one approved draft is dry-run and manually checked.
 
 ## Maintenance

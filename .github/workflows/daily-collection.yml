@@ -21,16 +21,14 @@ jobs:
           CODEX_BIN: ${{ vars.CODEX_BIN || 'codex' }}
           CODEX_MODEL: ${{ vars.CODEX_MODEL }}
           CODEX_TIMEOUT_SECONDS: ${{ vars.CODEX_TIMEOUT_SECONDS || '300' }}
-      - run: python scripts/collect_reddit.py --limit 25
+      - run: python scripts/collect_reddit_rss.py --limit 10 --max-total 75 --sleep-seconds 10
         env: &env
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           CODEX_BIN: ${{ vars.CODEX_BIN || 'codex' }}
           CODEX_MODEL: ${{ vars.CODEX_MODEL }}
           CODEX_TIMEOUT_SECONDS: ${{ vars.CODEX_TIMEOUT_SECONDS || '300' }}
-          REDDIT_CLIENT_ID: ${{ secrets.REDDIT_CLIENT_ID }}
-          REDDIT_CLIENT_SECRET: ${{ secrets.REDDIT_CLIENT_SECRET }}
-          REDDIT_USER_AGENT: ${{ secrets.REDDIT_USER_AGENT }}
+          REDDIT_USER_AGENT: "${{ vars.REDDIT_USER_AGENT || 'XRWorkoutOutreachMonitor/0.1 contact: https://xrworkout.ai' }}"
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
           TWITCH_CLIENT_ID: ${{ secrets.TWITCH_CLIENT_ID }}
           TWITCH_CLIENT_SECRET: ${{ secrets.TWITCH_CLIENT_SECRET }}

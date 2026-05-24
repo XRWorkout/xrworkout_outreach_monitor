@@ -55,20 +55,19 @@ Updated on 2026-05-23.
 - [x] User confirmed the `Self-hosted smoke` GitHub Actions workflow completed successfully on 2026-05-24.
 - [x] User confirmed the `Daily drafts` GitHub Actions workflow succeeded on 2026-05-24, including `Codex CLI auth check passed` and draft generation output.
 - [x] User confirmed the `Weekly report` GitHub Actions workflow succeeded on 2026-05-24.
+- [x] Added `scripts/collect_reddit_rss.py` as the active Reddit collector so v1 can collect low-volume public Reddit signals without Reddit app credentials.
+- [x] Updated `daily-collection.yml` to use Reddit RSS instead of the PRAW collector.
+- [x] Ran local RSS Reddit collection on 2026-05-24: `python scripts/collect_reddit_rss.py --limit 2 --max-total 5 --sleep-seconds 0 --timeout-seconds 20`, which succeeded with `Upserted 5 Reddit RSS raw items`.
+- [x] Ran weekly report after RSS collection: `raw_items: 108`, `opportunities: 1`, `creators: 0`, `drafts: 0`, `offers: 0`.
 
 ## Current Next Tasks
 
 - [ ] Cancel any queued or in-progress `Daily drafts` run from 2026-05-23 in the GitHub Actions UI if it is still waiting for a runner.
 - [ ] In `XRWorkout/xrworkout_outreach_monitor` → Settings → Actions → Runners, remove stale/offline duplicate entries for `xrworkout-outreach-server` if GitHub shows more than one or shows a stuck session.
 - [ ] Decide the exact Linux user that should own production automation, then authenticate Codex CLI under that same user before reinstalling or starting the runner.
-- [ ] Create a dedicated Reddit automated/app account for the outreach monitor and register it during Reddit Data API app setup. Do not use the normal human Reddit account as the app account.
-- [ ] Fill the remaining Reddit fields in `.env`: `REDDIT_CLIENT_ID` and `REDDIT_CLIENT_SECRET`.
-- [ ] Add Reddit GitHub Actions secrets in `XRWorkout/xrworkout_outreach_monitor`: `REDDIT_CLIENT_ID` and `REDDIT_CLIENT_SECRET`.
-- [ ] Authenticate Codex CLI on the server using XRWorkout's Codex/OpenAI account, not the personal `yorgobekaii` account.
-- [ ] Keep the GitHub self-hosted runner registered from `XRWorkout/xrworkout_outreach_monitor` running manually with `./run.sh` until the service install reminder is complete.
-- [ ] Confirm the GitHub self-hosted runner uses the XRWorkout-owned server account with authenticated Codex CLI access.
-- [ ] Run the blocked Reddit collector after Reddit credentials are ready:
-  - `python scripts/collect_reddit.py --limit 5`
+- [ ] Treat Reddit API credentials as a future upgrade only if RSS collection becomes unreliable.
+- [ ] Run the updated `Daily collection` workflow manually in GitHub Actions and confirm RSS Reddit, YouTube, Twitch, classification, and creator discovery complete.
+- [ ] Authenticate Codex CLI on the server using XRWorkout's Codex/OpenAI account, not the personal `yorgobekaii` account, when that account is available.
 - [ ] After reviewing the first classified opportunity, continue the local LLM pipeline in small batches:
   - `python scripts/classify_opportunities.py --limit 10`
   - `python scripts/discover_creators.py --limit 10`
@@ -77,7 +76,6 @@ Updated on 2026-05-23.
 - [ ] After opportunity classification and draft generation work, review generated `opportunities`, `creators`, and `drafts` rows in Supabase Studio.
 - [ ] Approve only safe, useful email drafts in Supabase Studio; keep public comments and DMs manual.
 - [ ] Run `python scripts/send_approved.py --dry-run` again after at least one draft is approved.
-- [ ] Add required GitHub Actions secrets after the full local dry-run pipeline works.
 - [ ] Keep `DRY_RUN_SEND=true` until one approved email has been dry-run and manually checked.
 
 ## Completed Setup
@@ -91,6 +89,5 @@ Updated on 2026-05-23.
 
 ## Still Undone Or Blocked
 
-- [ ] Reddit collection is blocked until Reddit API app credentials are available.
-- [ ] Full end-to-end dry-run pipeline is not complete because Reddit collection is still blocked and no reviewable draft has been generated yet.
+- [ ] Full end-to-end dry-run pipeline is not complete because no reviewable draft has been generated yet.
 - [ ] Live email sending has not been tested and should stay disabled.
