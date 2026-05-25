@@ -66,26 +66,35 @@ Updated on 2026-05-25.
 - [x] Implemented the Next.js dashboard under `dashboard/` with Supabase login, operator allowlist, overview charts, queues, draft editing, draft status actions, GitHub automation controls, and workflow dispatch.
 - [x] Added `dashboard_audit_logs` to `supabase/schema.sql` for dashboard write auditing.
 - [x] Verified dashboard tests and production build on 2026-05-25.
+- [x] Fast-forwarded the canonical local repo to include the latest XRWorkout remote README and daily-collection edits.
+- [x] Found and fixed a malformed `daily-collection.yml` indentation issue introduced by the latest remote edit.
+- [x] Removed a stray README list marker under `Why This Exists`.
+- [x] Verified `dashboard_audit_logs` exists in Supabase; dashboard write auditing is available.
+- [x] Confirmed the dashboard has already recorded workflow dispatch, draft status, and GitHub variable audit events.
+- [x] Confirmed current GitHub Actions variables are `AUTOMATION_ENABLED=false` and `DRY_RUN_SEND=true`.
+- [x] Ran the weekly report on 2026-05-25: `raw_items: 289`, `opportunities: 50`, `creators: 1`, `drafts: 6`, `offers: 0`.
+- [x] Checked current Supabase state on 2026-05-25: opportunities are `7 high`, `14 medium`, `29 low`; drafts are `5 needs_review` and `1 sent`; creators are `1 new`.
+- [x] Confirmed the sent email draft created one pending step-1 follow-up due on 2026-06-01.
+- [x] Checked latest GitHub workflow runs: `daily-drafts`, `daily-send`, and `weekly-report` succeeded manually on 2026-05-25; the latest `daily-collection` push run failed because of the YAML issue fixed above.
 
 ## Current Next Tasks
 
-- [ ] Cancel any queued or in-progress `Daily drafts` run from 2026-05-23 in the GitHub Actions UI if it is still waiting for a runner.
-- [ ] In `XRWorkout/xrworkout_outreach_monitor` → Settings → Actions → Runners, remove stale/offline duplicate entries for `xrworkout-outreach-server` if GitHub shows more than one or shows a stuck session.
-- [ ] Decide the exact Linux user that should own production automation, then authenticate Codex CLI under that same user before reinstalling or starting the runner.
+- [ ] Push the YAML/README/TASKS checkpoint to both `origin/main` and `xrworkout/main`.
+- [ ] Manually dispatch `Daily collection` once after the YAML fix lands, and confirm it completes successfully.
+- [ ] Review the 5 `needs_review` drafts now in Supabase/dashboard; reject weak targets, mark edit-needed drafts clearly, and approve only safe email drafts.
+- [ ] Review the 7 high-priority opportunities and the 1 new creator row for targeting quality and contact validity.
+- [ ] Confirm the 2026-05-25 sent email in Brevo: delivery status, recipient correctness, sender identity, and no unsafe claims.
+- [ ] Keep `AUTOMATION_ENABLED=false` while polishing review quality and workflow reliability.
+- [ ] Keep `DRY_RUN_SEND=true` until the sent-email verification and at least one more approved-draft dry run are clean.
+- [ ] Deploy the `dashboard/` app to Vercel, or confirm the production dashboard URL if it has already been deployed.
+- [ ] Configure and verify Vercel environment variables for Supabase auth/admin access, dashboard operator emails, and the GitHub fine-grained token.
+- [ ] Polish existing dashboard features before adding new sources: empty states, loading/error states, draft editing ergonomics, table filters, and automation status clarity.
+- [ ] Add focused tests for the dashboard API write paths that update draft status, edit draft content, update GitHub variables, and dispatch workflows.
+- [ ] Add clearer pipeline logging around collector row counts, LLM classification outcomes, draft eligibility skips, and sender dry-run/live-send decisions.
+- [ ] Add a due-followup processing script or operator workflow before the first follow-up due date on 2026-06-01.
 - [ ] Treat Reddit API credentials as a future upgrade only if RSS collection becomes unreliable.
 - [ ] Authenticate Codex CLI on the server using XRWorkout's Codex/OpenAI account, not the personal `yorgobekaii` account, when that account is available.
-- [ ] Run the updated `supabase/schema.sql` in Supabase so `dashboard_audit_logs` exists before dashboard write actions are used.
-- [ ] Deploy the `dashboard/` app to Vercel.
-- [ ] Configure Vercel environment variables for Supabase auth/admin access, dashboard operator emails, and the GitHub fine-grained token.
-- [ ] Keep `AUTOMATION_ENABLED` unset or `false` until the first approved-draft dry run is clean; set it to `true` only when scheduled automation should start.
-- [ ] After reviewing the first classified opportunity, continue the local LLM pipeline in small batches:
-  - `python scripts/classify_opportunities.py --limit 10`
-  - `python scripts/discover_creators.py --limit 10`
-  - `python scripts/generate_drafts.py --limit 10`
-- [ ] After opportunity classification and draft generation work, review generated `opportunities`, `creators`, and `drafts` rows in Supabase Studio.
-- [ ] Approve only safe, useful email drafts in Supabase Studio; keep public comments and DMs manual.
-- [ ] Run `python scripts/send_approved.py --dry-run` again after at least one draft is approved.
-- [ ] Keep `DRY_RUN_SEND=true` until one approved email has been dry-run and manually checked.
+- [ ] After one more clean collection/draft/send validation cycle, decide whether to set `AUTOMATION_ENABLED=true` for scheduled daily operation.
 
 ## Completed Setup
 
@@ -98,5 +107,7 @@ Updated on 2026-05-25.
 
 ## Still Undone Or Blocked
 
-- [ ] Full end-to-end dry-run pipeline is not complete because no reviewable draft has been generated yet.
-- [ ] Live email sending has not been tested and should stay disabled.
+- [ ] One email draft is marked `sent`, but Brevo delivery and recipient correctness still need manual confirmation.
+- [ ] Scheduled automation is intentionally disabled with `AUTOMATION_ENABLED=false`.
+- [ ] Dashboard production deployment and environment verification are still pending unless the user confirms a deployed URL.
+- [ ] Follow-up handling is not automated yet; one pending follow-up is due on 2026-06-01.
