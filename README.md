@@ -19,7 +19,7 @@ Doing that manually is slow and inconsistent. This repo builds the operating lay
 - Track sent drafts, follow-ups, and creator offers in Supabase.
 - Run on GitHub Actions, with LLM-dependent jobs on a self-hosted server runner that has Codex CLI installed and authenticated.
 - Use an `AUTOMATION_ENABLED` switch before treating scheduled jobs as always-on production automation.
-- Add a planned visual dashboard once Supabase Studio becomes too hard to use for daily review.
+- Provide a Next.js visual dashboard for review queues, draft editing, approval, and automation controls.
 
 ## Operating Principle
 
@@ -54,7 +54,7 @@ Approved-only sender sends email through Brevo
 Follow-up tasks and reporting keep the loop visible
         |
         v
-Future dashboard presents queues, charts, and automation status
+Dashboard presents queues, charts, draft controls, and automation status
 ```
 
 ## What Is Implemented
@@ -71,12 +71,13 @@ Future dashboard presents queues, charts, and automation status
 - Weekly report script.
 - GitHub Actions schedules for collection, drafts, approved sends, and weekly reporting.
 - Scheduled workflow jobs are gated by `AUTOMATION_ENABLED`; manual runs still work for validation.
+- Next.js dashboard under `dashboard/` with Supabase login, operator allowlist, draft editing, workflow dispatch, and automation variable controls.
 - Unit tests for deduplication, scoring rules, follow-up timing, database batch dedupe, and sender recipient extraction.
 
 ## What Is Planned
 
-- A human-friendly Supabase-backed dashboard for review queues, graphs, filtering, sorting, follow-up visibility, and automation status.
-- Dashboard actions for narrow review operations such as approving, rejecting, or marking drafts as edit-needed.
+- Deploy the dashboard to Vercel after the dashboard environment variables are configured.
+- Expand dashboard outcome tracking after the first controlled send loop is complete.
 
 ## Tech Stack
 
@@ -92,13 +93,14 @@ Future dashboard presents queues, charts, and automation status
 | Twitch | Twitch Helix API |
 | Email | Brevo |
 | Tests | Pytest |
-| Planned dashboard | Supabase-backed web dashboard |
+| Dashboard | Next.js on Vercel, Supabase Auth, GitHub API |
 
 ## Repository Structure
 
 ```text
 .
 ├── .github/workflows/       # Scheduled jobs
+├── dashboard/                # Next.js internal dashboard
 ├── docs/                    # Runbook and secrets guide
 ├── prompts/                 # Outreach and reply prompt templates
 ├── scripts/                 # CLI entrypoints for each pipeline stage
@@ -141,6 +143,32 @@ pip install -e ".[dev]"
 ```bash
 pytest
 ```
+
+## Dashboard Setup
+
+The dashboard lives in `dashboard/` and is designed for Vercel.
+
+Dashboard environment variables:
+
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `DASHBOARD_OPERATOR_EMAILS`, comma-separated approved operator emails
+- `DASHBOARD_GITHUB_TOKEN`, fine-grained token with repository Actions read/write, repository variables read/write, and metadata read
+- `DASHBOARD_GITHUB_OWNER`, defaults to `XRWorkout`
+- `DASHBOARD_GITHUB_REPO`, defaults to `xrworkout_outreach_monitor`
+
+Install and verify locally:
+
+```bash
+cd dashboard
+npm install
+npm test
+npm run lint
+npm run build
+```
+
+Before using dashboard write actions, run the updated `supabase/schema.sql` so `dashboard_audit_logs` exists.
 
 ## Required Credentials
 
@@ -217,9 +245,9 @@ Launch control:
 - Keep manual runs available for testing while scheduled automation is disabled.
 - Keep `DRY_RUN_SEND=true` as the separate email safety switch until one approved email has been dry-run and checked.
 
-## Planned Dashboard
+## Dashboard
 
-The dashboard should read from Supabase and make the outreach queue easier to operate than Supabase Studio. It should not replace Supabase as the source of truth.
+The dashboard reads from Supabase and makes the outreach queue easier to operate than Supabase Studio. It does not replace Supabase as the source of truth.
 
 Planned views:
 
@@ -231,6 +259,7 @@ Planned views:
 - Follow-up queue for due and overdue follow-ups.
 - Offer tracking for the 3-month-free creator offer and content outcomes.
 - Automation status showing schedule state, last workflow runs, failures, `AUTOMATION_ENABLED`, and `DRY_RUN_SEND`.
+- Automation controls for toggling `AUTOMATION_ENABLED` and `DRY_RUN_SEND`, and manually dispatching collection, draft, approved-send, and report workflows.
 
 ## Safety Rules
 
@@ -262,7 +291,7 @@ Remaining launch blockers:
 - Reddit API app credentials are optional future fallback work if RSS becomes unreliable.
 - Review real Supabase rows and generate at least one reviewable draft.
 - Live email sending should remain disabled until at least one approved draft is dry-run and manually checked.
-- The visual dashboard is planned but intentionally not implemented yet.
+- Dashboard deployment and Vercel environment configuration are still pending.
 
 ## Maintenance
 

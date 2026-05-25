@@ -115,3 +115,17 @@ create table if not exists offers (
   outcome text,
   created_at timestamptz not null default now()
 );
+
+create table if not exists dashboard_audit_logs (
+  id uuid primary key default gen_random_uuid(),
+  actor_email text not null,
+  action_type text not null,
+  target_table text not null,
+  target_id text not null,
+  before_json jsonb,
+  after_json jsonb,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists dashboard_audit_logs_created_idx on dashboard_audit_logs(created_at desc);
+create index if not exists dashboard_audit_logs_target_idx on dashboard_audit_logs(target_table, target_id);

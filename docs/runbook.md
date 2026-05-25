@@ -2,12 +2,25 @@
 
 ## Daily review
 
-1. Open Supabase Studio.
+1. Open the dashboard.
 2. Review `opportunities` where `priority = high`.
 3. Review `drafts` where `status = needs_review`.
-4. Edit draft text if needed.
-5. Mark safe drafts as `approved`.
+4. Edit draft subject/body in the dashboard if needed.
+5. Mark safe email drafts as `approved`.
 6. Mark weak drafts as `rejected` or `edit_needed`.
+7. Use "Approve + run send" only while `DRY_RUN_SEND=true` until the first approved-send dry run has been checked.
+
+Supabase Studio remains the fallback for direct database inspection.
+
+## Dashboard automation controls
+
+The dashboard can update GitHub repository variables and dispatch existing workflows.
+
+- Keep `AUTOMATION_ENABLED=false` until scheduled automation should start.
+- Keep `DRY_RUN_SEND=true` until one approved email has been dry-run and manually checked.
+- Use manual workflow dispatches from the dashboard for collection, draft generation, approved-send dry runs, and reports.
+- The dashboard does not send email directly through Brevo; it only triggers the existing GitHub Actions sender.
+- Dashboard write actions are logged in `dashboard_audit_logs`.
 
 ## Failed GitHub Actions
 

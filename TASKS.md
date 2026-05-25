@@ -4,7 +4,7 @@ This file tracks concrete setup, validation, and launch tasks for the outreach s
 
 ## Latest Validation Notes
 
-Updated on 2026-05-24.
+Updated on 2026-05-25.
 
 - [x] Verified `.env` exists at `/home/yorgobekaii/xrworkout-outreach/.env`.
 - [x] Verified configured values are present for Supabase, YouTube, Twitch, Brevo, founder name, site URL, and `DRY_RUN_SEND`.
@@ -63,6 +63,9 @@ Updated on 2026-05-24.
 - [x] User reviewed some Supabase rows on 2026-05-24 and said they looked legitimate enough to continue.
 - [x] Added an `AUTOMATION_ENABLED` job-level gate to scheduled GitHub Actions workflows; manual `workflow_dispatch` runs still work.
 - [x] Kept the daily pipeline schedule at once per day: collection at 14:00 UTC, drafts at 16:00 UTC, and approved sends at 17:00 UTC. Weekly reporting remains Friday at 18:00 UTC.
+- [x] Implemented the Next.js dashboard under `dashboard/` with Supabase login, operator allowlist, overview charts, queues, draft editing, draft status actions, GitHub automation controls, and workflow dispatch.
+- [x] Added `dashboard_audit_logs` to `supabase/schema.sql` for dashboard write auditing.
+- [x] Verified dashboard tests and production build on 2026-05-25.
 
 ## Current Next Tasks
 
@@ -71,6 +74,9 @@ Updated on 2026-05-24.
 - [ ] Decide the exact Linux user that should own production automation, then authenticate Codex CLI under that same user before reinstalling or starting the runner.
 - [ ] Treat Reddit API credentials as a future upgrade only if RSS collection becomes unreliable.
 - [ ] Authenticate Codex CLI on the server using XRWorkout's Codex/OpenAI account, not the personal `yorgobekaii` account, when that account is available.
+- [ ] Run the updated `supabase/schema.sql` in Supabase so `dashboard_audit_logs` exists before dashboard write actions are used.
+- [ ] Deploy the `dashboard/` app to Vercel.
+- [ ] Configure Vercel environment variables for Supabase auth/admin access, dashboard operator emails, and the GitHub fine-grained token.
 - [ ] Keep `AUTOMATION_ENABLED` unset or `false` until the first approved-draft dry run is clean; set it to `true` only when scheduled automation should start.
 - [ ] After reviewing the first classified opportunity, continue the local LLM pipeline in small batches:
   - `python scripts/classify_opportunities.py --limit 10`
