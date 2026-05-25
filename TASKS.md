@@ -88,6 +88,7 @@ Updated on 2026-05-25.
 - [ ] Keep `DRY_RUN_SEND=true` until the sent-email verification and at least one more approved-draft dry run are clean.
 - [ ] Deploy the `dashboard/` app to Vercel, or confirm the production dashboard URL if it has already been deployed.
 - [ ] Configure and verify Vercel environment variables for Supabase auth/admin access, dashboard operator emails, and the GitHub fine-grained token.
+- [ ] Investigate the local dashboard `npm run build`, `npm run lint`, and `npx tsc --noEmit` hangs before treating dashboard deployment as verified.
 - [ ] Polish existing dashboard features before adding new sources: empty states, loading/error states, draft editing ergonomics, table filters, and automation status clarity.
 - [ ] Add focused tests for the dashboard API write paths that update draft status, edit draft content, update GitHub variables, and dispatch workflows.
 - [ ] Add clearer pipeline logging around collector row counts, LLM classification outcomes, draft eligibility skips, and sender dry-run/live-send decisions.
