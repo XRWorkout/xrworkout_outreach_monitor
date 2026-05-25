@@ -76,10 +76,10 @@ Updated on 2026-05-25.
 - [x] Checked current Supabase state on 2026-05-25: opportunities are `7 high`, `14 medium`, `29 low`; drafts are `5 needs_review` and `1 sent`; creators are `1 new`.
 - [x] Confirmed the sent email draft created one pending step-1 follow-up due on 2026-06-01.
 - [x] Checked latest GitHub workflow runs: `daily-drafts`, `daily-send`, and `weekly-report` succeeded manually on 2026-05-25; the latest `daily-collection` push run failed because of the YAML issue fixed above.
+- [x] Pushed the YAML/README/TASKS checkpoint to `origin/main`, `xrworkout/main`, and confirmed the deploy-key remote points to the same commit.
 
 ## Current Next Tasks
 
-- [ ] Push the YAML/README/TASKS checkpoint to both `origin/main` and `xrworkout/main`.
 - [ ] Manually dispatch `Daily collection` once after the YAML fix lands, and confirm it completes successfully.
 - [ ] Review the 5 `needs_review` drafts now in Supabase/dashboard; reject weak targets, mark edit-needed drafts clearly, and approve only safe email drafts.
 - [ ] Review the 7 high-priority opportunities and the 1 new creator row for targeting quality and contact validity.
