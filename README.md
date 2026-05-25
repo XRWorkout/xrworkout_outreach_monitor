@@ -5,7 +5,7 @@ Agentic outreach infrastructure for XRWorkout: a scheduled Python system that fi
 The goal is simple: turn scattered creator and community signals into a reliable outreach queue without losing human judgment.
 
 ## Why This Exists
-
+-
 XRWorkout needs to stay close to the people already talking about VR fitness, mixed reality workouts, Quest apps, creator reviews, and alternatives to apps like FitXR, Supernatural, Les Mills BodyCombat, and Beat Saber workouts.
 
 Doing that manually is slow and inconsistent. This repo builds the operating layer:
