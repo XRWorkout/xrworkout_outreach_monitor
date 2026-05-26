@@ -4,6 +4,7 @@ import { assertAutomationVariableName, assertWorkflowKey, workflowFiles } from "
 describe("GitHub automation guards", () => {
   it("allows only supported automation variables", () => {
     expect(() => assertAutomationVariableName("AUTOMATION_ENABLED")).not.toThrow();
+    expect(() => assertAutomationVariableName("SEND_AUTOMATION_ENABLED")).not.toThrow();
     expect(() => assertAutomationVariableName("DRY_RUN_SEND")).not.toThrow();
     expect(() => assertAutomationVariableName("BREVO_API_KEY")).toThrow("Unsupported automation variable");
   });

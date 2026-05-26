@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Any
 
 from supabase import Client, create_client
@@ -23,15 +23,19 @@ class OutreachDB:
         )
 
     def upsert_raw_items(self, rows: Iterable[dict[str, Any]]) -> None:
-        payload_by_hash = {
-            row["dedupe_hash"]: row
-            for row in rows
-            if row.get("dedupe_hash")
-        }
-        payload = list(payload_by_hash.values())
+        payload = self.deduped_raw_payload(rows)
         if not payload:
             return
         self.client.table("raw_items").upsert(payload, on_conflict="dedupe_hash").execute()
+
+    def deduped_raw_payload(self, rows: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
+        return list(
+            {
+                row["dedupe_hash"]: row
+                for row in rows
+                if row.get("dedupe_hash")
+            }.values()
+        )
 
     def fetch_unprocessed_raw_items(self, limit: int) -> list[dict[str, Any]]:
         result = (
@@ -84,6 +88,18 @@ class OutreachDB:
     def insert_followup(self, row: dict[str, Any]) -> None:
         self.client.table("followups").insert(row).execute()
 
+    def fetch_due_followups(self, as_of: date, limit: int) -> list[dict[str, Any]]:
+        result = (
+            self.client.table("followups")
+            .select("*, drafts(*, creators(*), opportunities(*))")
+            .eq("status", "pending")
+            .lte("due_date", as_of.isoformat())
+            .order("due_date")
+            .limit(limit)
+            .execute()
+        )
+        return result.data or []
+
     def upsert_creator(self, row: dict[str, Any]) -> None:
         self.client.table("creators").upsert(row, on_conflict="platform,profile_url").execute()
 
@@ -99,7 +115,7 @@ class OutreachDB:
         return result.data or []
 
     def weekly_counts(self) -> dict[str, int]:
-        tables = ["raw_items", "opportunities", "creators", "drafts", "offers"]
+        tables = ["raw_items", "opportunities", "creators", "drafts", "followups", "offers"]
         counts: dict[str, int] = {}
         for table in tables:
             result = self.client.table(table).select("id", count="exact").execute()

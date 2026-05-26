@@ -13,7 +13,7 @@ def main() -> None:
     for table, count in counts.items():
         print(f"{table}: {count}")
     print("")
-    print("Review high-priority opportunities and needs_review drafts in Supabase Studio.")
+    print("Review high-priority opportunities, needs_review drafts, and due follow-ups in the dashboard.")
 
 
 if __name__ == "__main__":

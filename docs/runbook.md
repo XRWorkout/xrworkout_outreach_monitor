@@ -8,7 +8,8 @@
 4. Edit draft subject/body in the dashboard if needed.
 5. Mark safe email drafts as `approved`.
 6. Mark weak drafts as `rejected` or `edit_needed`.
-7. Use "Approve + run send" only while `DRY_RUN_SEND=true` until the first approved-send dry run has been checked.
+7. Use "Approve + dry-run send" only while `DRY_RUN_SEND=true`.
+8. Review due follow-ups and mark each one `completed` or `skipped` after the operator handles it.
 
 Supabase Studio remains the fallback for direct database inspection.
 
@@ -17,10 +18,24 @@ Supabase Studio remains the fallback for direct database inspection.
 The dashboard can update GitHub repository variables and dispatch existing workflows.
 
 - Keep `AUTOMATION_ENABLED=false` until scheduled automation should start.
-- Keep `DRY_RUN_SEND=true` until the next approved-send validation cycle is clean.
+- Keep `SEND_AUTOMATION_ENABLED=false`; it controls only scheduled approved-send jobs.
+- Keep `DRY_RUN_SEND=true` so dashboard send dispatches are dry-run only.
 - Use manual workflow dispatches from the dashboard for collection, draft generation, approved-send dry runs, and reports.
 - The dashboard does not send email directly through Brevo; it only triggers the existing GitHub Actions sender.
 - Dashboard write actions are logged in `dashboard_audit_logs`.
+
+## Follow-up queue
+
+Use the dashboard follow-up tab as the primary queue. It shows due date, cadence step, original draft context, creator contact, and any operator follow-up note.
+
+For a terminal backup view:
+
+```bash
+python scripts/list_due_followups.py --as-of 2026-06-01
+python scripts/list_due_followups.py --as-of 2026-06-01 --format json
+```
+
+Follow-ups remain operator-handled in v1. The system does not auto-send follow-up messages.
 
 ## Failed GitHub Actions
 

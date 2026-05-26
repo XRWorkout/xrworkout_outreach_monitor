@@ -9,10 +9,11 @@ export const workflowFiles: Record<WorkflowKey, string> = {
   report: "weekly-report.yml"
 };
 
-export type AutomationVariableName = "AUTOMATION_ENABLED" | "DRY_RUN_SEND";
+export type AutomationVariableName = "AUTOMATION_ENABLED" | "SEND_AUTOMATION_ENABLED" | "DRY_RUN_SEND";
 
 const automationVariables = new Set<AutomationVariableName>([
   "AUTOMATION_ENABLED",
+  "SEND_AUTOMATION_ENABLED",
   "DRY_RUN_SEND"
 ]);
 

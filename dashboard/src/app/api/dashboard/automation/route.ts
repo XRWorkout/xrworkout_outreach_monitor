@@ -7,6 +7,7 @@ export async function GET(request: Request) {
     await requireOperator(request);
     const [
       automationEnabled,
+      sendAutomationEnabled,
       dryRunSend,
       collection,
       drafts,
@@ -14,6 +15,7 @@ export async function GET(request: Request) {
       report
     ] = await Promise.all([
       getAutomationVariable("AUTOMATION_ENABLED"),
+      getAutomationVariable("SEND_AUTOMATION_ENABLED"),
       getAutomationVariable("DRY_RUN_SEND"),
       getWorkflowStatus("collection"),
       getWorkflowStatus("drafts"),
@@ -24,6 +26,7 @@ export async function GET(request: Request) {
     return Response.json({
       variables: {
         AUTOMATION_ENABLED: automationEnabled || "false",
+        SEND_AUTOMATION_ENABLED: sendAutomationEnabled || "false",
         DRY_RUN_SEND: dryRunSend || "true"
       },
       workflows: { collection, drafts, send, report }

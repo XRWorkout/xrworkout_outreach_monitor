@@ -71,7 +71,7 @@ Updated on 2026-05-26.
 - [x] Removed a stray README list marker under `Why This Exists`.
 - [x] Verified `dashboard_audit_logs` exists in Supabase; dashboard write auditing is available.
 - [x] Confirmed the dashboard has already recorded workflow dispatch, draft status, and GitHub variable audit events.
-- [x] Confirmed current GitHub Actions variables are `AUTOMATION_ENABLED=false` and `DRY_RUN_SEND=true`.
+- [x] Confirmed current GitHub Actions variables are `AUTOMATION_ENABLED=false`, `SEND_AUTOMATION_ENABLED=false`, and `DRY_RUN_SEND=true`.
 - [x] Ran the weekly report on 2026-05-25: `raw_items: 289`, `opportunities: 50`, `creators: 1`, `drafts: 6`, `offers: 0`.
 - [x] Checked current Supabase state on 2026-05-25: opportunities are `7 high`, `14 medium`, `29 low`; drafts are `5 needs_review` and `1 sent`; creators are `1 new`.
 - [x] Confirmed the sent email draft created one pending step-1 follow-up due on 2026-06-01.
@@ -80,6 +80,13 @@ Updated on 2026-05-26.
 - [x] User confirmed on 2026-05-26 that the dashboard has been deployed.
 - [x] User confirmed on 2026-05-26 that the 2026-05-25 sent email was manually verified in Brevo.
 - [x] Added `docs/outreach-design.md` to document intake sources, filtering, prioritization, channel decisions, tracker structure, anti-spam rules, follow-up cadence, and agent automation steps.
+- [x] User confirmed on 2026-05-26 that one approved-send dry run was manually run and only approved email drafts were counted.
+- [x] Added `SEND_AUTOMATION_ENABLED` as the separate scheduled approved-send safety gate; schedules remain disabled.
+- [x] Verified GitHub Actions variable `SEND_AUTOMATION_ENABLED=false` in `XRWorkout/xrworkout_outreach_monitor`.
+- [x] Added audited dashboard controls for opportunity status, creator review fields, follow-up outcomes, and offer outcomes.
+- [x] Made dashboard send workflow dispatch dry-run only while `DRY_RUN_SEND=true`.
+- [x] Added `scripts/list_due_followups.py` as a read-only backup for operator follow-up handling.
+- [x] Added clearer pipeline logging around collector row counts, LLM classification outcomes, draft eligibility skips, and sender dry-run decisions.
 
 ## Current Next Tasks
 
@@ -87,15 +94,14 @@ Updated on 2026-05-26.
 - [ ] Review the 5 `needs_review` drafts now in Supabase/dashboard; reject weak targets, mark edit-needed drafts clearly, and approve only safe email drafts.
 - [ ] Review the 7 high-priority opportunities and the 1 new creator row for targeting quality and contact validity.
 - [ ] Keep `AUTOMATION_ENABLED=false` while polishing review quality and workflow reliability.
-- [ ] Keep `DRY_RUN_SEND=true` until at least one more approved-draft dry run is clean.
+- [ ] Keep `SEND_AUTOMATION_ENABLED=false` so scheduled approved sends remain disabled.
+- [ ] Keep `DRY_RUN_SEND=true` so dashboard send workflow dispatches remain dry-run only.
 - [ ] Investigate the local dashboard `npm run build`, `npm run lint`, and `npx tsc --noEmit` hangs as a local development issue separate from the deployed dashboard.
 - [ ] Polish existing dashboard features before adding new sources: empty states, loading/error states, draft editing ergonomics, table filters, and automation status clarity.
-- [ ] Add focused tests for the dashboard API write paths that update draft status, edit draft content, update GitHub variables, and dispatch workflows.
-- [ ] Add clearer pipeline logging around collector row counts, LLM classification outcomes, draft eligibility skips, and sender dry-run/live-send decisions.
-- [ ] Add a due-followup processing script or operator workflow before the first follow-up due date on 2026-06-01.
+- [ ] Add deeper route-handler tests for the dashboard API write paths if the current schema/helper coverage is not enough.
 - [ ] Treat Reddit API credentials as a future upgrade only if RSS collection becomes unreliable.
 - [ ] Authenticate Codex CLI on the server using XRWorkout's Codex/OpenAI account, not the personal `yorgobekaii` account, when that account is available.
-- [ ] After one more clean collection/draft/send validation cycle, decide whether to set `AUTOMATION_ENABLED=true` for scheduled daily operation.
+- [ ] Decide when the project is complete enough to enable schedules; do not enable them yet.
 
 ## Completed Setup
 
@@ -109,4 +115,5 @@ Updated on 2026-05-26.
 ## Still Undone Or Blocked
 
 - [ ] Scheduled automation is intentionally disabled with `AUTOMATION_ENABLED=false`.
-- [ ] Follow-up handling is not automated yet; one pending follow-up is due on 2026-06-01.
+- [ ] Scheduled approved sending is intentionally disabled with `SEND_AUTOMATION_ENABLED=false`.
+- [ ] Follow-up sending is intentionally operator-handled in v1; one pending follow-up is due on 2026-06-01.

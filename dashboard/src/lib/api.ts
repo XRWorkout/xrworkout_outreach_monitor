@@ -6,7 +6,8 @@ export function errorResponse(error: unknown) {
     return NextResponse.json({ error: "Invalid request", details: error.issues }, { status: 400 });
   }
   if (error instanceof Error) {
-    const status = error.message.includes("cannot") || error.message.includes("Only email") ? 409 : 500;
+    const conflict = ["cannot", "Only email", "dry-run only"].some((text) => error.message.includes(text));
+    const status = conflict ? 409 : 500;
     return NextResponse.json({ error: error.message }, { status });
   }
   return NextResponse.json({ error: "Unexpected dashboard error" }, { status: 500 });

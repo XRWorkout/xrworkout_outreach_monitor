@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   assertDraftCanBeEdited,
   assertDraftStatusChangeAllowed,
+  assertDryRunSendDispatchAllowed,
   draftEditSchema,
   type DraftRecord
 } from "@/lib/draft-rules";
@@ -43,5 +44,10 @@ describe("draft status transitions", () => {
 
   it("blocks sent draft status changes", () => {
     expect(() => assertDraftStatusChangeAllowed(draft({ status: "sent" }), "rejected")).toThrow("Sent drafts cannot");
+  });
+
+  it("allows send workflow dispatch only when dry-run sending is active", () => {
+    expect(() => assertDryRunSendDispatchAllowed("true")).not.toThrow();
+    expect(() => assertDryRunSendDispatchAllowed("false")).toThrow("dry-run only");
   });
 });

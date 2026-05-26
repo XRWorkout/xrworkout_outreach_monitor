@@ -37,3 +37,9 @@ export function assertDraftStatusChangeAllowed(draft: DraftRecord, nextStatus: D
     throw new Error("Only email drafts can be approved from the dashboard.");
   }
 }
+
+export function assertDryRunSendDispatchAllowed(dryRunSend: string): void {
+  if ((dryRunSend || "true") !== "true") {
+    throw new Error("Approve + run send is dry-run only. Set DRY_RUN_SEND=true before using this dashboard action.");
+  }
+}

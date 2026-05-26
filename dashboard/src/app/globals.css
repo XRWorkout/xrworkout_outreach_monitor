@@ -27,7 +27,8 @@ body {
 
 button,
 input,
-textarea {
+textarea,
+select {
   font: inherit;
 }
 
@@ -124,7 +125,8 @@ label {
 }
 
 input,
-textarea {
+textarea,
+select {
   width: 100%;
   border: 1px solid var(--line);
   border-radius: 6px;
@@ -137,6 +139,10 @@ textarea {
   min-height: 280px;
   resize: vertical;
   line-height: 1.45;
+}
+
+.compact-textarea {
+  min-height: 120px;
 }
 
 .app-shell {
@@ -342,6 +348,12 @@ td a {
   gap: 4px;
 }
 
+.table-empty {
+  color: var(--muted);
+  padding: 32px 12px;
+  text-align: center;
+}
+
 .sort-marker {
   color: var(--blue);
 }
@@ -410,6 +422,16 @@ td a {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.check-row {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.check-row input {
+  width: auto;
 }
 
 .context-box {

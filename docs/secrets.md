@@ -21,7 +21,9 @@ Optional repository variables:
 - `CODEX_TIMEOUT_SECONDS`: defaults to `300`.
 - `XRWORKOUT_FOUNDER_NAME`: used in outreach drafts.
 - `EMAIL_PROVIDER`: defaults to `brevo`.
-- `DRY_RUN_SEND`: keep `true` until approved-send behavior is verified.
+- `AUTOMATION_ENABLED`: keep `false` until scheduled collection and drafting should run.
+- `SEND_AUTOMATION_ENABLED`: keep `false`; controls only scheduled approved-send jobs.
+- `DRY_RUN_SEND`: keep `true` so dashboard send dispatches stay dry-run only.
 
 ## Dashboard environment
 

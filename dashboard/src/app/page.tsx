@@ -10,6 +10,7 @@ import {
   MailCheck,
   Play,
   RefreshCw,
+  Save,
   ShieldAlert,
   SlidersHorizontal,
   XCircle
@@ -49,6 +50,11 @@ const emptyData: DashboardData = {
 
 const tabs = ["overview", "opportunities", "drafts", "creators", "followups", "offers", "automation"] as const;
 type Tab = (typeof tabs)[number];
+
+const opportunityStatuses = ["new", "reviewed", "monitor", "contacted", "rejected"] as const;
+const creatorStatuses = ["new", "reviewed", "contact_ready", "contacted", "rejected"] as const;
+const priorities = ["high", "medium", "low"] as const;
+const followupStatuses = ["pending", "completed", "skipped"] as const;
 
 async function fetchJson<T>(path: string, token: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
@@ -90,6 +96,25 @@ export default function Page() {
   const [editingDraft, setEditingDraft] = useState<Draft | null>(null);
   const [draftSubject, setDraftSubject] = useState("");
   const [draftBody, setDraftBody] = useState("");
+  const [selectedOpportunity, setSelectedOpportunity] = useState<Opportunity | null>(null);
+  const [opportunityStatus, setOpportunityStatus] = useState("new");
+  const [selectedCreator, setSelectedCreator] = useState<Creator | null>(null);
+  const [creatorStatus, setCreatorStatus] = useState("new");
+  const [creatorContact, setCreatorContact] = useState("");
+  const [creatorPriority, setCreatorPriority] = useState("medium");
+  const [creatorFitReason, setCreatorFitReason] = useState("");
+  const [creatorOfferAngle, setCreatorOfferAngle] = useState("");
+  const [selectedFollowup, setSelectedFollowup] = useState<Followup | null>(null);
+  const [followupStatus, setFollowupStatus] = useState("pending");
+  const [followupDraftBody, setFollowupDraftBody] = useState("");
+  const [selectedOffer, setSelectedOffer] = useState<Offer | null>(null);
+  const [offerType, setOfferType] = useState("");
+  const [offerCode, setOfferCode] = useState("");
+  const [offerSentAt, setOfferSentAt] = useState("");
+  const [offerRedeemed, setOfferRedeemed] = useState(false);
+  const [offerCommitted, setOfferCommitted] = useState(false);
+  const [offerContentUrl, setOfferContentUrl] = useState("");
+  const [offerOutcome, setOfferOutcome] = useState("");
 
   const loadDashboard = useCallback(async (token: string) => {
     setLoading(true);
@@ -164,6 +189,41 @@ export default function Page() {
     setActiveTab("drafts");
   }
 
+  function reviewOpportunity(opportunity: Opportunity) {
+    setSelectedOpportunity(opportunity);
+    setOpportunityStatus(opportunity.status || "new");
+    setActiveTab("opportunities");
+  }
+
+  function reviewCreator(creator: Creator) {
+    setSelectedCreator(creator);
+    setCreatorStatus(creator.status || "new");
+    setCreatorContact(creator.public_contact || "");
+    setCreatorPriority(creator.priority || "medium");
+    setCreatorFitReason(creator.fit_reason || "");
+    setCreatorOfferAngle(creator.offer_angle || "");
+    setActiveTab("creators");
+  }
+
+  function reviewFollowup(followup: Followup) {
+    setSelectedFollowup(followup);
+    setFollowupStatus(followup.status || "pending");
+    setFollowupDraftBody(followup.draft_body || "");
+    setActiveTab("followups");
+  }
+
+  function reviewOffer(offer: Offer) {
+    setSelectedOffer(offer);
+    setOfferType(offer.offer_type || "3 months free");
+    setOfferCode(offer.code_or_link || "");
+    setOfferSentAt(offer.sent_at || "");
+    setOfferRedeemed(Boolean(offer.redeemed));
+    setOfferCommitted(Boolean(offer.content_committed));
+    setOfferContentUrl(offer.content_url || "");
+    setOfferOutcome(offer.outcome || "");
+    setActiveTab("offers");
+  }
+
   async function saveDraft() {
     if (!session || !editingDraft) return;
     const result = await fetchJson<{ draft: Draft }>(`/api/dashboard/drafts/${editingDraft.id}`, session.token, {
@@ -197,7 +257,82 @@ export default function Page() {
     void loadDashboard(session.token);
   }
 
-  async function updateVariable(name: "AUTOMATION_ENABLED" | "DRY_RUN_SEND", value: string) {
+  async function updateOpportunity() {
+    if (!session || !selectedOpportunity) return;
+    const result = await fetchJson<{ opportunity: Opportunity }>(`/api/dashboard/opportunities/${selectedOpportunity.id}`, session.token, {
+      method: "PATCH",
+      body: JSON.stringify({ status: opportunityStatus })
+    });
+    setData((current) => ({
+      ...current,
+      opportunities: current.opportunities.map((opportunity) =>
+        opportunity.id === result.opportunity.id ? result.opportunity : opportunity
+      )
+    }));
+    setSelectedOpportunity(result.opportunity);
+    setNotice("Opportunity status saved.");
+  }
+
+  async function updateCreator() {
+    if (!session || !selectedCreator) return;
+    const result = await fetchJson<{ creator: Creator }>(`/api/dashboard/creators/${selectedCreator.id}`, session.token, {
+      method: "PATCH",
+      body: JSON.stringify({
+        status: creatorStatus,
+        public_contact: creatorContact || null,
+        priority: creatorPriority,
+        fit_reason: creatorFitReason || null,
+        offer_angle: creatorOfferAngle || null
+      })
+    });
+    setData((current) => ({
+      ...current,
+      creators: current.creators.map((creator) => (creator.id === result.creator.id ? result.creator : creator))
+    }));
+    setSelectedCreator(result.creator);
+    setNotice("Creator saved.");
+  }
+
+  async function updateFollowup(nextStatus = followupStatus) {
+    if (!session || !selectedFollowup) return;
+    const result = await fetchJson<{ followup: Followup }>(`/api/dashboard/followups/${selectedFollowup.id}`, session.token, {
+      method: "PATCH",
+      body: JSON.stringify({ status: nextStatus, draft_body: followupDraftBody || null })
+    });
+    setData((current) => ({
+      ...current,
+      followups: current.followups.map((followup) => (followup.id === result.followup.id ? result.followup : followup))
+    }));
+    setSelectedFollowup(result.followup);
+    setFollowupStatus(result.followup.status || "pending");
+    setFollowupDraftBody(result.followup.draft_body || "");
+    setNotice(`Follow-up marked ${result.followup.status}.`);
+    void loadDashboard(session.token);
+  }
+
+  async function updateOffer() {
+    if (!session || !selectedOffer) return;
+    const result = await fetchJson<{ offer: Offer }>(`/api/dashboard/offers/${selectedOffer.id}`, session.token, {
+      method: "PATCH",
+      body: JSON.stringify({
+        offer_type: offerType,
+        code_or_link: offerCode || null,
+        sent_at: offerSentAt || null,
+        redeemed: offerRedeemed,
+        content_committed: offerCommitted,
+        content_url: offerContentUrl || null,
+        outcome: offerOutcome || null
+      })
+    });
+    setData((current) => ({
+      ...current,
+      offers: current.offers.map((offer) => (offer.id === result.offer.id ? result.offer : offer))
+    }));
+    setSelectedOffer(result.offer);
+    setNotice("Offer saved.");
+  }
+
+  async function updateVariable(name: "AUTOMATION_ENABLED" | "SEND_AUTOMATION_ENABLED" | "DRY_RUN_SEND", value: string) {
     if (!session) return;
     await fetchJson(`/api/dashboard/automation/variables`, session.token, {
       method: "PATCH",
@@ -224,6 +359,7 @@ export default function Page() {
       { header: "Platform", accessorKey: "platform" },
       { header: "Type", accessorKey: "opportunity_type" },
       { header: "Safety", accessorKey: "outreach_safety" },
+      { header: "Status", accessorKey: "status", cell: ({ row }) => <Badge tone={statusTone(row.original.status)}>{row.original.status}</Badge> },
       { header: "Summary", accessorKey: "summary", cell: ({ row }) => <span className="line-clamp">{row.original.summary || "No summary"}</span> },
       {
         header: "Source",
@@ -235,6 +371,14 @@ export default function Page() {
           ) : (
             "none"
           )
+      },
+      {
+        header: "Action",
+        cell: ({ row }) => (
+          <button className="icon-text small" onClick={() => reviewOpportunity(row.original)}>
+            <Edit3 size={14} /> Review
+          </button>
+        )
       }
     ],
     []
@@ -266,7 +410,15 @@ export default function Page() {
       { header: "Platform", accessorKey: "platform" },
       { header: "Contact", accessorKey: "public_contact", cell: ({ row }) => row.original.public_contact || "none" },
       { header: "Niche", accessorKey: "niche" },
-      { header: "Fit", accessorKey: "fit_reason", cell: ({ row }) => <span className="line-clamp">{row.original.fit_reason || "none"}</span> }
+      { header: "Fit", accessorKey: "fit_reason", cell: ({ row }) => <span className="line-clamp">{row.original.fit_reason || "none"}</span> },
+      {
+        header: "Action",
+        cell: ({ row }) => (
+          <button className="icon-text small" onClick={() => reviewCreator(row.original)}>
+            <Edit3 size={14} /> Review
+          </button>
+        )
+      }
     ],
     []
   );
@@ -303,6 +455,7 @@ export default function Page() {
   }
 
   const summary = data.summary;
+  const dryRunSendEnabled = (data.automation?.variables.DRY_RUN_SEND || "true") === "true";
 
   return (
     <main className="app-shell">
@@ -372,7 +525,52 @@ export default function Page() {
           </div>
         ) : null}
 
-        {activeTab === "opportunities" ? <DataTable data={data.opportunities} columns={opportunityColumns} searchPlaceholder="Filter opportunities" /> : null}
+        {activeTab === "opportunities" ? (
+          <div className="split">
+            <DataTable data={data.opportunities} columns={opportunityColumns} searchPlaceholder="Filter opportunities" />
+            <aside className="review-pane">
+              {selectedOpportunity ? (
+                <>
+                  <div className="review-header">
+                    <Badge tone={statusTone(selectedOpportunity.priority)}>{selectedOpportunity.priority}</Badge>
+                    <Badge tone={statusTone(selectedOpportunity.outreach_safety)}>{selectedOpportunity.outreach_safety}</Badge>
+                    <Badge tone="info">score {selectedOpportunity.score}</Badge>
+                  </div>
+                  <label>
+                    Status
+                    <select value={opportunityStatus} onChange={(event) => setOpportunityStatus(event.target.value)}>
+                      {opportunityStatuses.map((status) => (
+                        <option key={status} value={status}>{status}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <div className="context-box">
+                    <strong>Summary</strong>
+                    <p>{selectedOpportunity.summary || "No summary."}</p>
+                    <strong>Pain point</strong>
+                    <p>{selectedOpportunity.pain_point || "No pain point."}</p>
+                    <strong>XRWorkout fit</strong>
+                    <p>{selectedOpportunity.xrworkout_relevance || "No relevance note."}</p>
+                    <strong>Recommended action</strong>
+                    <p>{selectedOpportunity.recommended_action}</p>
+                  </div>
+                  <div className="button-row">
+                    <button className="primary icon-text" onClick={updateOpportunity}>
+                      <Save size={16} /> Save status
+                    </button>
+                    {selectedOpportunity.raw_items?.source_url ? (
+                      <a className="button-link" href={selectedOpportunity.raw_items.source_url} target="_blank" rel="noreferrer">
+                        Open source <ExternalLink size={14} />
+                      </a>
+                    ) : null}
+                  </div>
+                </>
+              ) : (
+                <div className="empty-state">Select an opportunity to inspect fit, safety, source context, and status.</div>
+              )}
+            </aside>
+          </div>
+        ) : null}
 
         {activeTab === "drafts" ? (
           <div className="split">
@@ -411,8 +609,13 @@ export default function Page() {
                     <button className="success icon-text" onClick={() => changeDraftStatus("approved")} disabled={editingDraft.status === "sent" || editingDraft.channel !== "email"}>
                       <CheckCircle2 size={16} /> Approve
                     </button>
-                    <button className="success icon-text" onClick={() => changeDraftStatus("approved", true)} disabled={editingDraft.status === "sent" || editingDraft.channel !== "email"}>
-                      <MailCheck size={16} /> Approve + run send
+                    <button
+                      className="success icon-text"
+                      onClick={() => changeDraftStatus("approved", true)}
+                      disabled={editingDraft.status === "sent" || editingDraft.channel !== "email" || !dryRunSendEnabled}
+                      title={dryRunSendEnabled ? "Approve and dispatch the dry-run send workflow" : "DRY_RUN_SEND must be true for this action"}
+                    >
+                      <MailCheck size={16} /> Approve + dry-run send
                     </button>
                   </div>
                 </>
@@ -423,40 +626,202 @@ export default function Page() {
           </div>
         ) : null}
 
-        {activeTab === "creators" ? <DataTable data={data.creators} columns={creatorColumns} searchPlaceholder="Filter creators" /> : null}
+        {activeTab === "creators" ? (
+          <div className="split">
+            <DataTable data={data.creators} columns={creatorColumns} searchPlaceholder="Filter creators" />
+            <aside className="review-pane">
+              {selectedCreator ? (
+                <>
+                  <div className="review-header">
+                    <Badge tone={statusTone(selectedCreator.priority)}>{selectedCreator.priority}</Badge>
+                    <Badge tone={statusTone(selectedCreator.status)}>{selectedCreator.status}</Badge>
+                  </div>
+                  <label>
+                    Status
+                    <select value={creatorStatus} onChange={(event) => setCreatorStatus(event.target.value)}>
+                      {creatorStatuses.map((status) => (
+                        <option key={status} value={status}>{status}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Priority
+                    <select value={creatorPriority} onChange={(event) => setCreatorPriority(event.target.value)}>
+                      {priorities.map((priority) => (
+                        <option key={priority} value={priority}>{priority}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Public contact
+                    <input value={creatorContact} onChange={(event) => setCreatorContact(event.target.value)} placeholder="creator@example.com or public contact note" />
+                  </label>
+                  <label>
+                    Fit reason
+                    <textarea className="compact-textarea" value={creatorFitReason} onChange={(event) => setCreatorFitReason(event.target.value)} />
+                  </label>
+                  <label>
+                    Offer angle
+                    <textarea className="compact-textarea" value={creatorOfferAngle} onChange={(event) => setCreatorOfferAngle(event.target.value)} />
+                  </label>
+                  <div className="button-row">
+                    <button className="primary icon-text" onClick={updateCreator}>
+                      <Save size={16} /> Save creator
+                    </button>
+                    <a className="button-link" href={selectedCreator.profile_url} target="_blank" rel="noreferrer">
+                      Open profile <ExternalLink size={14} />
+                    </a>
+                  </div>
+                </>
+              ) : (
+                <div className="empty-state">Select a creator to validate contact details, fit, offer angle, and pipeline status.</div>
+              )}
+            </aside>
+          </div>
+        ) : null}
 
         {activeTab === "followups" ? (
-          <DataTable
-            data={data.followups}
-            searchPlaceholder="Filter follow-ups"
-            columns={[
-              { header: "Status", accessorKey: "status", cell: ({ row }) => <Badge tone={statusTone(row.original.status)}>{row.original.status}</Badge> },
-              { header: "Due", accessorKey: "due_date" },
-              { header: "Step", accessorKey: "cadence_step" },
-              { header: "Draft", cell: ({ row }) => row.original.drafts?.subject || "No subject" }
-            ]}
-          />
+          <div className="split">
+            <DataTable
+              data={data.followups}
+              searchPlaceholder="Filter follow-ups"
+              columns={[
+                { header: "Status", accessorKey: "status", cell: ({ row }) => <Badge tone={statusTone(row.original.status)}>{row.original.status}</Badge> },
+                { header: "Due", accessorKey: "due_date" },
+                { header: "Step", accessorKey: "cadence_step" },
+                { header: "Draft", cell: ({ row }) => row.original.drafts?.subject || "No subject" },
+                {
+                  header: "Action",
+                  cell: ({ row }) => (
+                    <button className="icon-text small" onClick={() => reviewFollowup(row.original)}>
+                      <Edit3 size={14} /> Review
+                    </button>
+                  )
+                }
+              ]}
+            />
+            <aside className="review-pane">
+              {selectedFollowup ? (
+                <>
+                  <div className="review-header">
+                    <Badge tone={statusTone(selectedFollowup.status)}>{selectedFollowup.status}</Badge>
+                    <Badge tone="info">step {selectedFollowup.cadence_step}</Badge>
+                  </div>
+                  <label>
+                    Status
+                    <select value={followupStatus} onChange={(event) => setFollowupStatus(event.target.value)}>
+                      {followupStatuses.map((status) => (
+                        <option key={status} value={status}>{status}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Follow-up draft note
+                    <textarea value={followupDraftBody} onChange={(event) => setFollowupDraftBody(event.target.value)} />
+                  </label>
+                  <div className="context-box">
+                    <strong>Due</strong>
+                    <p>{selectedFollowup.due_date}</p>
+                    <strong>Original subject</strong>
+                    <p>{selectedFollowup.drafts?.subject || "No subject."}</p>
+                    <strong>Creator contact</strong>
+                    <p>{selectedFollowup.drafts?.creators?.public_contact || "No creator contact."}</p>
+                    <strong>Original body</strong>
+                    <p>{selectedFollowup.drafts?.body || "No body."}</p>
+                  </div>
+                  <div className="button-row">
+                    <button className="primary icon-text" onClick={() => updateFollowup()}>
+                      <Save size={16} /> Save follow-up
+                    </button>
+                    <button className="success icon-text" onClick={() => updateFollowup("completed")}>
+                      <CheckCircle2 size={16} /> Complete
+                    </button>
+                    <button className="danger icon-text" onClick={() => updateFollowup("skipped")}>
+                      <XCircle size={16} /> Skip
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div className="empty-state">Select a follow-up to review cadence, original message, creator contact, and outcome.</div>
+              )}
+            </aside>
+          </div>
         ) : null}
 
         {activeTab === "offers" ? (
-          <DataTable
-            data={data.offers}
-            searchPlaceholder="Filter offers"
-            columns={[
-              { header: "Type", accessorKey: "offer_type" },
-              { header: "Creator", cell: ({ row }) => row.original.creators?.name || "No creator" },
-              { header: "Redeemed", cell: ({ row }) => (row.original.redeemed ? "yes" : "no") },
-              { header: "Committed", cell: ({ row }) => (row.original.content_committed ? "yes" : "no") },
-              { header: "Outcome", accessorKey: "outcome" }
-            ]}
-          />
+          <div className="split">
+            <DataTable
+              data={data.offers}
+              searchPlaceholder="Filter offers"
+              columns={[
+                { header: "Type", accessorKey: "offer_type" },
+                { header: "Creator", cell: ({ row }) => row.original.creators?.name || "No creator" },
+                { header: "Redeemed", cell: ({ row }) => (row.original.redeemed ? "yes" : "no") },
+                { header: "Committed", cell: ({ row }) => (row.original.content_committed ? "yes" : "no") },
+                { header: "Outcome", accessorKey: "outcome" },
+                {
+                  header: "Action",
+                  cell: ({ row }) => (
+                    <button className="icon-text small" onClick={() => reviewOffer(row.original)}>
+                      <Edit3 size={14} /> Review
+                    </button>
+                  )
+                }
+              ]}
+            />
+            <aside className="review-pane">
+              {selectedOffer ? (
+                <>
+                  <div className="review-header">
+                    <Badge tone={selectedOffer.redeemed ? "good" : "warn"}>{selectedOffer.redeemed ? "redeemed" : "not redeemed"}</Badge>
+                    <Badge tone={selectedOffer.content_committed ? "good" : "neutral"}>{selectedOffer.content_committed ? "committed" : "no commitment"}</Badge>
+                  </div>
+                  <label>
+                    Offer type
+                    <input value={offerType} onChange={(event) => setOfferType(event.target.value)} />
+                  </label>
+                  <label>
+                    Code or link
+                    <input value={offerCode} onChange={(event) => setOfferCode(event.target.value)} />
+                  </label>
+                  <label>
+                    Sent timestamp
+                    <input value={offerSentAt} onChange={(event) => setOfferSentAt(event.target.value)} placeholder="ISO timestamp or blank" />
+                  </label>
+                  <label className="check-row">
+                    <input type="checkbox" checked={offerRedeemed} onChange={(event) => setOfferRedeemed(event.target.checked)} />
+                    Redeemed
+                  </label>
+                  <label className="check-row">
+                    <input type="checkbox" checked={offerCommitted} onChange={(event) => setOfferCommitted(event.target.checked)} />
+                    Content committed
+                  </label>
+                  <label>
+                    Content URL
+                    <input value={offerContentUrl} onChange={(event) => setOfferContentUrl(event.target.value)} />
+                  </label>
+                  <label>
+                    Outcome
+                    <textarea className="compact-textarea" value={offerOutcome} onChange={(event) => setOfferOutcome(event.target.value)} />
+                  </label>
+                  <div className="button-row">
+                    <button className="primary icon-text" onClick={updateOffer}>
+                      <Save size={16} /> Save offer
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div className="empty-state">Select an offer to track redemption, commitment, content URL, and outcome.</div>
+              )}
+            </aside>
+          </div>
         ) : null}
 
         {activeTab === "automation" && data.automation ? (
           <div className="view-stack">
             <section className="automation-grid">
-              {(["AUTOMATION_ENABLED", "DRY_RUN_SEND"] as const).map((name) => {
-                const value = data.automation?.variables[name] || "false";
+              {(["AUTOMATION_ENABLED", "SEND_AUTOMATION_ENABLED", "DRY_RUN_SEND"] as const).map((name) => {
+                const value = data.automation?.variables[name] || (name === "DRY_RUN_SEND" ? "true" : "false");
                 return (
                   <div className="panel" key={name}>
                     <div className="panel-title">
@@ -491,7 +856,12 @@ export default function Page() {
                           Open run <ExternalLink size={14} />
                         </a>
                       ) : null}
-                      <button className="primary icon-text" onClick={() => dispatch(workflow)}>
+                      <button
+                        className="primary icon-text"
+                        onClick={() => dispatch(workflow)}
+                        disabled={workflow === "send" && !dryRunSendEnabled}
+                        title={workflow === "send" && !dryRunSendEnabled ? "DRY_RUN_SEND must be true for dashboard send dispatch" : "Run workflow now"}
+                      >
                         <Play size={16} /> Run now
                       </button>
                     </div>

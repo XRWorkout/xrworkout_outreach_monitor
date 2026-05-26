@@ -52,8 +52,9 @@ def main() -> None:
                 }
             )
 
-    db.upsert_raw_items(rows)
-    print(f"Upserted {len(rows)} YouTube raw items")
+    unique_rows = db.deduped_raw_payload(rows)
+    db.upsert_raw_items(unique_rows)
+    print(f"YouTube collection: matched={len(rows)} unique={len(unique_rows)} keywords={len(KEYWORDS)}")
 
 
 if __name__ == "__main__":

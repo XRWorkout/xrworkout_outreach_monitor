@@ -62,6 +62,7 @@ export type Followup = {
   draft_id?: string | null;
   due_date: string;
   cadence_step: number;
+  draft_body?: string | null;
   status: string;
   created_at: string;
   drafts?: Draft | null;
@@ -99,6 +100,7 @@ export type SummaryData = {
 export type AutomationData = {
   variables: {
     AUTOMATION_ENABLED: string;
+    SEND_AUTOMATION_ENABLED: string;
     DRY_RUN_SEND: string;
   };
   workflows: Record<

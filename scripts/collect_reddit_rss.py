@@ -184,10 +184,11 @@ def main() -> None:
             break
         rows.extend(parse_feed(xml_text, url, feed_type, feed_value, min(args.limit, remaining)))
 
-    db.upsert_raw_items(rows)
+    unique_rows = db.deduped_raw_payload(rows)
+    db.upsert_raw_items(unique_rows)
     for warning in warnings:
         print(warning)
-    print(f"Upserted {len(rows)} Reddit RSS raw items")
+    print(f"Reddit RSS collection: matched={len(rows)} unique={len(unique_rows)} warnings={len(warnings)}")
 
 
 if __name__ == "__main__":

@@ -18,9 +18,12 @@ def main() -> None:
     llm = LLM(cfg)
 
     created = 0
-    for item in db.fetch_creator_source_items(args.limit):
+    skipped = 0
+    items = db.fetch_creator_source_items(args.limit)
+    for item in items:
         fit = llm.creator_fit(item)
         if not fit.get("should_create", False):
+            skipped += 1
             continue
         db.upsert_creator(
             {
@@ -40,7 +43,7 @@ def main() -> None:
         )
         created += 1
 
-    print(f"Upserted {created} creator prospects")
+    print(f"Creator discovery: scanned={len(items)} upserted={created} skipped={skipped}")
 
 
 if __name__ == "__main__":

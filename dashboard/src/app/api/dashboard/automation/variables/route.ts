@@ -6,7 +6,7 @@ import { auditDashboardAction } from "@/lib/audit";
 import { getAutomationVariable, setAutomationVariable } from "@/lib/github";
 
 const schema = z.object({
-  name: z.enum(["AUTOMATION_ENABLED", "DRY_RUN_SEND"]),
+  name: z.enum(["AUTOMATION_ENABLED", "SEND_AUTOMATION_ENABLED", "DRY_RUN_SEND"]),
   value: z.enum(["true", "false"])
 });
 

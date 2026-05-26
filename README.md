@@ -18,7 +18,7 @@ Doing that manually is slow and inconsistent. This repo builds the operating lay
 - Require human approval before any email is sent.
 - Track sent drafts, follow-ups, and creator offers in Supabase.
 - Run on GitHub Actions, with LLM-dependent jobs on a self-hosted server runner that has Codex CLI installed and authenticated.
-- Use an `AUTOMATION_ENABLED` switch before treating scheduled jobs as always-on production automation.
+- Use explicit automation switches before treating scheduled jobs as always-on production automation.
 - Provide a Next.js visual dashboard for review queues, draft editing, approval, and automation controls.
 
 ## Operating Principle
@@ -72,9 +72,11 @@ Dashboard presents queues, charts, draft controls, and automation status
 - Follow-up task creation after sent emails.
 - Weekly report script.
 - GitHub Actions schedules for collection, drafts, approved sends, and weekly reporting.
-- Scheduled workflow jobs are gated by `AUTOMATION_ENABLED`; manual runs still work for validation.
+- Scheduled collection, draft, and report jobs are gated by `AUTOMATION_ENABLED`; scheduled approved sends are gated by `SEND_AUTOMATION_ENABLED`; manual runs still work for validation.
 - Next.js dashboard under `dashboard/` with Supabase login, operator allowlist, draft editing, workflow dispatch, and automation variable controls.
 - Deployed dashboard for day-to-day review and automation controls.
+- Audited dashboard editing for opportunity status, creator review fields, follow-up outcomes, and offer outcomes.
+- Dry-run-only dashboard send dispatch while `DRY_RUN_SEND=true`.
 - Unit tests for deduplication, scoring rules, follow-up timing, database batch dedupe, and sender recipient extraction.
 
 ## What Is Planned
@@ -87,7 +89,7 @@ Dashboard presents queues, charts, draft controls, and automation status
 | Layer | Choice |
 |---|---|
 | Runtime | Python 3.11+ |
-| Scheduler | GitHub Actions cron, with Codex jobs on a self-hosted runner and scheduled jobs gated by `AUTOMATION_ENABLED` |
+| Scheduler | GitHub Actions cron, with Codex jobs on a self-hosted runner and scheduled jobs disabled by repository variables until launch |
 | Database | Supabase Postgres |
 | Review UI | Supabase Studio |
 | LLM | Codex CLI on the server |
@@ -124,6 +126,7 @@ Dashboard presents queues, charts, draft controls, and automation status
 | `scripts/discover_creators.py` | Promotes strong creator prospects into `creators`. |
 | `scripts/generate_drafts.py` | Creates outreach drafts for high-priority safe opportunities. |
 | `scripts/send_approved.py` | Sends only approved email drafts and creates follow-up tasks. |
+| `scripts/list_due_followups.py` | Lists pending follow-ups due on or before a selected date for operator handling. |
 | `scripts/weekly_report.py` | Prints operational counts and review reminders. |
 
 ## Setup
@@ -188,14 +191,15 @@ Local `.env` values and GitHub repository secrets should include:
 
 Optional settings:
 
-- `AUTOMATION_ENABLED`, global switch for scheduled workflows; set to `true` only when scheduled automation should run
+- `AUTOMATION_ENABLED`, switch for scheduled collection, draft, and report workflows; keep `false` until schedules should run
+- `SEND_AUTOMATION_ENABLED`, switch for scheduled approved-send workflow; keep `false`
 - `CODEX_BIN`, defaults to `codex`
 - `CODEX_MODEL`, optional; when empty, Codex CLI uses its configured default model
 - `CODEX_TIMEOUT_SECONDS`, defaults to `300`
 - `XRWORKOUT_FOUNDER_NAME`
 - `XRWORKOUT_SITE`, defaults to `https://xrworkout.ai`
 - `EMAIL_PROVIDER`, defaults to `brevo`
-- `DRY_RUN_SEND`, keep `true` until the next approved-send validation cycle is clean
+- `DRY_RUN_SEND`, keep `true` so dashboard send dispatches stay dry-run only
 - `REDDIT_USER_AGENT`, optional; defaults to a clear XRWorkout monitoring user agent
 
 ## Local Dry Run
@@ -210,6 +214,7 @@ python scripts/classify_opportunities.py --limit 10
 python scripts/discover_creators.py --limit 10
 python scripts/generate_drafts.py --limit 10
 python scripts/send_approved.py --dry-run
+python scripts/list_due_followups.py --as-of 2026-06-01
 python scripts/weekly_report.py
 ```
 
@@ -235,7 +240,7 @@ The repo includes four scheduled workflows:
 |---|---:|---|
 | `daily-collection.yml` | Daily 14:00 UTC | Collects source items, classifies opportunities, and discovers creators. |
 | `daily-drafts.yml` | Daily 16:00 UTC | Generates outreach drafts for high-priority opportunities. |
-| `daily-send.yml` | Daily 17:00 UTC | Sends only approved email drafts. |
+| `daily-send.yml` | Daily 17:00 UTC | Processes approved email drafts; scheduled runs require `SEND_AUTOMATION_ENABLED=true`. |
 | `weekly-report.yml` | Friday 18:00 UTC | Prints weekly operational counts. |
 
 All workflows can also be run manually from GitHub Actions.
@@ -243,10 +248,11 @@ All workflows can also be run manually from GitHub Actions.
 Launch control:
 
 - Keep the cron schedules in the workflow files so automation is ready.
-- Make scheduled jobs stop early unless `AUTOMATION_ENABLED` is explicitly `true`.
-- If `AUTOMATION_ENABLED` is missing, scheduled jobs behave as disabled.
+- Collection, draft, and report schedules stop early unless `AUTOMATION_ENABLED` is explicitly `true`.
+- Approved-send schedules stop early unless `SEND_AUTOMATION_ENABLED` is explicitly `true`.
+- If either automation variable is missing, that schedule behaves as disabled.
 - Keep manual runs available for testing while scheduled automation is disabled.
-- Keep `DRY_RUN_SEND=true` as the separate email safety switch until the next approved-send validation cycle is clean.
+- Keep `DRY_RUN_SEND=true` as the separate email safety switch; dashboard send dispatch is dry-run only.
 
 ## Dashboard
 
@@ -261,8 +267,8 @@ Planned views:
 - Creator pipeline with contact availability, niche, fit reason, offer angle, and outreach history.
 - Follow-up queue for due and overdue follow-ups.
 - Offer tracking for the 3-month-free creator offer and content outcomes.
-- Automation status showing schedule state, last workflow runs, failures, `AUTOMATION_ENABLED`, and `DRY_RUN_SEND`.
-- Automation controls for toggling `AUTOMATION_ENABLED` and `DRY_RUN_SEND`, and manually dispatching collection, draft, approved-send, and report workflows.
+- Automation status showing schedule state, last workflow runs, failures, `AUTOMATION_ENABLED`, `SEND_AUTOMATION_ENABLED`, and `DRY_RUN_SEND`.
+- Automation controls for toggling automation variables and manually dispatching collection, draft, approved-send dry runs, and reports.
 
 ## Safety Rules
 
@@ -287,14 +293,14 @@ Automation must not:
 
 ## Current Launch Status
 
-The core system is implemented and tested locally. YouTube and Twitch collection have been validated against Supabase, the dry-run sender has been validated, the dashboard is deployed, and the repository is configured for GitHub push access.
+The core system is implemented and tested locally. YouTube and Twitch collection have been validated against Supabase, the approved-send dry run has been validated, the dashboard is deployed, and the repository is configured for GitHub push access.
 
 Remaining launch blockers:
 
 - Reddit API app credentials are optional future fallback work if RSS becomes unreliable.
 - Review real Supabase rows and generate at least one reviewable draft.
-- Keep controlled sending conservative until one more approved-draft validation cycle is clean.
-- Add due-follow-up handling before the first follow-up queue becomes operationally important.
+- Keep scheduled automation disabled until the project is ready for production operation.
+- Keep follow-up sending operator-handled in v1.
 
 ## Maintenance
 

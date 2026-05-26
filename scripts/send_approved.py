@@ -30,16 +30,20 @@ def main() -> None:
 
     sent = 0
     skipped = 0
+    skip_reasons = {"status": 0, "channel": 0, "recipient": 0}
     for draft in db.fetch_approved_drafts(args.limit):
         if not sendable_status(draft.get("status", "")):
             skipped += 1
+            skip_reasons["status"] += 1
             continue
         if draft.get("channel") != "email":
             skipped += 1
+            skip_reasons["channel"] += 1
             continue
         to_email = recipient_for_draft(draft)
         if not to_email:
             skipped += 1
+            skip_reasons["recipient"] += 1
             continue
         if emailer:
             emailer.send(to_email, draft.get("subject") or "XRWorkout creator access", draft["body"])
@@ -55,7 +59,7 @@ def main() -> None:
         sent += 1
 
     mode = "dry-run" if (args.dry_run or cfg.dry_run_send) else "sent"
-    print(f"{mode}: {sent}; skipped: {skipped}")
+    print(f"Approved send {mode}: count={sent} skipped={skipped} skip_reasons={skip_reasons}")
 
 
 if __name__ == "__main__":

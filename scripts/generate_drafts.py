@@ -20,15 +20,19 @@ def main() -> None:
 
     opportunities = db.fetch_high_priority_opportunities_without_drafts(args.limit)
     count = 0
+    skipped_safety = 0
+    skipped_empty = 0
     for opportunity in opportunities:
         if not should_generate_draft(
             int(opportunity.get("score", 0)),
             opportunity.get("outreach_safety", ""),
             opportunity.get("recommended_action", ""),
         ):
+            skipped_safety += 1
             continue
         draft = llm.draft(opportunity)
         if not draft["body"]:
+            skipped_empty += 1
             continue
         db.insert_draft(
             {
@@ -41,7 +45,11 @@ def main() -> None:
         )
         count += 1
 
-    print(f"Generated {count} drafts")
+    print(
+        "Draft generation: "
+        f"eligible_pool={len(opportunities)} generated={count} "
+        f"skipped_safety={skipped_safety} skipped_empty={skipped_empty}"
+    )
 
 
 if __name__ == "__main__":

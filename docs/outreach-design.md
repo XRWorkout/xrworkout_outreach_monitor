@@ -9,8 +9,10 @@ The operating rule is:
 ## Current Operating State
 
 - Scheduled GitHub Actions jobs are configured, but scheduled automation is intentionally gated by `AUTOMATION_ENABLED`.
+- Scheduled approved sending has a separate `SEND_AUTOMATION_ENABLED` gate and remains disabled.
 - Public comments and DMs remain manual in v1.
 - Email sending is approval-only and uses Brevo.
+- Dashboard send workflow dispatch is dry-run only while `DRY_RUN_SEND=true`.
 - The dashboard is deployed for day-to-day review and automation controls.
 - Supabase remains the source of truth.
 - The May 25, 2026 sent email has been manually verified in Brevo.
@@ -281,12 +283,13 @@ Current implementation:
 - The sender creates the first follow-up task.
 - The first follow-up is currently scheduled 7 days after send.
 - The schema and rules support step 1 and step 2.
+- Operators can review due follow-ups in the dashboard or with `scripts/list_due_followups.py`.
 
 Not fully automated yet:
 
-- Processing due follow-ups.
+- Sending follow-ups.
 - Drafting follow-up text from pending follow-up rows.
-- Closing follow-up tasks after reply or manual operator action.
+- Automatically closing follow-up tasks after reply.
 
 ## Suggested Automation Steps
 
@@ -307,8 +310,8 @@ Current and recommended agent steps:
 
 ## Known Gaps
 
-- Scheduled automation should remain disabled until one more clean collection, draft, and send validation cycle is complete.
-- Due-follow-up processing is not automated yet.
+- Scheduled automation should remain disabled until the project is complete enough for production operation.
+- Follow-up sending is not automated.
 - Reddit API credentials are not configured and should stay a future upgrade unless RSS becomes unreliable.
 - Public comments and DMs are manual in v1.
 - XRWorkout-owned Codex CLI authentication should replace personal server authentication when the XRWorkout account is available.

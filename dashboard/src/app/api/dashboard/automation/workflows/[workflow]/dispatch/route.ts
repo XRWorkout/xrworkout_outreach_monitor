@@ -2,7 +2,8 @@ import { NextRequest } from "next/server";
 import { authErrorResponse, requireOperator } from "@/lib/auth";
 import { errorResponse } from "@/lib/api";
 import { auditDashboardAction } from "@/lib/audit";
-import { assertWorkflowKey, dispatchWorkflow, workflowFiles } from "@/lib/github";
+import { assertDryRunSendDispatchAllowed } from "@/lib/draft-rules";
+import { assertWorkflowKey, dispatchWorkflow, getAutomationVariable, workflowFiles } from "@/lib/github";
 
 type RouteContext = {
   params: Promise<{ workflow: string }>;
@@ -13,6 +14,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const operator = await requireOperator(request);
     const { workflow } = await context.params;
     assertWorkflowKey(workflow);
+    if (workflow === "send") {
+      const dryRunSend = await getAutomationVariable("DRY_RUN_SEND");
+      assertDryRunSendDispatchAllowed(dryRunSend);
+    }
     await dispatchWorkflow(workflow);
     await auditDashboardAction({
       actorEmail: operator.email,
