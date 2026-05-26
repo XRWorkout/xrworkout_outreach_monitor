@@ -63,6 +63,16 @@ class OutreachDB:
         )
         return result.data or []
 
+    def fetch_opportunity(self, opportunity_id: str) -> dict[str, Any] | None:
+        result = (
+            self.client.table("opportunities")
+            .select("*")
+            .eq("id", opportunity_id)
+            .single()
+            .execute()
+        )
+        return result.data
+
     def insert_draft(self, row: dict[str, Any]) -> None:
         self.client.table("drafts").insert(row).execute()
 

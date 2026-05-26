@@ -273,6 +273,18 @@ export default function Page() {
     setNotice("Opportunity status saved.");
   }
 
+  async function generateLlmDraftFromOpportunity() {
+    if (!session || !selectedOpportunity) return;
+    await fetchJson(`/api/dashboard/automation/workflows/manualDraft/dispatch`, session.token, {
+      method: "POST",
+      body: JSON.stringify({
+        inputs: { opportunity_id: selectedOpportunity.id }
+      })
+    });
+    setNotice("LLM draft workflow started for this opportunity. Refresh drafts after the workflow completes.");
+    void loadDashboard(session.token);
+  }
+
   async function updateCreator() {
     if (!session || !selectedCreator) return;
     const result = await fetchJson<{ creator: Creator }>(`/api/dashboard/creators/${selectedCreator.id}`, session.token, {
@@ -564,6 +576,15 @@ export default function Page() {
                       </a>
                     ) : null}
                   </div>
+                  <div className="context-box">
+                    <strong>Generate draft from this opportunity</strong>
+                    <p>Use your judgment to send this opportunity through the LLM draft workflow. The result will appear as a needs-review draft you can edit before approval.</p>
+                  </div>
+                  <div className="button-row">
+                    <button className="success icon-text" onClick={generateLlmDraftFromOpportunity}>
+                      <Edit3 size={16} /> Generate LLM draft
+                    </button>
+                  </div>
                 </>
               ) : (
                 <div className="empty-state">Select an opportunity to inspect fit, safety, source context, and status.</div>
@@ -838,15 +859,19 @@ export default function Page() {
               })}
             </section>
             <section className="workflow-grid">
-              {(["collection", "drafts", "send", "report"] as const).map((workflow) => {
+              {(["collection", "drafts", "manualDraft", "send", "report"] as const).map((workflow) => {
                 const run = data.automation?.workflows[workflow];
+                const isManualDraftWorkflow = workflow === "manualDraft";
                 return (
                   <div className="panel" key={workflow}>
                     <div className="panel-title">
                       <Bot size={18} />
-                      <h3>{workflow}</h3>
+                      <h3>{isManualDraftWorkflow ? "selected draft" : workflow}</h3>
                     </div>
                     <p className="muted">Last run: {run ? formatDate(run.created_at) : "none"}</p>
+                    {isManualDraftWorkflow ? (
+                      <p className="muted">Start this from an opportunity review so the workflow receives the selected opportunity.</p>
+                    ) : null}
                     <p>
                       <Badge tone={statusTone(run?.conclusion || run?.status || "unknown")}>{run?.conclusion || run?.status || "unknown"}</Badge>
                     </p>
@@ -859,8 +884,14 @@ export default function Page() {
                       <button
                         className="primary icon-text"
                         onClick={() => dispatch(workflow)}
-                        disabled={workflow === "send" && !dryRunSendEnabled}
-                        title={workflow === "send" && !dryRunSendEnabled ? "DRY_RUN_SEND must be true for dashboard send dispatch" : "Run workflow now"}
+                        disabled={isManualDraftWorkflow || (workflow === "send" && !dryRunSendEnabled)}
+                        title={
+                          isManualDraftWorkflow
+                            ? "Use the opportunity review pane to generate an LLM draft"
+                            : workflow === "send" && !dryRunSendEnabled
+                              ? "DRY_RUN_SEND must be true for dashboard send dispatch"
+                              : "Run workflow now"
+                        }
                       >
                         <Play size={16} /> Run now
                       </button>

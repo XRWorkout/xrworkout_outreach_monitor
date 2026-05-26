@@ -11,6 +11,7 @@ describe("GitHub automation guards", () => {
 
   it("maps supported workflow keys to existing workflow files", () => {
     expect(workflowFiles.send).toBe("daily-send.yml");
+    expect(workflowFiles.manualDraft).toBe("manual-opportunity-draft.yml");
     expect(() => assertWorkflowKey("collection")).not.toThrow();
     expect(() => assertWorkflowKey("deploy")).toThrow("Unsupported workflow");
   });

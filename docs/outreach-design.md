@@ -238,12 +238,13 @@ Daily review flow:
 
 1. Review high-priority opportunities.
 2. Review new creator rows for fit and contact validity.
-3. Review drafts with `status = needs_review`.
-4. Reject weak targets instead of trying to repair bad fit.
-5. Mark drafts `edit_needed` when the target is good but the copy needs work.
-6. Approve only safe, useful email drafts.
-7. Let the approved-send workflow process approved email drafts.
-8. Track due follow-ups and outcomes.
+3. Send an opportunity through the manual LLM draft workflow when an operator decides it deserves outreach.
+4. Review drafts with `status = needs_review`.
+5. Reject weak targets instead of trying to repair bad fit.
+6. Mark drafts `edit_needed` when the target is good but the copy needs work.
+7. Approve only safe, useful email drafts.
+8. Let the approved-send workflow process approved email drafts.
+9. Track due follow-ups and outcomes.
 
 ## Anti-Spam Rules
 

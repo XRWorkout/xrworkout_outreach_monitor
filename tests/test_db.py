@@ -12,6 +12,7 @@ class FakeTable:
         self.order_by = None
         self.limit_value = None
         self.data = [{"id": "followup-1"}]
+        self.single_called = False
 
     def upsert(self, payload, on_conflict):
         self.payload = payload
@@ -38,6 +39,11 @@ class FakeTable:
         self.limit_value = value
         return self
 
+    def single(self):
+        self.single_called = True
+        self.data = {"id": "opportunity-1"}
+        return self
+
     def execute(self):
         return self
 
@@ -47,7 +53,7 @@ class FakeClient:
         self.fake_table = FakeTable()
 
     def table(self, name):
-        assert name in {"raw_items", "followups"}
+        assert name in {"raw_items", "followups", "opportunities"}
         return self.fake_table
 
 
@@ -82,3 +88,15 @@ def test_fetch_due_followups_filters_pending_due_rows():
     assert ("lte", "due_date", "2026-06-01") in db.client.fake_table.filters
     assert db.client.fake_table.order_by == "due_date"
     assert db.client.fake_table.limit_value == 25
+
+
+def test_fetch_opportunity_uses_single_row_lookup():
+    db = OutreachDB.__new__(OutreachDB)
+    db.client = FakeClient()
+
+    row = db.fetch_opportunity("opportunity-1")
+
+    assert row == {"id": "opportunity-1"}
+    assert db.client.fake_table.selected == "*"
+    assert ("eq", "id", "opportunity-1") in db.client.fake_table.filters
+    assert db.client.fake_table.single_called

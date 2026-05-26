@@ -76,6 +76,7 @@ Dashboard presents queues, charts, draft controls, and automation status
 - Next.js dashboard under `dashboard/` with Supabase login, operator allowlist, draft editing, workflow dispatch, and automation variable controls.
 - Deployed dashboard for day-to-day review and automation controls.
 - Audited dashboard editing for opportunity status, creator review fields, follow-up outcomes, and offer outcomes.
+- Manual dashboard dispatch from selected opportunities into the LLM draft generator.
 - Dry-run-only dashboard send dispatch while `DRY_RUN_SEND=true`.
 - Unit tests for deduplication, scoring rules, follow-up timing, database batch dedupe, and sender recipient extraction.
 
@@ -91,7 +92,7 @@ Dashboard presents queues, charts, draft controls, and automation status
 | Runtime | Python 3.11+ |
 | Scheduler | GitHub Actions cron, with Codex jobs on a self-hosted runner and scheduled jobs disabled by repository variables until launch |
 | Database | Supabase Postgres |
-| Review UI | Supabase Studio |
+| Review UI | Deployed dashboard, with Supabase Studio as fallback |
 | LLM | Codex CLI on the server |
 | Reddit | Reddit RSS for v1, PRAW / Reddit Data API as a future fallback |
 | YouTube | YouTube Data API |
@@ -125,6 +126,7 @@ Dashboard presents queues, charts, draft controls, and automation status
 | `scripts/classify_opportunities.py` | Scores raw items and creates outreach opportunities. |
 | `scripts/discover_creators.py` | Promotes strong creator prospects into `creators`. |
 | `scripts/generate_drafts.py` | Creates outreach drafts for high-priority safe opportunities. |
+| `scripts/generate_draft_for_opportunity.py` | Creates one LLM-generated `needs_review` draft for an operator-selected opportunity. |
 | `scripts/send_approved.py` | Sends only approved email drafts and creates follow-up tasks. |
 | `scripts/list_due_followups.py` | Lists pending follow-ups due on or before a selected date for operator handling. |
 | `scripts/weekly_report.py` | Prints operational counts and review reminders. |
@@ -222,24 +224,26 @@ Keep `DRY_RUN_SEND=true` during setup. The send script can also be run with `--d
 
 ## Daily Operation
 
-1. Open Supabase Studio.
+1. Open the deployed dashboard; use Supabase Studio only as a fallback.
 2. Review high-priority rows in `opportunities`.
-3. Review drafts where `status = needs_review`.
-4. Edit weak drafts or mark them `edit_needed`.
-5. Mark only safe, useful email drafts as `approved`.
-6. Let the approved-send job process approved email drafts.
-7. Review follow-up tasks and weekly reporting to track outcomes.
+3. When an opportunity is worth outreach, use `Generate LLM draft` from the opportunity review pane.
+4. Review drafts where `status = needs_review`.
+5. Edit weak drafts or mark them `edit_needed`.
+6. Mark only safe, useful email drafts as `approved`.
+7. Run approved-send only as a dry-run while `DRY_RUN_SEND=true`.
+8. Review follow-up tasks and weekly reporting to track outcomes.
 
 Public comments and DMs remain manual in v1.
 
 ## GitHub Actions
 
-The repo includes four scheduled workflows:
+The repo includes four scheduled workflows plus one manual selected-opportunity draft workflow:
 
 | Workflow | Schedule | Purpose |
 |---|---:|---|
 | `daily-collection.yml` | Daily 14:00 UTC | Collects source items, classifies opportunities, and discovers creators. |
 | `daily-drafts.yml` | Daily 16:00 UTC | Generates outreach drafts for high-priority opportunities. |
+| `manual-opportunity-draft.yml` | Manual only | Generates one LLM draft for an operator-selected opportunity. |
 | `daily-send.yml` | Daily 17:00 UTC | Processes approved email drafts; scheduled runs require `SEND_AUTOMATION_ENABLED=true`. |
 | `weekly-report.yml` | Friday 18:00 UTC | Prints weekly operational counts. |
 

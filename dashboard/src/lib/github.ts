@@ -1,10 +1,11 @@
 import { optionalEnv, requiredEnv } from "@/lib/env";
 
-export type WorkflowKey = "collection" | "drafts" | "send" | "report";
+export type WorkflowKey = "collection" | "drafts" | "manualDraft" | "send" | "report";
 
 export const workflowFiles: Record<WorkflowKey, string> = {
   collection: "daily-collection.yml",
   drafts: "daily-drafts.yml",
+  manualDraft: "manual-opportunity-draft.yml",
   send: "daily-send.yml",
   report: "weekly-report.yml"
 };
@@ -112,10 +113,10 @@ export async function getWorkflowStatus(workflow: WorkflowKey) {
   return result.workflow_runs?.[0] || null;
 }
 
-export async function dispatchWorkflow(workflow: WorkflowKey): Promise<void> {
+export async function dispatchWorkflow(workflow: WorkflowKey, inputs?: Record<string, string>): Promise<void> {
   const file = workflowFiles[workflow];
   await githubRequest<void>(`/actions/workflows/${file}/dispatches`, {
     method: "POST",
-    body: { ref: "main" }
+    body: { ref: "main", ...(inputs ? { inputs } : {}) }
   });
 }

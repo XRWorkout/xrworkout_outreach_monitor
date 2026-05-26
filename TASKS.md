@@ -87,6 +87,7 @@ Updated on 2026-05-26.
 - [x] Made dashboard send workflow dispatch dry-run only while `DRY_RUN_SEND=true`.
 - [x] Added `scripts/list_due_followups.py` as a read-only backup for operator follow-up handling.
 - [x] Added clearer pipeline logging around collector row counts, LLM classification outcomes, draft eligibility skips, and sender dry-run decisions.
+- [x] Added manual dashboard dispatch from selected opportunities into the LLM draft generator so operators can decide which opportunities enter the draft queue.
 
 ## Current Next Tasks
 

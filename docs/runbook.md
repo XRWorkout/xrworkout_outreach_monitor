@@ -20,7 +20,7 @@ The dashboard can update GitHub repository variables and dispatch existing workf
 - Keep `AUTOMATION_ENABLED=false` until scheduled automation should start.
 - Keep `SEND_AUTOMATION_ENABLED=false`; it controls only scheduled approved-send jobs.
 - Keep `DRY_RUN_SEND=true` so dashboard send dispatches are dry-run only.
-- Use manual workflow dispatches from the dashboard for collection, draft generation, approved-send dry runs, and reports.
+- Use manual workflow dispatches from the dashboard for collection, batch draft generation, selected-opportunity LLM draft generation, approved-send dry runs, and reports.
 - The dashboard does not send email directly through Brevo; it only triggers the existing GitHub Actions sender.
 - Dashboard write actions are logged in `dashboard_audit_logs`.
 
