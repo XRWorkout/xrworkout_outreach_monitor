@@ -4,7 +4,7 @@ This file tracks concrete setup, validation, and launch tasks for the outreach s
 
 ## Latest Validation Notes
 
-Updated on 2026-05-25.
+Updated on 2026-05-26.
 
 - [x] Verified `.env` exists at `/home/yorgobekaii/xrworkout-outreach/.env`.
 - [x] Verified configured values are present for Supabase, YouTube, Twitch, Brevo, founder name, site URL, and `DRY_RUN_SEND`.
@@ -77,18 +77,18 @@ Updated on 2026-05-25.
 - [x] Confirmed the sent email draft created one pending step-1 follow-up due on 2026-06-01.
 - [x] Checked latest GitHub workflow runs: `daily-drafts`, `daily-send`, and `weekly-report` succeeded manually on 2026-05-25; the latest `daily-collection` push run failed because of the YAML issue fixed above.
 - [x] Pushed the YAML/README/TASKS checkpoint to `origin/main`, `xrworkout/main`, and confirmed the deploy-key remote points to the same commit.
+- [x] User confirmed on 2026-05-26 that the dashboard has been deployed.
+- [x] User confirmed on 2026-05-26 that the 2026-05-25 sent email was manually verified in Brevo.
+- [x] Added `docs/outreach-design.md` to document intake sources, filtering, prioritization, channel decisions, tracker structure, anti-spam rules, follow-up cadence, and agent automation steps.
 
 ## Current Next Tasks
 
 - [ ] Manually dispatch `Daily collection` once after the YAML fix lands, and confirm it completes successfully.
 - [ ] Review the 5 `needs_review` drafts now in Supabase/dashboard; reject weak targets, mark edit-needed drafts clearly, and approve only safe email drafts.
 - [ ] Review the 7 high-priority opportunities and the 1 new creator row for targeting quality and contact validity.
-- [ ] Confirm the 2026-05-25 sent email in Brevo: delivery status, recipient correctness, sender identity, and no unsafe claims.
 - [ ] Keep `AUTOMATION_ENABLED=false` while polishing review quality and workflow reliability.
-- [ ] Keep `DRY_RUN_SEND=true` until the sent-email verification and at least one more approved-draft dry run are clean.
-- [ ] Deploy the `dashboard/` app to Vercel, or confirm the production dashboard URL if it has already been deployed.
-- [ ] Configure and verify Vercel environment variables for Supabase auth/admin access, dashboard operator emails, and the GitHub fine-grained token.
-- [ ] Investigate the local dashboard `npm run build`, `npm run lint`, and `npx tsc --noEmit` hangs before treating dashboard deployment as verified.
+- [ ] Keep `DRY_RUN_SEND=true` until at least one more approved-draft dry run is clean.
+- [ ] Investigate the local dashboard `npm run build`, `npm run lint`, and `npx tsc --noEmit` hangs as a local development issue separate from the deployed dashboard.
 - [ ] Polish existing dashboard features before adding new sources: empty states, loading/error states, draft editing ergonomics, table filters, and automation status clarity.
 - [ ] Add focused tests for the dashboard API write paths that update draft status, edit draft content, update GitHub variables, and dispatch workflows.
 - [ ] Add clearer pipeline logging around collector row counts, LLM classification outcomes, draft eligibility skips, and sender dry-run/live-send decisions.
@@ -108,7 +108,5 @@ Updated on 2026-05-25.
 
 ## Still Undone Or Blocked
 
-- [ ] One email draft is marked `sent`, but Brevo delivery and recipient correctness still need manual confirmation.
 - [ ] Scheduled automation is intentionally disabled with `AUTOMATION_ENABLED=false`.
-- [ ] Dashboard production deployment and environment verification are still pending unless the user confirms a deployed URL.
 - [ ] Follow-up handling is not automated yet; one pending follow-up is due on 2026-06-01.

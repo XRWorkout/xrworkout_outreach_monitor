@@ -17,7 +17,7 @@ Supabase Studio remains the fallback for direct database inspection.
 The dashboard can update GitHub repository variables and dispatch existing workflows.
 
 - Keep `AUTOMATION_ENABLED=false` until scheduled automation should start.
-- Keep `DRY_RUN_SEND=true` until one approved email has been dry-run and manually checked.
+- Keep `DRY_RUN_SEND=true` until the next approved-send validation cycle is clean.
 - Use manual workflow dispatches from the dashboard for collection, draft generation, approved-send dry runs, and reports.
 - The dashboard does not send email directly through Brevo; it only triggers the existing GitHub Actions sender.
 - Dashboard write actions are logged in `dashboard_audit_logs`.

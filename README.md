@@ -27,6 +27,8 @@ Agents collect, classify, score, draft, log, and report. Humans approve. Automat
 
 That rule is enforced in code: the sender only processes drafts with `status = approved`. Drafts marked `needs_review`, `edit_needed`, `rejected`, or `sent` are not eligible for sending.
 
+For the detailed intake, filtering, prioritization, channel decision, tracker, anti-spam, and follow-up design, see [docs/outreach-design.md](docs/outreach-design.md).
+
 ## System Overview
 
 ```text
@@ -72,12 +74,13 @@ Dashboard presents queues, charts, draft controls, and automation status
 - GitHub Actions schedules for collection, drafts, approved sends, and weekly reporting.
 - Scheduled workflow jobs are gated by `AUTOMATION_ENABLED`; manual runs still work for validation.
 - Next.js dashboard under `dashboard/` with Supabase login, operator allowlist, draft editing, workflow dispatch, and automation variable controls.
+- Deployed dashboard for day-to-day review and automation controls.
 - Unit tests for deduplication, scoring rules, follow-up timing, database batch dedupe, and sender recipient extraction.
 
 ## What Is Planned
 
-- Deploy the dashboard to Vercel after the dashboard environment variables are configured.
 - Expand dashboard outcome tracking after the first controlled send loop is complete.
+- Add due-follow-up processing for pending follow-up tasks.
 
 ## Tech Stack
 
@@ -192,7 +195,7 @@ Optional settings:
 - `XRWORKOUT_FOUNDER_NAME`
 - `XRWORKOUT_SITE`, defaults to `https://xrworkout.ai`
 - `EMAIL_PROVIDER`, defaults to `brevo`
-- `DRY_RUN_SEND`, keep `true` until approved-send behavior is verified
+- `DRY_RUN_SEND`, keep `true` until the next approved-send validation cycle is clean
 - `REDDIT_USER_AGENT`, optional; defaults to a clear XRWorkout monitoring user agent
 
 ## Local Dry Run
@@ -243,7 +246,7 @@ Launch control:
 - Make scheduled jobs stop early unless `AUTOMATION_ENABLED` is explicitly `true`.
 - If `AUTOMATION_ENABLED` is missing, scheduled jobs behave as disabled.
 - Keep manual runs available for testing while scheduled automation is disabled.
-- Keep `DRY_RUN_SEND=true` as the separate email safety switch until one approved email has been dry-run and checked.
+- Keep `DRY_RUN_SEND=true` as the separate email safety switch until the next approved-send validation cycle is clean.
 
 ## Dashboard
 
@@ -284,14 +287,14 @@ Automation must not:
 
 ## Current Launch Status
 
-The core system is implemented and tested locally. YouTube and Twitch collection have been validated against Supabase, the dry-run sender has been validated, and the repository is configured for GitHub push access.
+The core system is implemented and tested locally. YouTube and Twitch collection have been validated against Supabase, the dry-run sender has been validated, the dashboard is deployed, and the repository is configured for GitHub push access.
 
 Remaining launch blockers:
 
 - Reddit API app credentials are optional future fallback work if RSS becomes unreliable.
 - Review real Supabase rows and generate at least one reviewable draft.
-- Live email sending should remain disabled until at least one approved draft is dry-run and manually checked.
-- Dashboard deployment and Vercel environment configuration are still pending.
+- Keep controlled sending conservative until one more approved-draft validation cycle is clean.
+- Add due-follow-up handling before the first follow-up queue becomes operationally important.
 
 ## Maintenance
 
