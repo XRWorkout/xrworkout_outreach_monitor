@@ -115,6 +115,7 @@ export default function Page() {
   const [offerCommitted, setOfferCommitted] = useState(false);
   const [offerContentUrl, setOfferContentUrl] = useState("");
   const [offerOutcome, setOfferOutcome] = useState("");
+  const [cleanStartRunning, setCleanStartRunning] = useState(false);
 
   const loadDashboard = useCallback(async (token: string) => {
     setLoading(true);
@@ -362,6 +363,24 @@ export default function Page() {
     });
     setNotice(`${workflow} workflow started.`);
     void loadDashboard(session.token);
+  }
+
+  async function cleanAutomaticStart() {
+    if (!session || cleanStartRunning) return;
+    setCleanStartRunning(true);
+    setError("");
+    try {
+      await fetchJson(`/api/dashboard/automation/clean-start`, session.token, {
+        method: "POST",
+        body: JSON.stringify({})
+      });
+      setNotice("Clean automatic start launched. Sends remain disabled and dry-run stays on.");
+      void loadDashboard(session.token);
+    } catch (startError) {
+      setError(startError instanceof Error ? startError.message : "Clean automatic start failed");
+    } finally {
+      setCleanStartRunning(false);
+    }
   }
 
   const opportunityColumns = useMemo<ColumnDef<Opportunity>[]>(
@@ -840,6 +859,32 @@ export default function Page() {
 
         {activeTab === "automation" && data.automation ? (
           <div className="view-stack">
+            <section className="panel clean-start-panel">
+              <div>
+                <div className="panel-title">
+                  <ShieldAlert size={18} />
+                  <h3>Clean automatic start</h3>
+                </div>
+                <p className="muted">
+                  Clears outreach records, starts a fresh collection-to-drafts run, enables scheduled collection and drafts, keeps scheduled sending off, and keeps send dispatches dry-run only.
+                </p>
+              </div>
+              <div className="clean-start-status">
+                <Badge tone="warn">deletes outreach data</Badge>
+                <Badge tone="good">sending disabled</Badge>
+                <Badge tone="good">dry-run on</Badge>
+              </div>
+              <div className="button-row">
+                {data.automation.workflows.cleanStart?.html_url ? (
+                  <a className="button-link" href={data.automation.workflows.cleanStart.html_url} target="_blank" rel="noreferrer">
+                    Open clean run <ExternalLink size={14} />
+                  </a>
+                ) : null}
+                <button className="primary icon-text" onClick={cleanAutomaticStart} disabled={cleanStartRunning}>
+                  <RefreshCw size={16} /> {cleanStartRunning ? "Starting..." : "Clean start"}
+                </button>
+              </div>
+            </section>
             <section className="automation-grid">
               {(["AUTOMATION_ENABLED", "SEND_AUTOMATION_ENABLED", "DRY_RUN_SEND"] as const).map((name) => {
                 const value = data.automation?.variables[name] || (name === "DRY_RUN_SEND" ? "true" : "false");

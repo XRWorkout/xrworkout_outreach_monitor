@@ -1,13 +1,14 @@
 import { optionalEnv, requiredEnv } from "@/lib/env";
 
-export type WorkflowKey = "collection" | "drafts" | "manualDraft" | "send" | "report";
+export type WorkflowKey = "collection" | "drafts" | "manualDraft" | "send" | "report" | "cleanStart";
 
 export const workflowFiles: Record<WorkflowKey, string> = {
   collection: "daily-collection.yml",
   drafts: "daily-drafts.yml",
   manualDraft: "manual-opportunity-draft.yml",
   send: "daily-send.yml",
-  report: "weekly-report.yml"
+  report: "weekly-report.yml",
+  cleanStart: "clean-automatic-start.yml"
 };
 
 export type AutomationVariableName = "AUTOMATION_ENABLED" | "SEND_AUTOMATION_ENABLED" | "DRY_RUN_SEND";

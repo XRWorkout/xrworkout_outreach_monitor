@@ -93,16 +93,16 @@ Updated on 2026-05-26.
 - [x] Tightened fallback creator promotion so a row is not created merely because the collector search query was `VR fitness`; future fallback rows need creator/profile/title text evidence.
 - [x] Ran `python scripts/discover_creators.py --limit 10` on 2026-06-04: completed in about 25 seconds with `scanned=10 upserted=10 fallback=7 skipped=0`.
 - [x] Checked Supabase after creator discovery on 2026-06-04: `raw_items: 289`, `opportunities: 50`, `creators: 24`, `drafts: 6`, `followups: 1`, `offers: 0`; all 24 creators are currently `new` and need review.
+- [x] Added dashboard `Clean start` action and `clean-automatic-start.yml` workflow to delete operational outreach data, run the fresh pipeline, enable scheduled collection/drafts, keep scheduled sending disabled, and keep send dispatches dry-run only.
+- [x] Added `scripts/reset_outreach_data.py` and database reset coverage; reset deletes `followups`, `offers`, `drafts`, `opportunities`, `creators`, and `raw_items` while leaving schema and audit logs intact.
+- [x] Verified after clean-start implementation: backend tests passed, dashboard tests passed, dashboard typecheck passed, and dashboard lint passed.
 
 ## Current Next Tasks
 
-- [ ] Manually dispatch `Daily collection` once after the YAML fix lands, and confirm it completes successfully.
-- [ ] Review the 5 `needs_review` drafts now in Supabase/dashboard; reject weak targets, mark edit-needed drafts clearly, and approve only safe email drafts.
-- [ ] Review the 7 high-priority opportunities and the 24 new creator rows for targeting quality, duplicate/spam cleanup, contact validity, and whether the fallback-promoted low-priority rows should stay.
-- [ ] Keep `AUTOMATION_ENABLED=false` while polishing review quality and workflow reliability.
+- [ ] Deploy the dashboard update, then use the automation tab `Clean start` button to wipe outreach rows and launch a fresh automatic pipeline.
+- [ ] After the clean workflow completes, confirm the dashboard has fresh raw items, opportunities, creators, and any generated `needs_review` drafts.
 - [ ] Keep `SEND_AUTOMATION_ENABLED=false` so scheduled approved sends remain disabled.
 - [ ] Keep `DRY_RUN_SEND=true` so dashboard send workflow dispatches remain dry-run only.
-- [ ] Investigate the local dashboard `npm run build`, `npm run lint`, and `npx tsc --noEmit` hangs as a local development issue separate from the deployed dashboard.
 - [ ] Polish existing dashboard features before adding new sources: empty states, loading/error states, draft editing ergonomics, table filters, and automation status clarity.
 - [ ] Add deeper route-handler tests for the dashboard API write paths if the current schema/helper coverage is not enough.
 - [ ] Treat Reddit API credentials as a future upgrade only if RSS collection becomes unreliable.
@@ -123,6 +123,6 @@ Updated on 2026-05-26.
 
 ## Still Undone Or Blocked
 
-- [ ] Scheduled automation is intentionally disabled with `AUTOMATION_ENABLED=false`.
+- [ ] Scheduled collection/draft/report automation should be enabled only through the dashboard `Clean start` flow or an explicit operator decision.
 - [ ] Scheduled approved sending is intentionally disabled with `SEND_AUTOMATION_ENABLED=false`.
 - [ ] Follow-up sending is intentionally operator-handled in v1; one pending follow-up is due on 2026-06-01.

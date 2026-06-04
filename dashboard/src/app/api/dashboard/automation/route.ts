@@ -13,7 +13,8 @@ export async function GET(request: Request) {
       drafts,
       manualDraft,
       send,
-      report
+      report,
+      cleanStart
     ] = await Promise.all([
       getAutomationVariable("AUTOMATION_ENABLED"),
       getAutomationVariable("SEND_AUTOMATION_ENABLED"),
@@ -22,7 +23,8 @@ export async function GET(request: Request) {
       getWorkflowStatus("drafts"),
       getWorkflowStatus("manualDraft"),
       getWorkflowStatus("send"),
-      getWorkflowStatus("report")
+      getWorkflowStatus("report"),
+      getWorkflowStatus("cleanStart")
     ]);
 
     return Response.json({
@@ -31,7 +33,7 @@ export async function GET(request: Request) {
         SEND_AUTOMATION_ENABLED: sendAutomationEnabled || "false",
         DRY_RUN_SEND: dryRunSend || "true"
       },
-      workflows: { collection, drafts, manualDraft, send, report }
+      workflows: { collection, drafts, manualDraft, send, report, cleanStart }
     });
   } catch (error) {
     return authErrorResponse(error) || errorResponse(error);

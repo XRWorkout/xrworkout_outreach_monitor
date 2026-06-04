@@ -104,7 +104,7 @@ export type AutomationData = {
     DRY_RUN_SEND: string;
   };
   workflows: Record<
-    "collection" | "drafts" | "manualDraft" | "send" | "report",
+    "collection" | "drafts" | "manualDraft" | "send" | "report" | "cleanStart",
     | {
         id: number;
         name: string | null;

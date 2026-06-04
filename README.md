@@ -71,12 +71,15 @@ Dashboard presents queues, charts, draft controls, and automation status
 - Approval-only sending logic.
 - Follow-up task creation after sent emails.
 - Weekly report script.
+- Clean reset script for deleting operational outreach rows before a fresh run.
 - GitHub Actions schedules for collection, drafts, approved sends, and weekly reporting.
+- Manual clean automatic start workflow that resets outreach data, runs collection/classification/creator discovery/draft generation, then reports counts.
 - Scheduled collection, draft, and report jobs are gated by `AUTOMATION_ENABLED`; scheduled approved sends are gated by `SEND_AUTOMATION_ENABLED`; manual runs still work for validation.
 - Next.js dashboard under `dashboard/` with Supabase login, operator allowlist, draft editing, workflow dispatch, and automation variable controls.
 - Deployed dashboard for day-to-day review and automation controls.
 - Audited dashboard editing for opportunity status, creator review fields, follow-up outcomes, and offer outcomes.
 - Manual dashboard dispatch from selected opportunities into the LLM draft generator.
+- Dashboard clean automatic start control for wiping outreach rows, launching the fresh pipeline, enabling scheduled collection/drafts, and keeping sends disabled in dry-run mode.
 - Dry-run-only dashboard send dispatch while `DRY_RUN_SEND=true`.
 - Unit tests for deduplication, scoring rules, follow-up timing, database batch dedupe, and sender recipient extraction.
 
@@ -127,6 +130,7 @@ Dashboard presents queues, charts, draft controls, and automation status
 | `scripts/discover_creators.py` | Promotes strong creator prospects into `creators`. |
 | `scripts/generate_drafts.py` | Creates outreach drafts for high-priority safe opportunities. |
 | `scripts/generate_draft_for_opportunity.py` | Creates one LLM-generated `needs_review` draft for an operator-selected opportunity. |
+| `scripts/reset_outreach_data.py` | Deletes operational outreach rows from `followups`, `offers`, `drafts`, `opportunities`, `creators`, and `raw_items`; keeps schema and audit logs. |
 | `scripts/send_approved.py` | Sends only approved email drafts and creates follow-up tasks. |
 | `scripts/list_due_followups.py` | Lists pending follow-ups due on or before a selected date for operator handling. |
 | `scripts/weekly_report.py` | Prints operational counts and review reminders. |
@@ -225,25 +229,27 @@ Keep `DRY_RUN_SEND=true` during setup. The send script can also be run with `--d
 ## Daily Operation
 
 1. Open the deployed dashboard; use Supabase Studio only as a fallback.
-2. Review high-priority rows in `opportunities`.
-3. When an opportunity is worth outreach, use `Generate LLM draft` from the opportunity review pane.
-4. Review drafts where `status = needs_review`.
-5. Edit weak drafts or mark them `edit_needed`.
-6. Mark only safe, useful email drafts as `approved`.
-7. Run approved-send only as a dry-run while `DRY_RUN_SEND=true`.
-8. Review follow-up tasks and weekly reporting to track outcomes.
+2. Use `Clean start` in the automation tab when the operator wants to wipe outreach rows and launch a fresh automatic pipeline.
+3. Review high-priority rows in `opportunities`.
+4. When an opportunity is worth outreach, use `Generate LLM draft` from the opportunity review pane.
+5. Review drafts where `status = needs_review`.
+6. Edit weak drafts or mark them `edit_needed`.
+7. Mark only safe, useful email drafts as `approved`.
+8. Run approved-send only as a dry-run while `DRY_RUN_SEND=true`.
+9. Review follow-up tasks and weekly reporting to track outcomes.
 
 Public comments and DMs remain manual in v1.
 
 ## GitHub Actions
 
-The repo includes four scheduled workflows plus one manual selected-opportunity draft workflow:
+The repo includes four scheduled workflows plus manual workflows for selected-opportunity drafts and clean automatic starts:
 
 | Workflow | Schedule | Purpose |
 |---|---:|---|
 | `daily-collection.yml` | Daily 14:00 UTC | Collects source items, classifies opportunities, and discovers creators. |
 | `daily-drafts.yml` | Daily 16:00 UTC | Generates outreach drafts for high-priority opportunities. |
 | `manual-opportunity-draft.yml` | Manual only | Generates one LLM draft for an operator-selected opportunity. |
+| `clean-automatic-start.yml` | Manual only | Deletes operational outreach rows, runs collection/classification/creator discovery/draft generation, and reports counts. |
 | `daily-send.yml` | Daily 17:00 UTC | Processes approved email drafts; scheduled runs require `SEND_AUTOMATION_ENABLED=true`. |
 | `weekly-report.yml` | Friday 18:00 UTC | Prints weekly operational counts. |
 
@@ -257,6 +263,7 @@ Launch control:
 - If either automation variable is missing, that schedule behaves as disabled.
 - Keep manual runs available for testing while scheduled automation is disabled.
 - Keep `DRY_RUN_SEND=true` as the separate email safety switch; dashboard send dispatch is dry-run only.
+- The dashboard `Clean start` action sets `AUTOMATION_ENABLED=true`, `SEND_AUTOMATION_ENABLED=false`, and `DRY_RUN_SEND=true` before dispatching `clean-automatic-start.yml`.
 
 ## Dashboard
 
@@ -272,7 +279,7 @@ Planned views:
 - Follow-up queue for due and overdue follow-ups.
 - Offer tracking for the 3-month-free creator offer and content outcomes.
 - Automation status showing schedule state, last workflow runs, failures, `AUTOMATION_ENABLED`, `SEND_AUTOMATION_ENABLED`, and `DRY_RUN_SEND`.
-- Automation controls for toggling automation variables and manually dispatching collection, draft, approved-send dry runs, and reports.
+- Automation controls for toggling automation variables, starting a clean automatic pipeline, and manually dispatching collection, draft, approved-send dry runs, and reports.
 
 ## Safety Rules
 

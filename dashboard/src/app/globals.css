@@ -294,6 +294,18 @@ textarea {
   gap: 8px;
 }
 
+.clean-start-panel {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+}
+
+.clean-start-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 .table-shell {
   background: var(--panel);
   border: 1px solid var(--line);
@@ -474,8 +486,13 @@ td a {
   .chart-grid,
   .automation-grid,
   .workflow-grid,
+  .clean-start-panel,
   .split {
     grid-template-columns: 1fr;
+  }
+
+  .clean-start-status {
+    justify-content: flex-start;
   }
 
   .review-pane {

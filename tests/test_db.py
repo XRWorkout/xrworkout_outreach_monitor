@@ -8,10 +8,12 @@ class FakeTable:
         self.payload = None
         self.on_conflict = None
         self.filters = []
+        self.deleted = False
         self.selected = None
         self.order_by = None
         self.limit_value = None
         self.data = [{"id": "followup-1"}]
+        self.count = 0
         self.single_called = False
 
     def upsert(self, payload, on_conflict):
@@ -19,8 +21,16 @@ class FakeTable:
         self.on_conflict = on_conflict
         return self
 
-    def select(self, value):
+    def select(self, value, **kwargs):
         self.selected = value
+        return self
+
+    def delete(self):
+        self.deleted = True
+        return self
+
+    def not_(self, name, operator, value):
+        self.filters.append(("not", name, operator, value))
         return self
 
     def eq(self, name, value):
@@ -50,11 +60,24 @@ class FakeTable:
 
 class FakeClient:
     def __init__(self):
+        self.tables = {}
+        self.table_calls = []
         self.fake_table = FakeTable()
 
     def table(self, name):
-        assert name in {"raw_items", "followups", "opportunities"}
-        return self.fake_table
+        assert name in {"raw_items", "followups", "opportunities", "offers", "drafts", "creators"}
+        self.table_calls.append(name)
+        if name not in self.tables:
+            self.tables[name] = FakeTable()
+        return self.tables[name]
+
+    @property
+    def fake_table(self):
+        return self.tables.setdefault("followups", FakeTable())
+
+    @fake_table.setter
+    def fake_table(self, value):
+        self.tables["followups"] = value
 
 
 def test_upsert_raw_items_dedupes_batch_by_dedupe_hash():
@@ -69,8 +92,9 @@ def test_upsert_raw_items_dedupes_batch_by_dedupe_hash():
         ]
     )
 
-    assert db.client.fake_table.on_conflict == "dedupe_hash"
-    assert db.client.fake_table.payload == [
+    table = db.client.tables["raw_items"]
+    assert table.on_conflict == "dedupe_hash"
+    assert table.payload == [
         {"dedupe_hash": "same", "title": "second"},
         {"dedupe_hash": "other", "title": "third"},
     ]
@@ -97,6 +121,27 @@ def test_fetch_opportunity_uses_single_row_lookup():
     row = db.fetch_opportunity("opportunity-1")
 
     assert row == {"id": "opportunity-1"}
-    assert db.client.fake_table.selected == "*"
-    assert ("eq", "id", "opportunity-1") in db.client.fake_table.filters
-    assert db.client.fake_table.single_called
+    table = db.client.tables["opportunities"]
+    assert table.selected == "*"
+    assert ("eq", "id", "opportunity-1") in table.filters
+    assert table.single_called
+
+
+def test_delete_operational_data_deletes_dependency_order():
+    db = OutreachDB.__new__(OutreachDB)
+    db.client = FakeClient()
+
+    before = db.delete_operational_data()
+
+    assert before == {
+        "raw_items": 0,
+        "opportunities": 0,
+        "creators": 0,
+        "drafts": 0,
+        "followups": 0,
+        "offers": 0,
+    }
+    assert db.client.table_calls[-6:] == ["followups", "offers", "drafts", "opportunities", "creators", "raw_items"]
+    for table in ["followups", "offers", "drafts", "opportunities", "creators", "raw_items"]:
+        assert db.client.tables[table].deleted
+        assert ("not", "id", "is", "null") in db.client.tables[table].filters
