@@ -88,12 +88,17 @@ Updated on 2026-05-26.
 - [x] Added `scripts/list_due_followups.py` as a read-only backup for operator follow-up handling.
 - [x] Added clearer pipeline logging around collector row counts, LLM classification outcomes, draft eligibility skips, and sender dry-run decisions.
 - [x] Added manual dashboard dispatch from selected opportunities into the LLM draft generator so operators can decide which opportunities enter the draft queue.
+- [x] Loosened creator discovery and converted it from per-item Codex calls to one batch Codex call per run using the creator review fields: name, platform, profile URL, public contact, niche, audience estimate/quality, fit reason, VR/fitness/gaming/wellness signal, offer angle, and priority.
+- [x] Ran focused creator discovery tests after the batch change: 8 tests passed.
+- [x] Tightened fallback creator promotion so a row is not created merely because the collector search query was `VR fitness`; future fallback rows need creator/profile/title text evidence.
+- [x] Ran `python scripts/discover_creators.py --limit 10` on 2026-06-04: completed in about 25 seconds with `scanned=10 upserted=10 fallback=7 skipped=0`.
+- [x] Checked Supabase after creator discovery on 2026-06-04: `raw_items: 289`, `opportunities: 50`, `creators: 24`, `drafts: 6`, `followups: 1`, `offers: 0`; all 24 creators are currently `new` and need review.
 
 ## Current Next Tasks
 
 - [ ] Manually dispatch `Daily collection` once after the YAML fix lands, and confirm it completes successfully.
 - [ ] Review the 5 `needs_review` drafts now in Supabase/dashboard; reject weak targets, mark edit-needed drafts clearly, and approve only safe email drafts.
-- [ ] Review the 7 high-priority opportunities and the 1 new creator row for targeting quality and contact validity.
+- [ ] Review the 7 high-priority opportunities and the 24 new creator rows for targeting quality, duplicate/spam cleanup, contact validity, and whether the fallback-promoted low-priority rows should stay.
 - [ ] Keep `AUTOMATION_ENABLED=false` while polishing review quality and workflow reliability.
 - [ ] Keep `SEND_AUTOMATION_ENABLED=false` so scheduled approved sends remain disabled.
 - [ ] Keep `DRY_RUN_SEND=true` so dashboard send workflow dispatches remain dry-run only.

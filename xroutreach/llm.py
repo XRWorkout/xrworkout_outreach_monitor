@@ -87,11 +87,56 @@ class LLM:
         prompt = {
             "raw_item": raw_item,
             "task": (
-                "If this item represents a creator prospect, extract a creator record. "
-                "Return should_create false if weak fit."
+                "Decide whether this YouTube or Twitch item should become a creator "
+                "prospect for human review. Be inclusive at discovery time: create a "
+                "record for plausible VR, MR, Quest, gaming, fitness, wellness, dance, "
+                "boxing, rhythm-game, or tech creators whose recent content could make "
+                "XRWorkout outreach relevant. Public email/contact is helpful but not "
+                "required; use null when unavailable. Return should_create false only "
+                "for unrelated accounts, official brand/company accounts, spam, kids "
+                "content, unsafe medical claims, or accounts with too little identity "
+                "context to review."
             ),
         }
         return self._json_completion(CLASSIFY_SYSTEM, prompt, CREATOR_SCHEMA)
+
+    def creator_fits(self, raw_items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        compact_items = [
+            {
+                "raw_item_id": item.get("id"),
+                "source": item.get("source"),
+                "source_url": item.get("source_url"),
+                "author_name": item.get("author_name"),
+                "author_url": item.get("author_url"),
+                "title": item.get("title"),
+                "body": item.get("body"),
+                "keyword": item.get("raw_json", {}).get("keyword")
+                if isinstance(item.get("raw_json"), dict)
+                else "",
+            }
+            for item in raw_items
+        ]
+        prompt = {
+            "raw_items": compact_items,
+            "task": (
+                "Build a review list of creators who may be strong fits for XRWorkout. "
+                "Evaluate YouTube and Twitch items inclusively, but prioritize quality. "
+                "For each plausible creator, return: raw_item_id, name, platform, "
+                "profile_url, public_contact if visible in the input otherwise null, "
+                "niche, audience_estimate, audience_quality, why they fit XRWorkout, "
+                "whether they already talk about VR, fitness, gaming, or wellness, "
+                "suggested offer angle, and priority high/medium/low. Include creators "
+                "who are credible VR, MR, Quest, gaming, fitness, wellness, dance, "
+                "boxing, rhythm-game, or tech prospects. Exclude unrelated accounts, "
+                "official brand/company accounts, spam, kids content, unsafe medical "
+                "claims, and accounts with too little identity context to review."
+            ),
+        }
+        data = self._json_completion(CLASSIFY_SYSTEM, prompt, CREATOR_BATCH_SCHEMA)
+        creators = data.get("creators", [])
+        if not isinstance(creators, list):
+            return []
+        return [creator for creator in creators if isinstance(creator, dict)]
 
     def _json_completion(
         self, system: str, payload: dict[str, Any], schema: dict[str, Any]
@@ -228,6 +273,49 @@ CREATOR_SCHEMA = {
         "offer_angle",
         "priority",
     ],
+    "additionalProperties": False,
+}
+
+CREATOR_BATCH_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "creators": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "raw_item_id": {"type": ["string", "null"]},
+                    "name": {"type": "string"},
+                    "platform": {"type": "string", "enum": ["youtube", "twitch"]},
+                    "profile_url": {"type": "string"},
+                    "public_contact": {"type": ["string", "null"]},
+                    "niche": {"type": "string"},
+                    "audience_estimate": {"type": "string"},
+                    "audience_quality": {"type": "string"},
+                    "fit_reason": {"type": "string"},
+                    "talks_about": {"type": "string"},
+                    "offer_angle": {"type": "string"},
+                    "priority": {"type": "string", "enum": ["high", "medium", "low"]},
+                },
+                "required": [
+                    "raw_item_id",
+                    "name",
+                    "platform",
+                    "profile_url",
+                    "public_contact",
+                    "niche",
+                    "audience_estimate",
+                    "audience_quality",
+                    "fit_reason",
+                    "talks_about",
+                    "offer_angle",
+                    "priority",
+                ],
+                "additionalProperties": False,
+            },
+        }
+    },
+    "required": ["creators"],
     "additionalProperties": False,
 }
 
