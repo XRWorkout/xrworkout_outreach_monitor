@@ -96,6 +96,7 @@ Updated on 2026-05-26.
 - [x] Added dashboard `Clean start` action and `clean-automatic-start.yml` workflow to delete operational outreach data, run the fresh pipeline, enable scheduled collection/drafts, keep scheduled sending disabled, and keep send dispatches dry-run only.
 - [x] Added `scripts/reset_outreach_data.py` and database reset coverage; reset deletes `followups`, `offers`, `drafts`, `opportunities`, `creators`, and `raw_items` while leaving schema and audit logs intact.
 - [x] Verified after clean-start implementation: backend tests passed, dashboard tests passed, dashboard typecheck passed, and dashboard lint passed.
+- [x] Fixed local dashboard validation reliability on 2026-06-04 by narrowing ESLint and TypeScript scopes away from generated `.next` output; verified `npm run build`, `npm run lint`, and `npx tsc --noEmit` complete locally.
 
 ## Current Next Tasks
 
