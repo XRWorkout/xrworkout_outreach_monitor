@@ -84,6 +84,42 @@ def test_llm_creator_fits_uses_one_batch_codex_call(monkeypatch):
     assert result[0]["talks_about"] == "VR and fitness"
 
 
+def test_llm_draft_prompt_preserves_manual_channels(monkeypatch):
+    prompts = []
+
+    def fake_which(binary):
+        assert binary == "codex"
+        return "/usr/bin/codex"
+
+    def fake_run(command, input, capture_output, text, timeout, check):
+        prompts.append(input)
+        output_path = command[command.index("--output-last-message") + 1]
+        Path(output_path).write_text(
+            '{"channel":"comment","subject":"","body":"I work on XRWorkout, and this is relevant because..."}',
+            encoding="utf-8",
+        )
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setattr("xroutreach.llm.shutil.which", fake_which)
+    monkeypatch.setattr("xroutreach.llm.subprocess.run", fake_run)
+
+    result = LLM(_settings()).draft(
+        {
+            "recommended_action": "comment",
+            "summary": "Public thread asking for VR fitness options",
+        }
+    )
+
+    assert result == {
+        "channel": "comment",
+        "subject": "",
+        "body": "I work on XRWorkout, and this is relevant because...",
+    }
+    assert "For comment, use an empty subject" in prompts[0]
+    assert "For dm, use an empty subject" in prompts[0]
+    assert "required for email; empty string for dm and comment" in prompts[0]
+
+
 def _settings() -> Settings:
     return Settings(
         supabase_url="",

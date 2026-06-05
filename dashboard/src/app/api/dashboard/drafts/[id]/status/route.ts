@@ -3,7 +3,7 @@ import { authErrorResponse, requireOperator } from "@/lib/auth";
 import { errorResponse } from "@/lib/api";
 import { auditDashboardAction } from "@/lib/audit";
 import { dispatchWorkflow, getAutomationVariable } from "@/lib/github";
-import { assertDraftStatusChangeAllowed, assertDryRunSendDispatchAllowed, draftStatusSchema } from "@/lib/draft-rules";
+import { assertDraftSendWorkflowAllowed, assertDraftStatusChangeAllowed, draftStatusSchema } from "@/lib/draft-rules";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 type RouteContext = {
@@ -17,11 +17,6 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const payload = draftStatusSchema.parse(await request.json());
     const db = supabaseAdmin();
 
-    if (payload.runSendWorkflow) {
-      const dryRunSend = await getAutomationVariable("DRY_RUN_SEND");
-      assertDryRunSendDispatchAllowed(dryRunSend);
-    }
-
     const { data: before, error: fetchError } = await db
       .from("drafts")
       .select("*")
@@ -30,7 +25,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
     if (fetchError) {
       throw fetchError;
     }
-    assertDraftStatusChangeAllowed(before, payload.status);
+    assertDraftStatusChangeAllowed(before);
+    if (payload.runSendWorkflow) {
+      const dryRunSend = await getAutomationVariable("DRY_RUN_SEND");
+      assertDraftSendWorkflowAllowed(before, payload.status, dryRunSend);
+    }
 
     const updatePayload = {
       status: payload.status,

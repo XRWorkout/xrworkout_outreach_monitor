@@ -14,9 +14,13 @@ CLASSIFY_SYSTEM = """You classify outreach opportunities for XRWorkout.
 XRWorkout is a VR/MR fitness product. Prefer high-quality, low-volume outreach.
 Never recommend spam. Return strict JSON only."""
 
-DRAFT_SYSTEM = """You write concise founder-led XRWorkout outreach drafts.
+DRAFT_SYSTEM = """You write concise founder-led XRWorkout outreach message drafts.
 Tone: warm, specific, low-pressure. Do not overclaim health outcomes.
-Public comments must disclose affiliation. Return strict JSON only."""
+Choose email, dm, or comment from the recommended action.
+For email, include a useful subject and an email-ready body.
+For comment, use an empty subject and write a short public reply with explicit XRWorkout affiliation disclosure.
+For dm, use an empty subject and write a concise private message that is low-pressure and affiliation-clear.
+Return strict JSON only."""
 
 
 class LLM:
@@ -72,8 +76,8 @@ class LLM:
             "site": self.site,
             "required": {
                 "channel": "email, dm, or comment based on recommended_action",
-                "subject": "required for email, empty string otherwise",
-                "body": "concise, context-aware draft",
+                "subject": "required for email; empty string for dm and comment",
+                "body": "concise, context-aware channel-specific draft",
             },
         }
         data = self._json_completion(DRAFT_SYSTEM, prompt, DRAFT_SCHEMA)

@@ -259,7 +259,14 @@ export default function Page() {
       drafts: current.drafts.map((draft) => (draft.id === result.draft.id ? result.draft : draft))
     }));
     setEditingDraft(result.draft);
-    setNotice(result.sendWorkflowDispatched ? "Draft approved and send workflow started." : `Draft marked ${status}.`);
+    const manualReady = status === "approved" && result.draft.channel !== "email";
+    setNotice(
+      result.sendWorkflowDispatched
+        ? "Email draft approved and send workflow started."
+        : manualReady
+          ? "Message approved for manual use."
+          : `Draft marked ${status}.`
+    );
     void loadDashboard(session.token);
   }
 
@@ -679,7 +686,11 @@ export default function Page() {
                   </label>
                   <div className="context-box">
                     <strong>Recipient/contact</strong>
-                    <p>{editingDraft.creators?.public_contact || "No creator contact. Add a public contact on the creator before sending."}</p>
+                    <p>
+                      {editingDraft.channel === "email"
+                        ? editingDraft.creators?.public_contact || "No creator contact. Add a public email contact on the creator before sending."
+                        : editingDraft.creators?.public_contact || "Manual channel. Use the creator profile or source link before posting/sending."}
+                    </p>
                     {editingDraft.creators?.profile_url ? (
                       <a href={editingDraft.creators.profile_url} target="_blank" rel="noreferrer">
                         Open creator profile <ExternalLink size={14} />
@@ -711,8 +722,8 @@ export default function Page() {
                     <button className="danger icon-text" onClick={() => changeDraftStatus("rejected")} disabled={editingDraft.status === "sent"}>
                       <XCircle size={16} /> Reject
                     </button>
-                    <button className="success icon-text" onClick={() => changeDraftStatus("approved")} disabled={editingDraft.status === "sent" || editingDraft.channel !== "email"}>
-                      <CheckCircle2 size={16} /> Approve
+                    <button className="success icon-text" onClick={() => changeDraftStatus("approved")} disabled={editingDraft.status === "sent"}>
+                      <CheckCircle2 size={16} /> {editingDraft.channel === "email" ? "Approve" : "Approve for manual use"}
                     </button>
                     <button
                       className="success icon-text"

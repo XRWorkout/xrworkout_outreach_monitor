@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   assertDraftCanBeEdited,
+  assertDraftSendWorkflowAllowed,
   assertDraftStatusChangeAllowed,
   assertDryRunSendDispatchAllowed,
   draftEditSchema,
@@ -35,19 +36,27 @@ describe("draft edit validation", () => {
 
 describe("draft status transitions", () => {
   it("allows approving email drafts", () => {
-    expect(() => assertDraftStatusChangeAllowed(draft(), "approved")).not.toThrow();
+    expect(() => assertDraftStatusChangeAllowed(draft())).not.toThrow();
   });
 
-  it("blocks approving non-email drafts", () => {
-    expect(() => assertDraftStatusChangeAllowed(draft({ channel: "reddit" }), "approved")).toThrow("Only email drafts");
+  it("allows approving non-email drafts for manual use", () => {
+    expect(() => assertDraftStatusChangeAllowed(draft({ channel: "comment" }))).not.toThrow();
+    expect(() => assertDraftStatusChangeAllowed(draft({ channel: "dm" }))).not.toThrow();
   });
 
   it("blocks sent draft status changes", () => {
-    expect(() => assertDraftStatusChangeAllowed(draft({ status: "sent" }), "rejected")).toThrow("Sent drafts cannot");
+    expect(() => assertDraftStatusChangeAllowed(draft({ status: "sent" }))).toThrow("Sent drafts cannot");
   });
 
   it("allows send workflow dispatch only when dry-run sending is active", () => {
     expect(() => assertDryRunSendDispatchAllowed("true")).not.toThrow();
     expect(() => assertDryRunSendDispatchAllowed("false")).toThrow("dry-run only");
+  });
+
+  it("allows send workflow dispatch only for approved email drafts", () => {
+    expect(() => assertDraftSendWorkflowAllowed(draft(), "approved", "true")).not.toThrow();
+    expect(() => assertDraftSendWorkflowAllowed(draft({ channel: "comment" }), "approved", "true")).toThrow("Only email drafts");
+    expect(() => assertDraftSendWorkflowAllowed(draft(), "rejected", "true")).toThrow("Only approved email drafts");
+    expect(() => assertDraftSendWorkflowAllowed(draft(), "approved", "false")).toThrow("dry-run only");
   });
 });

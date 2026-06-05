@@ -1,6 +1,6 @@
 import responses
 
-from scripts.send_approved import recipient_for_draft
+from scripts.send_approved import recipient_for_draft, skip_reason_for_draft
 from xroutreach.config import Settings
 from xroutreach.emailer import Emailer
 
@@ -13,6 +13,33 @@ def test_recipient_for_draft_uses_creator_public_contact():
 def test_recipient_for_draft_ignores_non_email_contact():
     draft = {"creators": {"public_contact": "instagram dm"}}
     assert recipient_for_draft(draft) is None
+
+
+def test_skip_reason_for_draft_skips_manual_channels():
+    draft = {
+        "status": "approved",
+        "channel": "comment",
+        "creators": {"public_contact": "creator@example.com"},
+    }
+    assert skip_reason_for_draft(draft) == "channel"
+
+
+def test_skip_reason_for_draft_requires_email_recipient():
+    draft = {
+        "status": "approved",
+        "channel": "email",
+        "creators": {"public_contact": "instagram dm"},
+    }
+    assert skip_reason_for_draft(draft) == "recipient"
+
+
+def test_skip_reason_for_draft_allows_approved_email_with_recipient():
+    draft = {
+        "status": "approved",
+        "channel": "email",
+        "creators": {"public_contact": "creator@example.com"},
+    }
+    assert skip_reason_for_draft(draft) is None
 
 
 def test_emailer_sends_brevo_api_key_header():

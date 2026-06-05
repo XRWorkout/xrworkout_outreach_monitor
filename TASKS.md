@@ -112,9 +112,8 @@ Updated on 2026-05-26.
 - [ ] After the clean workflow completes, confirm the dashboard has fresh raw items, opportunities, creators, and any generated `needs_review` drafts.
 - [ ] Keep `SEND_AUTOMATION_ENABLED=false` so scheduled approved sends remain disabled.
 - [ ] Keep `DRY_RUN_SEND=true` so dashboard send workflow dispatches remain dry-run only.
-- [ ] Review the current 24 creator rows for contact validity and mark valid prospects `contact_ready`; 23 currently lack public contact.
+- [ ] Review the current 24 creator rows for contact validity and mark valid prospects `contact_ready`; 22 currently lack public contact.
 - [ ] Review the 5 `needs_review` drafts with the improved source/opportunity context; reject weak targets and approve only safe email drafts.
-- [ ] Resolve the pending overdue follow-up from 2026-06-01 through the dashboard; follow-up sending remains operator-handled in v1.
 - [ ] Polish remaining dashboard features before adding new sources: table filters, automation status clarity, and any remaining loading/error states observed after deployment.
 - [ ] Add deeper route-handler tests for the dashboard API write paths if the current schema/helper coverage is not enough.
 - [ ] Treat Reddit API credentials as a future upgrade only if RSS collection becomes unreliable.

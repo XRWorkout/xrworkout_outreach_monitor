@@ -18,6 +18,16 @@ def recipient_for_draft(draft: dict) -> str | None:
     return None
 
 
+def skip_reason_for_draft(draft: dict) -> str | None:
+    if not sendable_status(draft.get("status", "")):
+        return "status"
+    if draft.get("channel") != "email":
+        return "channel"
+    if not recipient_for_draft(draft):
+        return "recipient"
+    return None
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--limit", type=int, default=25)
@@ -32,19 +42,14 @@ def main() -> None:
     skipped = 0
     skip_reasons = {"status": 0, "channel": 0, "recipient": 0}
     for draft in db.fetch_approved_drafts(args.limit):
-        if not sendable_status(draft.get("status", "")):
+        skip_reason = skip_reason_for_draft(draft)
+        if skip_reason:
             skipped += 1
-            skip_reasons["status"] += 1
-            continue
-        if draft.get("channel") != "email":
-            skipped += 1
-            skip_reasons["channel"] += 1
+            skip_reasons[skip_reason] += 1
             continue
         to_email = recipient_for_draft(draft)
         if not to_email:
-            skipped += 1
-            skip_reasons["recipient"] += 1
-            continue
+            raise RuntimeError("Email draft passed sendability checks without a recipient.")
         if emailer:
             emailer.send(to_email, draft.get("subject") or "XRWorkout creator access", draft["body"])
             db.mark_draft_sent(draft["id"])

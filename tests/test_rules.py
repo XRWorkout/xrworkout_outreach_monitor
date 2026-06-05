@@ -19,9 +19,12 @@ def test_sendable_status_only_approved():
 
 def test_should_generate_draft_requires_high_safe_actionable():
     assert should_generate_draft(80, "safe", "email")
+    assert should_generate_draft(80, "safe", "comment")
+    assert should_generate_draft(80, "safe", "dm")
     assert not should_generate_draft(79, "safe", "email")
     assert not should_generate_draft(90, "do_not_engage", "email")
     assert not should_generate_draft(90, "safe", "monitor")
+    assert not should_generate_draft(90, "safe", "do_not_engage")
 
 
 def test_next_followup_date():
