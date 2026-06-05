@@ -108,7 +108,11 @@ export async function GET(request: Request) {
 
     const [{ data: rawRows }, { data: opportunityRows }, { data: draftRows }, { data: followupRows }, { data: creatorRows }] =
       await Promise.all([
-        db.from("raw_items").select("source, processed_at").order("collected_at", { ascending: false }).limit(1000),
+        db
+          .from("raw_items")
+          .select("id, source, source_url, external_id, author_name, author_url, title, body, published_at, collected_at, processed_at")
+          .order("collected_at", { ascending: false })
+          .limit(1000),
         db.from("opportunities").select("priority, status, platform, score").order("created_at", { ascending: false }).limit(1000),
         db.from("drafts").select("status, channel, opportunities(platform, raw_items(source))").order("created_at", { ascending: false }).limit(1000),
         db.from("followups").select("status, due_date").order("due_date", { ascending: true }).limit(1000),

@@ -12,12 +12,15 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.87.1",
+    "@tailwindcss/postcss": "^4.3.0",
     "@tanstack/react-table": "^8.21.3",
+    "clsx": "^2.1.1",
     "lucide-react": "^0.561.0",
     "next": "^16.0.7",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
     "recharts": "^3.5.0",
+    "tailwindcss": "^4.3.0",
     "zod": "^4.2.0"
   },
   "devDependencies": {

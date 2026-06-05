@@ -2,14 +2,16 @@
 
 ## Daily review
 
-1. Open the dashboard.
-2. Review `opportunities` where `priority = high`.
-3. Review `drafts` where `status = needs_review`.
-4. Edit draft subject/body in the dashboard if needed.
-5. Mark safe email drafts as `approved`.
-6. Mark weak drafts as `rejected` or `edit_needed`.
-7. Use "Approve + dry-run send" only while `DRY_RUN_SEND=true`.
-8. Review due follow-ups and mark each one `completed` or `skipped` after the operator handles it.
+1. Open XRWorkout Outreach OS.
+2. Start on Dashboard for KPIs, high-priority opportunities, the live feed, and AI-style recommendations.
+3. Use Conversations for social listening filters and source context.
+4. Use Creators to validate fit, public contact, priority, and offer angle.
+5. Use Outreach to review `drafts` where `status = needs_review`.
+6. Edit draft subject/body in the review drawer if needed.
+7. Mark safe email drafts as `approved`; mark weak drafts as `rejected` or `edit_needed`.
+8. Use "Approve + dry-run" only while `DRY_RUN_SEND=true`.
+9. Review due follow-ups and mark each one `completed` or `skipped` after the operator handles it.
+10. Use Analytics to check source quality before adding more sources.
 
 Supabase Studio remains the fallback for direct database inspection.
 
@@ -26,7 +28,7 @@ The dashboard can update GitHub repository variables and dispatch existing workf
 
 ## Follow-up queue
 
-Use the dashboard follow-up tab as the primary queue. It shows due date, cadence step, original draft context, creator contact, and any operator follow-up note.
+Use the Outreach view's Scheduled Follow-Ups section as the primary queue. It shows due date, cadence step, original draft context, creator contact, and any operator follow-up note.
 
 For a terminal backup view:
 

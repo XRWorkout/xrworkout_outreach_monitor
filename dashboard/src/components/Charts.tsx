@@ -1,8 +1,8 @@
 "use client";
 
-import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
-const colors = ["#2563eb", "#14b8a6", "#f59e0b", "#ef4444", "#8b5cf6", "#64748b"];
+const colors = ["#67e8f9", "#a7f3d0", "#fcd34d", "#fda4af", "#c4b5fd", "#94a3b8"];
 
 export function groupCounts<T extends Record<string, unknown>>(rows: T[], key: keyof T) {
   const counts = new Map<string, number>();
@@ -17,11 +17,11 @@ export function BarSummary({ data }: { data: Array<{ name: string; value: number
   return (
     <ResponsiveContainer width="100%" height={220}>
       <BarChart data={data}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#dbe3ec" />
-        <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-        <YAxis allowDecimals={false} width={28} tick={{ fontSize: 12 }} />
-        <Tooltip />
-        <Bar dataKey="value" radius={[4, 4, 0, 0]} fill="#2563eb" />
+        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
+        <XAxis dataKey="name" tick={{ fontSize: 12, fill: "#a1a1aa" }} axisLine={false} tickLine={false} />
+        <YAxis allowDecimals={false} width={28} tick={{ fontSize: 12, fill: "#a1a1aa" }} axisLine={false} tickLine={false} />
+        <Tooltip contentStyle={{ background: "#09090b", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8, color: "#fafafa" }} />
+        <Bar dataKey="value" radius={[5, 5, 0, 0]} fill="#67e8f9" />
       </BarChart>
     </ResponsiveContainer>
   );
@@ -36,8 +36,28 @@ export function PieSummary({ data }: { data: Array<{ name: string; value: number
             <Cell key={entry.name} fill={colors[index % colors.length]} />
           ))}
         </Pie>
-        <Tooltip />
+        <Tooltip contentStyle={{ background: "#09090b", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8, color: "#fafafa" }} />
       </PieChart>
+    </ResponsiveContainer>
+  );
+}
+
+export function AreaSummary({ data }: { data: Array<{ name: string; value: number }> }) {
+  return (
+    <ResponsiveContainer width="100%" height={220}>
+      <AreaChart data={data}>
+        <defs>
+          <linearGradient id="chartCyan" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%" stopColor="#67e8f9" stopOpacity={0.35} />
+            <stop offset="95%" stopColor="#67e8f9" stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
+        <XAxis dataKey="name" tick={{ fontSize: 12, fill: "#a1a1aa" }} axisLine={false} tickLine={false} />
+        <YAxis allowDecimals={false} width={28} tick={{ fontSize: 12, fill: "#a1a1aa" }} axisLine={false} tickLine={false} />
+        <Tooltip contentStyle={{ background: "#09090b", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8, color: "#fafafa" }} />
+        <Area type="monotone" dataKey="value" stroke="#67e8f9" strokeWidth={2} fill="url(#chartCyan)" />
+      </AreaChart>
     </ResponsiveContainer>
   );
 }

@@ -13,7 +13,7 @@ The operating rule is:
 - Public comments and DMs remain manual in v1.
 - Email sending is approval-only and uses Brevo.
 - Dashboard send workflow dispatch is dry-run only while `DRY_RUN_SEND=true`.
-- The dashboard is deployed for day-to-day review and automation controls.
+- XRWorkout Outreach OS is deployed for day-to-day review, social listening, creator pipeline management, outreach review, analytics, and automation controls.
 - Supabase remains the source of truth.
 - The May 25, 2026 sent email has been manually verified in Brevo.
 
@@ -232,7 +232,7 @@ Important workflow statuses:
 
 ## Human Review Workflow
 
-Operators review opportunities, creators, drafts, and follow-ups in the dashboard. Supabase Studio remains the fallback review surface.
+Operators review conversations, opportunities, creators, drafts, and follow-ups in XRWorkout Outreach OS. Supabase Studio remains the fallback review surface.
 
 Daily review flow:
 

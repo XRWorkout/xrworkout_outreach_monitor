@@ -2,10 +2,12 @@ export type RawItem = {
   id: string;
   source: string;
   source_url?: string | null;
+  external_id?: string | null;
   title?: string | null;
   body?: string | null;
   author_name?: string | null;
   author_url?: string | null;
+  published_at?: string | null;
   collected_at?: string | null;
   processed_at?: string | null;
 };
@@ -34,6 +36,7 @@ export type Creator = {
   profile_url: string;
   public_contact?: string | null;
   niche?: string | null;
+  audience_estimate?: string | null;
   audience_quality?: string | null;
   recent_relevant_content?: string | null;
   fit_reason?: string | null;
@@ -94,7 +97,7 @@ export type SummaryData = {
     followups: number;
     offers: number;
   };
-  rawItems: Array<{ source: string; processed_at?: string | null }>;
+  rawItems: RawItem[];
   opportunities: Array<{ priority: string; status: string; platform: string; score: number }>;
   drafts: Array<{ status: string; channel: string; opportunities?: { platform?: string | null; raw_items?: { source?: string | null } | null } | null }>;
   followups: Array<{ status: string; due_date: string }>;

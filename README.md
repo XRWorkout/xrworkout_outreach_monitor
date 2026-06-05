@@ -19,7 +19,7 @@ Doing that manually is slow and inconsistent. This repo builds the operating lay
 - Track sent drafts, follow-ups, and creator offers in Supabase.
 - Run on GitHub Actions, with LLM-dependent jobs on a self-hosted server runner that has Codex CLI installed and authenticated.
 - Use explicit automation switches before treating scheduled jobs as always-on production automation.
-- Provide a Next.js visual dashboard for review queues, contact validation, draft editing, approval, follow-ups, source-quality reporting, and automation controls.
+- Provide a Next.js XRWorkout Outreach OS dashboard for review queues, social listening, contact validation, draft editing, approval, follow-ups, source-quality reporting, automation controls, and analytics.
 
 ## Operating Principle
 
@@ -47,7 +47,7 @@ Creator discovery creates creator prospects
 Draft generation creates needs_review drafts
         |
         v
-Human review happens in Supabase Studio
+Human review happens in XRWorkout Outreach OS
         |
         v
 Approved-only sender sends email through Brevo
@@ -56,7 +56,7 @@ Approved-only sender sends email through Brevo
 Follow-up tasks and reporting keep the loop visible
         |
         v
-Dashboard presents queues, source-quality reporting, draft controls, follow-ups, and automation status
+Dashboard presents conversations, opportunity feeds, creator pipeline, outreach queues, automation agents, analytics, and source status
 ```
 
 ## What Is Implemented
@@ -75,7 +75,8 @@ Dashboard presents queues, source-quality reporting, draft controls, follow-ups,
 - GitHub Actions schedules for collection, drafts, approved sends, and weekly reporting.
 - Manual clean automatic start workflow that resets outreach data, runs collection/classification/creator discovery/draft generation, then reports counts.
 - Scheduled collection, draft, and report jobs are gated by `AUTOMATION_ENABLED`; scheduled approved sends are gated by `SEND_AUTOMATION_ENABLED`; manual runs still work for validation.
-- Next.js dashboard under `dashboard/` with Supabase login, operator allowlist, draft editing, linked opportunity/source context, contact validation, follow-up handling, source-quality reporting, workflow dispatch, and automation variable controls.
+- Next.js dashboard under `dashboard/` with Supabase login, operator allowlist, dark-mode Outreach OS navigation, Dashboard, Conversations, Conversation Map, Creators, Outreach, Automations, Analytics, and Settings views.
+- Dashboard product surfaces include presentation-layer labels, KPI cards, live opportunity feed, AI-style recommendations, social listening filters, interactive source radar, creator kanban, outreach review drawers, automation agent cards, workflow controls, and source attribution charts.
 - Deployed dashboard for day-to-day review and automation controls.
 - Audited dashboard editing for opportunity status, creator review fields, follow-up outcomes, and offer outcomes.
 - Manual dashboard dispatch from selected opportunities into the LLM draft generator.
@@ -102,7 +103,7 @@ Dashboard presents queues, source-quality reporting, draft controls, follow-ups,
 | Twitch | Twitch Helix API |
 | Email | Brevo |
 | Tests | Pytest |
-| Dashboard | Next.js on Vercel, Supabase Auth, GitHub API |
+| Dashboard | Next.js on Vercel, Tailwind CSS, local shadcn-style primitives, Supabase Auth, GitHub API |
 
 ## Repository Structure
 
@@ -175,8 +176,9 @@ Install and verify locally:
 ```bash
 cd dashboard
 npm install
-npm test
+npm exec vitest run -- --pool=threads --maxWorkers=1
 npm run lint
+npm run typecheck
 npm run build
 ```
 
@@ -228,16 +230,17 @@ Keep `DRY_RUN_SEND=true` during setup. The send script can also be run with `--d
 
 ## Daily Operation
 
-1. Open the deployed dashboard; use Supabase Studio only as a fallback.
-2. Use `Clean start` in the automation tab when the operator wants to wipe outreach rows and launch a fresh automatic pipeline.
-3. Review high-priority rows in `opportunities`.
-4. When an opportunity is worth outreach, use `Generate LLM draft` from the opportunity review pane.
-5. Review drafts where `status = needs_review`.
-6. Edit weak drafts or mark them `edit_needed`.
-7. Mark only safe, useful email drafts as `approved`.
-8. Run approved-send only as a dry-run while `DRY_RUN_SEND=true`.
-9. Review due/overdue follow-up tasks with the linked contact, opportunity, and source context.
-10. Use weekly reporting to identify which source is producing the best opportunities before adding more sources.
+1. Open the deployed XRWorkout Outreach OS; use Supabase Studio only as a fallback.
+2. Start on Dashboard for KPIs, priority opportunities, live feed items, and AI-style next-step recommendations.
+3. Use Conversations for social listening filters and source context.
+4. Use Conversation Map to see which platforms are live, inactive, or producing useful opportunities.
+5. Use Creators to validate contact details, fit, offer angle, and pipeline status.
+6. Use Outreach to review `needs_review` drafts, scheduled follow-ups, and outreach history.
+7. When an opportunity is worth outreach, use `Generate LLM draft` from the opportunity review pane.
+8. Mark only safe, useful email drafts as `approved`; comments and DMs remain manual.
+9. Run approved-send only as a dry-run while `DRY_RUN_SEND=true`.
+10. Use Automations for Clean start, workflow dispatches, and safety variables.
+11. Use Analytics to identify which source is producing the best opportunities before adding more sources.
 
 Public comments and DMs remain manual in v1.
 

@@ -1,27 +1,53 @@
 "use client";
 
-import { ColumnDef } from "@tanstack/react-table";
 import {
+  Activity,
+  ArrowRight,
+  BarChart3,
   Bot,
   CheckCircle2,
-  Edit3,
+  ChevronRight,
+  CircleDot,
   ExternalLink,
+  Filter,
+  LayoutDashboard,
   LogOut,
   MailCheck,
+  MessageSquare,
+  Network,
   Play,
+  Radar,
   RefreshCw,
   Save,
+  Search,
+  Send,
+  Settings,
   ShieldAlert,
-  SlidersHorizontal,
+  Sparkles,
+  Target,
+  Users,
   XCircle
 } from "lucide-react";
-import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { BarSummary, groupCounts, PieSummary } from "@/components/Charts";
-import { DataTable } from "@/components/DataTable";
-import { Badge, statusTone } from "@/components/Badge";
-import { Metric } from "@/components/Metric";
+import { type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import { AreaSummary, BarSummary } from "@/components/Charts";
+import { Button, Card, EmptyState, Field, Select, SoftBadge, TextArea, TextInput } from "@/components/ui";
 import { clientSupabase, hasClientSupabaseConfig } from "@/lib/client-supabase";
-import type { AutomationData, Creator, Draft, Followup, Offer, Opportunity, SummaryData } from "@/lib/types";
+import { cn } from "@/lib/utils";
+import { labelFor, percentage, platformLabel, shortDate, toneFor } from "@/lib/presentation";
+import {
+  buildKpis,
+  buildOpportunityFeed,
+  buildRecommendations,
+  conversationsByDay,
+  funnelData,
+  outreachByDay,
+  platformNodes,
+  priorityCounts,
+  scoreText,
+  workflowAgents,
+  type Recommendation
+} from "@/lib/view-models";
+import type { AutomationData, Creator, Draft, Followup, Offer, Opportunity, RawItem, SummaryData } from "@/lib/types";
 
 type SessionState = {
   token: string;
@@ -38,6 +64,8 @@ type DashboardData = {
   automation: AutomationData | null;
 };
 
+type View = "dashboard" | "conversations" | "map" | "creators" | "outreach" | "automations" | "analytics" | "settings";
+
 const emptyData: DashboardData = {
   summary: null,
   opportunities: [],
@@ -48,8 +76,16 @@ const emptyData: DashboardData = {
   automation: null
 };
 
-const tabs = ["overview", "opportunities", "drafts", "creators", "followups", "offers", "automation"] as const;
-type Tab = (typeof tabs)[number];
+const navigation: Array<{ id: View; label: string; icon: ReactNode }> = [
+  { id: "dashboard", label: "Dashboard", icon: <LayoutDashboard size={17} /> },
+  { id: "conversations", label: "Conversations", icon: <MessageSquare size={17} /> },
+  { id: "map", label: "Conversation Map", icon: <Network size={17} /> },
+  { id: "creators", label: "Creators", icon: <Users size={17} /> },
+  { id: "outreach", label: "Outreach", icon: <Send size={17} /> },
+  { id: "automations", label: "Automations", icon: <Bot size={17} /> },
+  { id: "analytics", label: "Analytics", icon: <BarChart3 size={17} /> },
+  { id: "settings", label: "Settings", icon: <Settings size={17} /> }
+];
 
 const opportunityStatuses = ["new", "reviewed", "monitor", "contacted", "rejected"] as const;
 const creatorStatuses = ["new", "reviewed", "contact_ready", "contacted", "rejected"] as const;
@@ -72,19 +108,41 @@ async function fetchJson<T>(path: string, token: string, init?: RequestInit): Pr
   return json as T;
 }
 
-function formatDate(value?: string | null) {
-  if (!value) return "none";
-  return new Intl.DateTimeFormat("en", {
-    month: "short",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit"
-  }).format(new Date(value));
-}
-
 function isDueOrOverdue(value?: string | null) {
   if (!value) return false;
   return value <= new Date().toISOString().slice(0, 10);
+}
+
+function trendFor(count: number, total: number) {
+  const share = percentage(count, total);
+  const delta = total ? Math.max(4, Math.round((count / total) * 24)) : 0;
+  return { share, delta: `+${delta}%` };
+}
+
+function initials(name?: string | null) {
+  return (name || "XR")
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
+}
+
+function creatorStage(creator: Creator) {
+  if (creator.status === "contacted") return "Contacted";
+  if (creator.status === "contact_ready" || creator.status === "reviewed") return "Qualified";
+  if (creator.status === "rejected") return "Responded";
+  return "Discovered";
+}
+
+function responseRate(drafts: Draft[]) {
+  const sent = drafts.filter((draft) => draft.status === "sent").length;
+  const responses = drafts.filter((draft) => draft.response_status).length;
+  return percentage(responses, sent);
+}
+
+function conversionRate(creators: Creator[]) {
+  const converted = creators.filter((creator) => ["partnered", "converted"].includes(creator.status)).length;
+  return percentage(converted, creators.length);
 }
 
 export default function Page() {
@@ -93,7 +151,7 @@ export default function Page() {
   const [session, setSession] = useState<SessionState | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [activeTab, setActiveTab] = useState<Tab>("overview");
+  const [activeView, setActiveView] = useState<View>("dashboard");
   const [data, setData] = useState<DashboardData>(emptyData);
   const [loading, setLoading] = useState(hasSupabaseConfig);
   const [notice, setNotice] = useState("");
@@ -112,15 +170,15 @@ export default function Page() {
   const [selectedFollowup, setSelectedFollowup] = useState<Followup | null>(null);
   const [followupStatus, setFollowupStatus] = useState("pending");
   const [followupDraftBody, setFollowupDraftBody] = useState("");
-  const [selectedOffer, setSelectedOffer] = useState<Offer | null>(null);
-  const [offerType, setOfferType] = useState("");
-  const [offerCode, setOfferCode] = useState("");
-  const [offerSentAt, setOfferSentAt] = useState("");
-  const [offerRedeemed, setOfferRedeemed] = useState(false);
-  const [offerCommitted, setOfferCommitted] = useState(false);
-  const [offerContentUrl, setOfferContentUrl] = useState("");
-  const [offerOutcome, setOfferOutcome] = useState("");
+  const [selectedMapNode, setSelectedMapNode] = useState("reddit");
+  const [conversationSearch, setConversationSearch] = useState("");
+  const [conversationPlatform, setConversationPlatform] = useState("all");
+  const [conversationRelevance, setConversationRelevance] = useState("all");
+  const [conversationDate, setConversationDate] = useState("all");
+  const [outreachTab, setOutreachTab] = useState<"drafts" | "followups" | "history">("drafts");
   const [cleanStartRunning, setCleanStartRunning] = useState(false);
+  const [nowMs] = useState(() => Date.now());
+  const [todayIso] = useState(() => new Date().toISOString().slice(0, 10));
 
   const loadDashboard = useCallback(async (token: string) => {
     setLoading(true);
@@ -152,9 +210,7 @@ export default function Page() {
   }, []);
 
   useEffect(() => {
-    if (!hasSupabaseConfig) {
-      return;
-    }
+    if (!hasSupabaseConfig) return;
     supabase.auth.getSession().then(({ data: authData }) => {
       const activeSession = authData.session;
       if (activeSession?.access_token && activeSession.user.email) {
@@ -192,13 +248,14 @@ export default function Page() {
     setEditingDraft(draft);
     setDraftSubject(draft.subject || "");
     setDraftBody(draft.body || "");
-    setActiveTab("drafts");
+    setActiveView("outreach");
+    setOutreachTab("drafts");
   }
 
   function reviewOpportunity(opportunity: Opportunity) {
     setSelectedOpportunity(opportunity);
     setOpportunityStatus(opportunity.status || "new");
-    setActiveTab("opportunities");
+    setActiveView("dashboard");
   }
 
   function reviewCreator(creator: Creator) {
@@ -208,26 +265,15 @@ export default function Page() {
     setCreatorPriority(creator.priority || "medium");
     setCreatorFitReason(creator.fit_reason || "");
     setCreatorOfferAngle(creator.offer_angle || "");
-    setActiveTab("creators");
+    setActiveView("creators");
   }
 
   function reviewFollowup(followup: Followup) {
     setSelectedFollowup(followup);
     setFollowupStatus(followup.status || "pending");
     setFollowupDraftBody(followup.draft_body || "");
-    setActiveTab("followups");
-  }
-
-  function reviewOffer(offer: Offer) {
-    setSelectedOffer(offer);
-    setOfferType(offer.offer_type || "3 months free");
-    setOfferCode(offer.code_or_link || "");
-    setOfferSentAt(offer.sent_at || "");
-    setOfferRedeemed(Boolean(offer.redeemed));
-    setOfferCommitted(Boolean(offer.content_committed));
-    setOfferContentUrl(offer.content_url || "");
-    setOfferOutcome(offer.outcome || "");
-    setActiveTab("offers");
+    setActiveView("outreach");
+    setOutreachTab("followups");
   }
 
   async function saveDraft() {
@@ -262,10 +308,10 @@ export default function Page() {
     const manualReady = status === "approved" && result.draft.channel !== "email";
     setNotice(
       result.sendWorkflowDispatched
-        ? "Email draft approved and send workflow started."
+        ? "Email draft approved and dry-run send workflow started."
         : manualReady
           ? "Message approved for manual use."
-          : `Draft marked ${status}.`
+          : `Draft marked ${labelFor(status)}.`
     );
     void loadDashboard(session.token);
   }
@@ -290,11 +336,9 @@ export default function Page() {
     if (!session || !selectedOpportunity) return;
     await fetchJson(`/api/dashboard/automation/workflows/manualDraft/dispatch`, session.token, {
       method: "POST",
-      body: JSON.stringify({
-        inputs: { opportunity_id: selectedOpportunity.id }
-      })
+      body: JSON.stringify({ inputs: { opportunity_id: selectedOpportunity.id } })
     });
-    setNotice("LLM draft workflow started for this opportunity. Refresh drafts after the workflow completes.");
+    setNotice("LLM draft workflow started for this opportunity.");
     void loadDashboard(session.token);
   }
 
@@ -331,30 +375,8 @@ export default function Page() {
     setSelectedFollowup(result.followup);
     setFollowupStatus(result.followup.status || "pending");
     setFollowupDraftBody(result.followup.draft_body || "");
-    setNotice(`Follow-up marked ${result.followup.status}.`);
+    setNotice(`Follow-up marked ${labelFor(result.followup.status)}.`);
     void loadDashboard(session.token);
-  }
-
-  async function updateOffer() {
-    if (!session || !selectedOffer) return;
-    const result = await fetchJson<{ offer: Offer }>(`/api/dashboard/offers/${selectedOffer.id}`, session.token, {
-      method: "PATCH",
-      body: JSON.stringify({
-        offer_type: offerType,
-        code_or_link: offerCode || null,
-        sent_at: offerSentAt || null,
-        redeemed: offerRedeemed,
-        content_committed: offerCommitted,
-        content_url: offerContentUrl || null,
-        outcome: offerOutcome || null
-      })
-    });
-    setData((current) => ({
-      ...current,
-      offers: current.offers.map((offer) => (offer.id === result.offer.id ? result.offer : offer))
-    }));
-    setSelectedOffer(result.offer);
-    setNotice("Offer saved.");
   }
 
   async function updateVariable(name: "AUTOMATION_ENABLED" | "SEND_AUTOMATION_ENABLED" | "DRY_RUN_SEND", value: string) {
@@ -373,7 +395,7 @@ export default function Page() {
       method: "POST",
       body: JSON.stringify({})
     });
-    setNotice(`${workflow} workflow started.`);
+    setNotice(`${labelFor(workflow)} workflow started.`);
     void loadDashboard(session.token);
   }
 
@@ -395,92 +417,43 @@ export default function Page() {
     }
   }
 
-  const opportunityColumns = useMemo<ColumnDef<Opportunity>[]>(
-    () => [
-      { header: "Priority", accessorKey: "priority", cell: ({ row }) => <Badge tone={statusTone(row.original.priority)}>{row.original.priority}</Badge> },
-      { header: "Score", accessorKey: "score" },
-      { header: "Platform", accessorKey: "platform" },
-      { header: "Type", accessorKey: "opportunity_type" },
-      { header: "Safety", accessorKey: "outreach_safety" },
-      { header: "Status", accessorKey: "status", cell: ({ row }) => <Badge tone={statusTone(row.original.status)}>{row.original.status}</Badge> },
-      { header: "Summary", accessorKey: "summary", cell: ({ row }) => <span className="line-clamp">{row.original.summary || "No summary"}</span> },
-      {
-        header: "Source",
-        cell: ({ row }) =>
-          row.original.raw_items?.source_url ? (
-            <a href={row.original.raw_items.source_url} target="_blank" rel="noreferrer">
-              Open <ExternalLink size={14} />
-            </a>
-          ) : (
-            "none"
-          )
-      },
-      {
-        header: "Action",
-        cell: ({ row }) => (
-          <button className="icon-text small" onClick={() => reviewOpportunity(row.original)}>
-            <Edit3 size={14} /> Review
-          </button>
-        )
-      }
-    ],
-    []
-  );
-
-  const draftColumns = useMemo<ColumnDef<Draft>[]>(
-    () => [
-      { header: "Status", accessorKey: "status", cell: ({ row }) => <Badge tone={statusTone(row.original.status)}>{row.original.status}</Badge> },
-      { header: "Channel", accessorKey: "channel" },
-      { header: "Subject", accessorKey: "subject", cell: ({ row }) => row.original.subject || "No subject" },
-      { header: "Creator", cell: ({ row }) => row.original.creators?.name || "No creator" },
-      { header: "Contact", cell: ({ row }) => row.original.creators?.public_contact || "missing" },
-      {
-        header: "Source",
-        cell: ({ row }) =>
-          row.original.opportunities?.raw_items?.source_url ? (
-            <a href={row.original.opportunities.raw_items.source_url} target="_blank" rel="noreferrer">
-              Open <ExternalLink size={14} />
-            </a>
-          ) : (
-            "none"
-          )
-      },
-      { header: "Updated", accessorKey: "updated_at", cell: ({ row }) => formatDate(row.original.updated_at) },
-      {
-        header: "Action",
-        cell: ({ row }) => (
-          <button className="icon-text small" onClick={() => startEditing(row.original)}>
-            <Edit3 size={14} /> Review
-          </button>
-        )
-      }
-    ],
-    []
-  );
-
-  const creatorColumns = useMemo<ColumnDef<Creator>[]>(
-    () => [
-      { header: "Priority", accessorKey: "priority", cell: ({ row }) => <Badge tone={statusTone(row.original.priority)}>{row.original.priority}</Badge> },
-      { header: "Name", accessorKey: "name" },
-      { header: "Platform", accessorKey: "platform" },
-      { header: "Contact", accessorKey: "public_contact", cell: ({ row }) => row.original.public_contact || "none" },
-      { header: "Status", accessorKey: "status", cell: ({ row }) => <Badge tone={statusTone(row.original.status)}>{row.original.status}</Badge> },
-      { header: "Niche", accessorKey: "niche" },
-      { header: "Fit", accessorKey: "fit_reason", cell: ({ row }) => <span className="line-clamp">{row.original.fit_reason || "none"}</span> },
-      {
-        header: "Action",
-        cell: ({ row }) => (
-          <button className="icon-text small" onClick={() => reviewCreator(row.original)}>
-            <Edit3 size={14} /> Review
-          </button>
-        )
-      }
-    ],
-    []
-  );
+  const summary = data.summary;
+  const rawItems = summary?.rawItems || [];
+  const dryRunSendEnabled = (data.automation?.variables.DRY_RUN_SEND || "true") === "true";
+  const kpis = buildKpis(summary, data.creators, data.drafts, data.offers.length);
+  const priority = priorityCounts(data.opportunities);
+  const recommendations = buildRecommendations(data.opportunities, data.creators, data.drafts, data.followups);
+  const feed = buildOpportunityFeed(data.opportunities, data.drafts, rawItems);
+  const nodes = platformNodes(summary, data.creators);
+  const selectedNode = nodes.find((node) => node.id === selectedMapNode) || nodes[0];
+  const agents = workflowAgents(summary, data.automation);
+  const platforms = ["all", ...Array.from(new Set(rawItems.map((item) => item.source))).sort()];
+  const totalOpportunities = data.opportunities.length || 1;
+  const filteredConversations = rawItems.filter((item) => {
+    const query = conversationSearch.trim().toLowerCase();
+    const matchesSearch =
+      !query ||
+      [item.title, item.body, item.author_name, item.source]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(query));
+    const matchesPlatform = conversationPlatform === "all" || item.source === conversationPlatform;
+    const linkedOpportunity = data.opportunities.find((opportunity) => opportunity.raw_items?.id === item.id);
+    const matchesRelevance =
+      conversationRelevance === "all" ||
+      (conversationRelevance === "high" && (linkedOpportunity?.score || 0) >= 70) ||
+      (conversationRelevance === "medium" && (linkedOpportunity?.score || 0) >= 35 && (linkedOpportunity?.score || 0) < 70) ||
+      (conversationRelevance === "unscored" && !linkedOpportunity);
+    const matchesDate =
+      conversationDate === "all" ||
+      (conversationDate === "today" && item.collected_at?.slice(0, 10) === todayIso) ||
+      (conversationDate === "week" &&
+        item.collected_at &&
+        nowMs - new Date(item.collected_at).getTime() <= 7 * 24 * 60 * 60 * 1000);
+    return matchesSearch && matchesPlatform && matchesRelevance && matchesDate;
+  });
 
   if (loading && !session) {
-    return <main className="centered">Loading dashboard...</main>;
+    return <main className="grid min-h-screen place-items-center bg-zinc-950 text-zinc-100">Loading XRWorkout Outreach OS...</main>;
   }
 
   if (!session) {
@@ -488,576 +461,1163 @@ export default function Page() {
       ? error
       : "Dashboard Supabase env vars are missing. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.";
     return (
-      <main className="login-page">
-        <form className="login-panel" onSubmit={signIn}>
-          <div>
-            <p className="eyebrow">XRWorkout</p>
-            <h1>Outreach dashboard</h1>
-            <p className="muted">Sign in with an approved operator account.</p>
-          </div>
-          <label>
-            Email
-            <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
-          </label>
-          <label>
-            Password
-            <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required />
-          </label>
-          {configError ? <p className="error">{configError}</p> : null}
-          <button type="submit" className="primary" disabled={!hasSupabaseConfig}>Sign in</button>
-        </form>
+      <main className="grid min-h-screen place-items-center bg-[radial-gradient(circle_at_top,#164e63_0%,#09090b_38%,#020617_100%)] p-6 text-zinc-100">
+        <Card className="w-full max-w-md p-7">
+          <form className="grid gap-5" onSubmit={signIn}>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-200">XRWorkout</p>
+              <h1 className="mt-3 text-3xl font-semibold tracking-tight text-white">Outreach OS</h1>
+              <p className="mt-2 text-sm text-zinc-400">Sign in with an approved operator account.</p>
+            </div>
+            <Field label="Email">
+              <TextInput type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
+            </Field>
+            <Field label="Password">
+              <TextInput type="password" value={password} onChange={(event) => setPassword(event.target.value)} required />
+            </Field>
+            {configError ? <p className="rounded-md border border-red-400/20 bg-red-500/10 p-3 text-sm text-red-100">{configError}</p> : null}
+            <Button type="submit" variant="primary" disabled={!hasSupabaseConfig}>
+              Sign in
+            </Button>
+          </form>
+        </Card>
       </main>
     );
   }
 
-  const summary = data.summary;
-  const dryRunSendEnabled = (data.automation?.variables.DRY_RUN_SEND || "true") === "true";
-  const bestSource = summary?.sourceQuality[0];
+  return (
+    <main className="min-h-screen bg-[#07080a] text-zinc-100">
+      <div className="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_15%_0%,rgba(34,211,238,0.16),transparent_26%),radial-gradient(circle_at_86%_12%,rgba(16,185,129,0.1),transparent_24%),linear-gradient(180deg,#0a0b0f_0%,#050506_100%)]" />
+      <div className="grid min-h-screen grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)]">
+        <aside className="border-b border-white/10 bg-black/25 p-4 backdrop-blur lg:border-b-0 lg:border-r">
+          <div className="flex items-center gap-3 px-2 py-2">
+            <div className="grid size-9 place-items-center rounded-lg border border-cyan-300/20 bg-cyan-300/10 text-cyan-100">
+              <Activity size={18} />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-white">XRWorkout</p>
+              <p className="text-xs text-zinc-500">Outreach OS</p>
+            </div>
+          </div>
+          <nav className="mt-7 grid gap-1">
+            {navigation.map((item) => (
+              <button
+                key={item.id}
+                className={cn(
+                  "flex min-h-10 items-center gap-3 rounded-md px-3 text-left text-sm transition",
+                  activeView === item.id ? "bg-white/[0.09] text-white" : "text-zinc-400 hover:bg-white/[0.05] hover:text-zinc-100"
+                )}
+                onClick={() => setActiveView(item.id)}
+              >
+                {item.icon}
+                <span>{item.label}</span>
+              </button>
+            ))}
+          </nav>
+          <div className="mt-8 rounded-lg border border-white/10 bg-white/[0.03] p-3">
+            <p className="text-xs uppercase tracking-[0.16em] text-zinc-500">Safety</p>
+            <div className="mt-3 grid gap-2 text-sm">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-zinc-400">Send automation</span>
+                <SoftBadge tone={toneFor(data.automation?.variables.SEND_AUTOMATION_ENABLED)}>
+                  {data.automation?.variables.SEND_AUTOMATION_ENABLED || "false"}
+                </SoftBadge>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-zinc-400">Dry-run</span>
+                <SoftBadge tone={toneFor(data.automation?.variables.DRY_RUN_SEND)}>
+                  {data.automation?.variables.DRY_RUN_SEND || "true"}
+                </SoftBadge>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        <section className="min-w-0">
+          <header className="sticky top-0 z-20 flex min-h-16 items-center justify-between gap-4 border-b border-white/10 bg-[#07080a]/80 px-4 backdrop-blur xl:px-6">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-[0.16em] text-cyan-200">Internal growth command center</p>
+              <h2 className="mt-1 text-xl font-semibold tracking-tight text-white">{navigation.find((item) => item.id === activeView)?.label}</h2>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="secondary" onClick={() => loadDashboard(session.token)}>
+                <RefreshCw size={15} /> Refresh
+              </Button>
+              <Button variant="ghost" onClick={signOut}>
+                <LogOut size={15} /> Sign out
+              </Button>
+            </div>
+          </header>
+
+          <div className="grid gap-5 p-4 xl:grid-cols-[minmax(0,1fr)_340px] xl:p-6">
+            <div className="min-w-0">
+              {notice ? <div className="mb-4 rounded-md border border-cyan-300/20 bg-cyan-300/10 p-3 text-sm text-cyan-100">{notice}</div> : null}
+              {error ? <div className="mb-4 rounded-md border border-red-300/20 bg-red-400/10 p-3 text-sm text-red-100">{error}</div> : null}
+              {loading ? <div className="mb-4 rounded-md border border-white/10 bg-white/[0.04] p-3 text-sm text-zinc-300">Loading current outreach data...</div> : null}
+
+              {activeView === "dashboard" ? (
+                <DashboardView
+                  kpis={kpis}
+                  priority={priority}
+                  totalOpportunities={totalOpportunities}
+                  feed={feed}
+                  selectedOpportunity={selectedOpportunity}
+                  opportunityStatus={opportunityStatus}
+                  setOpportunityStatus={setOpportunityStatus}
+                  updateOpportunity={updateOpportunity}
+                  generateLlmDraftFromOpportunity={generateLlmDraftFromOpportunity}
+                  reviewOpportunity={reviewOpportunity}
+                  opportunities={data.opportunities}
+                  drafts={data.drafts}
+                  dryRunSendEnabled={dryRunSendEnabled}
+                />
+              ) : null}
+
+              {activeView === "conversations" ? (
+                <ConversationsView
+                  rawItems={filteredConversations}
+                  allRawItems={rawItems}
+                  opportunities={data.opportunities}
+                  platforms={platforms}
+                  search={conversationSearch}
+                  setSearch={setConversationSearch}
+                  platform={conversationPlatform}
+                  setPlatform={setConversationPlatform}
+                  relevance={conversationRelevance}
+                  setRelevance={setConversationRelevance}
+                  date={conversationDate}
+                  setDate={setConversationDate}
+                  onReviewOpportunity={reviewOpportunity}
+                  onDraftOpportunity={(opportunity) => {
+                    reviewOpportunity(opportunity);
+                    void generateLlmDraftFromOpportunity();
+                  }}
+                />
+              ) : null}
+
+              {activeView === "map" ? (
+                <ConversationMapView nodes={nodes} selectedNode={selectedNode} setSelectedNode={setSelectedMapNode} />
+              ) : null}
+
+              {activeView === "creators" ? (
+                <CreatorsView
+                  creators={data.creators}
+                  drafts={data.drafts}
+                  selectedCreator={selectedCreator}
+                  creatorStatus={creatorStatus}
+                  setCreatorStatus={setCreatorStatus}
+                  creatorPriority={creatorPriority}
+                  setCreatorPriority={setCreatorPriority}
+                  creatorContact={creatorContact}
+                  setCreatorContact={setCreatorContact}
+                  creatorFitReason={creatorFitReason}
+                  setCreatorFitReason={setCreatorFitReason}
+                  creatorOfferAngle={creatorOfferAngle}
+                  setCreatorOfferAngle={setCreatorOfferAngle}
+                  reviewCreator={reviewCreator}
+                  updateCreator={updateCreator}
+                />
+              ) : null}
+
+              {activeView === "outreach" ? (
+                <OutreachView
+                  tab={outreachTab}
+                  setTab={setOutreachTab}
+                  drafts={data.drafts}
+                  followups={data.followups}
+                  editingDraft={editingDraft}
+                  startEditing={startEditing}
+                  draftSubject={draftSubject}
+                  setDraftSubject={setDraftSubject}
+                  draftBody={draftBody}
+                  setDraftBody={setDraftBody}
+                  saveDraft={saveDraft}
+                  changeDraftStatus={changeDraftStatus}
+                  dryRunSendEnabled={dryRunSendEnabled}
+                  selectedFollowup={selectedFollowup}
+                  reviewFollowup={reviewFollowup}
+                  followupStatus={followupStatus}
+                  setFollowupStatus={setFollowupStatus}
+                  followupDraftBody={followupDraftBody}
+                  setFollowupDraftBody={setFollowupDraftBody}
+                  updateFollowup={updateFollowup}
+                />
+              ) : null}
+
+              {activeView === "automations" ? (
+                <AutomationsView
+                  automation={data.automation}
+                  agents={agents}
+                  updateVariable={updateVariable}
+                  dispatch={dispatch}
+                  cleanAutomaticStart={cleanAutomaticStart}
+                  cleanStartRunning={cleanStartRunning}
+                  dryRunSendEnabled={dryRunSendEnabled}
+                />
+              ) : null}
+
+              {activeView === "analytics" ? (
+                <AnalyticsView summary={summary} opportunities={data.opportunities} creators={data.creators} drafts={data.drafts} rawItems={rawItems} />
+              ) : null}
+
+              {activeView === "settings" ? (
+                <SettingsView session={session} automation={data.automation} nodes={nodes} updateVariable={updateVariable} />
+              ) : null}
+            </div>
+
+            <AssistantPanel
+              recommendations={recommendations}
+              onOpen={(recommendation) => {
+                if (recommendation.kind === "opportunity") {
+                  const target = data.opportunities.find((row) => row.id === recommendation.targetId);
+                  if (target) reviewOpportunity(target);
+                }
+                if (recommendation.kind === "creator") {
+                  const target = data.creators.find((row) => row.id === recommendation.targetId);
+                  if (target) reviewCreator(target);
+                }
+                if (recommendation.kind === "draft") {
+                  const target = data.drafts.find((row) => row.id === recommendation.targetId);
+                  if (target) startEditing(target);
+                }
+                if (recommendation.kind === "followup") {
+                  const target = data.followups.find((row) => row.id === recommendation.targetId);
+                  if (target) reviewFollowup(target);
+                }
+              }}
+            />
+          </div>
+        </section>
+      </div>
+    </main>
+  );
+}
+
+function DashboardView({
+  kpis,
+  priority,
+  totalOpportunities,
+  feed,
+  selectedOpportunity,
+  opportunityStatus,
+  setOpportunityStatus,
+  updateOpportunity,
+  generateLlmDraftFromOpportunity,
+  reviewOpportunity,
+  opportunities
+}: {
+  kpis: Array<{ label: string; value: number; detail: string }>;
+  priority: { high: number; medium: number; low: number };
+  totalOpportunities: number;
+  feed: Array<{ id: string; title: string; source: string; timestamp: string; score: number; action: string; detail: string }>;
+  selectedOpportunity: Opportunity | null;
+  opportunityStatus: string;
+  setOpportunityStatus: (value: string) => void;
+  updateOpportunity: () => void;
+  generateLlmDraftFromOpportunity: () => void;
+  reviewOpportunity: (opportunity: Opportunity) => void;
+  opportunities: Opportunity[];
+  drafts: Draft[];
+  dryRunSendEnabled: boolean;
+}) {
+  const priorityCards = [
+    { key: "high", count: priority.high, icon: <ShieldAlert size={18} />, accent: "border-red-300/30" },
+    { key: "medium", count: priority.medium, icon: <Target size={18} />, accent: "border-amber-300/25" },
+    { key: "low", count: priority.low, icon: <CircleDot size={18} />, accent: "border-zinc-500/25" }
+  ] as const;
 
   return (
-    <main className="app-shell">
-      <aside className="sidebar">
-        <div>
-          <p className="eyebrow">XRWorkout</p>
-          <h1>Outreach</h1>
-        </div>
-        <nav>
-          {tabs.map((tab) => (
-            <button key={tab} className={activeTab === tab ? "active" : ""} onClick={() => setActiveTab(tab)}>
-              {tab}
-            </button>
-          ))}
-        </nav>
-        <div className="operator">
-          <span>{session.email}</span>
-          <button className="icon-text" onClick={signOut}>
-            <LogOut size={16} /> Sign out
-          </button>
-        </div>
-      </aside>
+    <div className="grid gap-5">
+      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        {kpis.map((kpi) => (
+          <Card key={kpi.label} className="p-4 transition hover:-translate-y-0.5 hover:border-white/20">
+            <p className="text-xs text-zinc-500">{kpi.label}</p>
+            <p className="mt-3 text-3xl font-semibold tracking-tight text-white">{kpi.value}</p>
+            <p className="mt-2 text-sm text-zinc-400">{kpi.detail}</p>
+          </Card>
+        ))}
+      </section>
 
-      <section className="workspace">
-        <header className="topbar">
-          <div>
-            <p className="eyebrow">Internal operator console</p>
-            <h2>{activeTab}</h2>
-          </div>
-          <button className="icon-text" onClick={() => loadDashboard(session.token)}>
-            <RefreshCw size={16} /> Refresh
-          </button>
-        </header>
-
-        {notice ? <div className="notice">{notice}</div> : null}
-        {error ? <div className="error-block">{error}</div> : null}
-        {loading ? <div className="notice">Loading current outreach data...</div> : null}
-
-        {activeTab === "overview" && summary ? (
-          <div className="view-stack">
-            <section className="metric-grid">
-              <Metric label="Raw items" value={summary.counts.rawItems} detail="Collected signals" />
-              <Metric label="Opportunities" value={summary.counts.opportunities} detail="Classified rows" />
-              <Metric label="Creators" value={summary.counts.creators} detail="Prospect records" />
-              <Metric label="Drafts" value={summary.counts.drafts} detail="Review queue" />
-              <Metric label="Follow-ups" value={summary.counts.followups} detail="Pending cadence" />
-              <Metric label="Offers" value={summary.counts.offers} detail="Creator offers" />
-            </section>
-            <section className="metric-grid">
-              <Metric label="High priority" value={summary.actionQueue.highPriorityOpportunities} detail="Opportunity review" />
-              <Metric label="Drafts to review" value={summary.actionQueue.draftsNeedingReview} detail="Approval queue" />
-              <Metric label="Missing contact" value={summary.actionQueue.creatorsMissingContact} detail="Creator records" />
-              <Metric label="Contact ready" value={summary.actionQueue.creatorsContactReady} detail="Creator records" />
-              <Metric label="Due follow-ups" value={summary.actionQueue.dueFollowups} detail="Pending now" />
-              <Metric
-                label="Best source"
-                value={bestSource?.source || "none"}
-                detail={bestSource ? `${bestSource.highPriority} high, avg ${bestSource.averageScore}` : "No ranked source"}
-              />
-            </section>
-            <section className="chart-grid">
-              <div className="panel">
-                <h3>Source mix</h3>
-                <PieSummary data={groupCounts(summary.rawItems, "source")} />
-              </div>
-              <div className="panel">
-                <h3>Opportunity priority</h3>
-                <BarSummary data={groupCounts(summary.opportunities, "priority")} />
-              </div>
-              <div className="panel">
-                <h3>Draft status</h3>
-                <BarSummary data={groupCounts(summary.drafts, "status")} />
-              </div>
-              <div className="panel">
-                <h3>Follow-up status</h3>
-                <PieSummary data={groupCounts(summary.followups, "status")} />
-              </div>
-            </section>
-            <section className="panel">
-              <h3>Source quality</h3>
-              <div className="quality-list">
-                {summary.sourceQuality.length ? summary.sourceQuality.map((source) => (
-                  <div className="quality-row" key={source.source}>
-                    <strong>{source.source}</strong>
-                    <span>raw {source.rawItems}</span>
-                    <span>opps {source.opportunities}</span>
-                    <span>high {source.highPriority}</span>
-                    <span>avg {source.averageScore}</span>
-                    <span>drafts {source.drafts}</span>
-                    <span>approved/sent {source.approvedOrSent}</span>
+      <section className="grid gap-4 xl:grid-cols-3">
+        {priorityCards.map((card) => {
+          const trend = trendFor(card.count, totalOpportunities);
+          return (
+            <Card key={card.key} className={cn("border-l-2 p-5", card.accent)}>
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2 text-zinc-200">
+                    {card.icon}
+                    <h3 className="font-medium">{labelFor(card.key)}</h3>
                   </div>
-                )) : <p className="muted">No source data yet.</p>}
-              </div>
-            </section>
-          </div>
-        ) : null}
-
-        {activeTab === "opportunities" ? (
-          <div className="split">
-            <DataTable data={data.opportunities} columns={opportunityColumns} searchPlaceholder="Filter opportunities" />
-            <aside className="review-pane">
-              {selectedOpportunity ? (
-                <>
-                  <div className="review-header">
-                    <Badge tone={statusTone(selectedOpportunity.priority)}>{selectedOpportunity.priority}</Badge>
-                    <Badge tone={statusTone(selectedOpportunity.outreach_safety)}>{selectedOpportunity.outreach_safety}</Badge>
-                    <Badge tone="info">score {selectedOpportunity.score}</Badge>
-                  </div>
-                  <label>
-                    Status
-                    <select value={opportunityStatus} onChange={(event) => setOpportunityStatus(event.target.value)}>
-                      {opportunityStatuses.map((status) => (
-                        <option key={status} value={status}>{status}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <div className="context-box">
-                    <strong>Summary</strong>
-                    <p>{selectedOpportunity.summary || "No summary."}</p>
-                    <strong>Pain point</strong>
-                    <p>{selectedOpportunity.pain_point || "No pain point."}</p>
-                    <strong>XRWorkout fit</strong>
-                    <p>{selectedOpportunity.xrworkout_relevance || "No relevance note."}</p>
-                    <strong>Recommended action</strong>
-                    <p>{selectedOpportunity.recommended_action}</p>
-                  </div>
-                  <div className="button-row">
-                    <button className="primary icon-text" onClick={updateOpportunity}>
-                      <Save size={16} /> Save status
-                    </button>
-                    {selectedOpportunity.raw_items?.source_url ? (
-                      <a className="button-link" href={selectedOpportunity.raw_items.source_url} target="_blank" rel="noreferrer">
-                        Open source <ExternalLink size={14} />
-                      </a>
-                    ) : null}
-                  </div>
-                  <div className="context-box">
-                    <strong>Generate draft from this opportunity</strong>
-                    <p>Use your judgment to send this opportunity through the LLM draft workflow. The result will appear as a needs-review draft you can edit before approval.</p>
-                  </div>
-                  <div className="button-row">
-                    <button className="success icon-text" onClick={generateLlmDraftFromOpportunity}>
-                      <Edit3 size={16} /> Generate LLM draft
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <div className="empty-state">Select an opportunity to inspect fit, safety, source context, and status.</div>
-              )}
-            </aside>
-          </div>
-        ) : null}
-
-        {activeTab === "drafts" ? (
-          <div className="split">
-            <DataTable data={data.drafts} columns={draftColumns} searchPlaceholder="Filter drafts" />
-            <aside className="review-pane">
-              {editingDraft ? (
-                <>
-                  <div className="review-header">
-                    <Badge tone={statusTone(editingDraft.status)}>{editingDraft.status}</Badge>
-                    <Badge tone={editingDraft.channel === "email" ? "good" : "warn"}>{editingDraft.channel}</Badge>
-                  </div>
-                  <label>
-                    Subject
-                    <input value={draftSubject} onChange={(event) => setDraftSubject(event.target.value)} disabled={editingDraft.status === "sent"} />
-                  </label>
-                  <label>
-                    Body
-                    <textarea value={draftBody} onChange={(event) => setDraftBody(event.target.value)} disabled={editingDraft.status === "sent"} />
-                  </label>
-                  <div className="context-box">
-                    <strong>Recipient/contact</strong>
-                    <p>
-                      {editingDraft.channel === "email"
-                        ? editingDraft.creators?.public_contact || "No creator contact. Add a public email contact on the creator before sending."
-                        : editingDraft.creators?.public_contact || "Manual channel. Use the creator profile or source link before posting/sending."}
-                    </p>
-                    {editingDraft.creators?.profile_url ? (
-                      <a href={editingDraft.creators.profile_url} target="_blank" rel="noreferrer">
-                        Open creator profile <ExternalLink size={14} />
-                      </a>
-                    ) : null}
-                  </div>
-                  <div className="context-box">
-                    <strong>Opportunity</strong>
-                    <p>{editingDraft.opportunities?.summary || "No opportunity summary available."}</p>
-                    <strong>Pain point</strong>
-                    <p>{editingDraft.opportunities?.pain_point || "No pain point."}</p>
-                    <strong>XRWorkout fit</strong>
-                    <p>{editingDraft.opportunities?.xrworkout_relevance || "No fit note."}</p>
-                    {editingDraft.opportunities?.raw_items?.source_url ? (
-                      <a href={editingDraft.opportunities.raw_items.source_url} target="_blank" rel="noreferrer">
-                        Open original source <ExternalLink size={14} />
-                      </a>
-                    ) : null}
-                    <strong>Creator</strong>
-                    <p>{editingDraft.creators?.name || "No linked creator."}</p>
-                  </div>
-                  <div className="button-row">
-                    <button className="primary icon-text" onClick={saveDraft} disabled={editingDraft.status === "sent"}>
-                      <Edit3 size={16} /> Save text
-                    </button>
-                    <button className="icon-text" onClick={() => changeDraftStatus("edit_needed")} disabled={editingDraft.status === "sent"}>
-                      <ShieldAlert size={16} /> Edit needed
-                    </button>
-                    <button className="danger icon-text" onClick={() => changeDraftStatus("rejected")} disabled={editingDraft.status === "sent"}>
-                      <XCircle size={16} /> Reject
-                    </button>
-                    <button className="success icon-text" onClick={() => changeDraftStatus("approved")} disabled={editingDraft.status === "sent"}>
-                      <CheckCircle2 size={16} /> {editingDraft.channel === "email" ? "Approve" : "Approve for manual use"}
-                    </button>
-                    <button
-                      className="success icon-text"
-                      onClick={() => changeDraftStatus("approved", true)}
-                      disabled={editingDraft.status === "sent" || editingDraft.channel !== "email" || !dryRunSendEnabled}
-                      title={dryRunSendEnabled ? "Approve and dispatch the dry-run send workflow" : "DRY_RUN_SEND must be true for this action"}
-                    >
-                      <MailCheck size={16} /> Approve + dry-run send
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <div className="empty-state">Select a draft to review text, status, and send workflow actions.</div>
-              )}
-            </aside>
-          </div>
-        ) : null}
-
-        {activeTab === "creators" ? (
-          <div className="split">
-            <DataTable data={data.creators} columns={creatorColumns} searchPlaceholder="Filter creators" />
-            <aside className="review-pane">
-              {selectedCreator ? (
-                <>
-                  <div className="review-header">
-                    <Badge tone={statusTone(selectedCreator.priority)}>{selectedCreator.priority}</Badge>
-                    <Badge tone={statusTone(selectedCreator.status)}>{selectedCreator.status}</Badge>
-                  </div>
-                  <label>
-                    Status
-                    <select value={creatorStatus} onChange={(event) => setCreatorStatus(event.target.value)}>
-                      {creatorStatuses.map((status) => (
-                        <option key={status} value={status}>{status}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    Priority
-                    <select value={creatorPriority} onChange={(event) => setCreatorPriority(event.target.value)}>
-                      {priorities.map((priority) => (
-                        <option key={priority} value={priority}>{priority}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    Public contact
-                    <input value={creatorContact} onChange={(event) => setCreatorContact(event.target.value)} placeholder="creator@example.com or public contact note" />
-                  </label>
-                  <div className="context-box">
-                    <strong>Profile</strong>
-                    <p>{selectedCreator.profile_url}</p>
-                    {selectedCreator.recent_relevant_content ? (
-                      <>
-                        <strong>Recent relevant content</strong>
-                        <p>{selectedCreator.recent_relevant_content}</p>
-                      </>
-                    ) : null}
-                  </div>
-                  <label>
-                    Fit reason
-                    <textarea className="compact-textarea" value={creatorFitReason} onChange={(event) => setCreatorFitReason(event.target.value)} />
-                  </label>
-                  <label>
-                    Offer angle
-                    <textarea className="compact-textarea" value={creatorOfferAngle} onChange={(event) => setCreatorOfferAngle(event.target.value)} />
-                  </label>
-                  <div className="button-row">
-                    <button className="primary icon-text" onClick={updateCreator}>
-                      <Save size={16} /> Save creator
-                    </button>
-                    <a className="button-link" href={selectedCreator.profile_url} target="_blank" rel="noreferrer">
-                      Open profile <ExternalLink size={14} />
-                    </a>
-                  </div>
-                </>
-              ) : (
-                <div className="empty-state">Select a creator to validate contact details, fit, offer angle, and pipeline status.</div>
-              )}
-            </aside>
-          </div>
-        ) : null}
-
-        {activeTab === "followups" ? (
-          <div className="split">
-            <DataTable
-              data={data.followups}
-              searchPlaceholder="Filter follow-ups"
-              columns={[
-                {
-                  header: "Status",
-                  accessorKey: "status",
-                  cell: ({ row }) => (
-                    <Badge tone={row.original.status === "pending" && isDueOrOverdue(row.original.due_date) ? "bad" : statusTone(row.original.status)}>
-                      {row.original.status === "pending" && isDueOrOverdue(row.original.due_date) ? "due" : row.original.status}
-                    </Badge>
-                  )
-                },
-                { header: "Due", accessorKey: "due_date" },
-                { header: "Step", accessorKey: "cadence_step" },
-                { header: "Draft", cell: ({ row }) => row.original.drafts?.subject || "No subject" },
-                { header: "Contact", cell: ({ row }) => row.original.drafts?.creators?.public_contact || "missing" },
-                {
-                  header: "Action",
-                  cell: ({ row }) => (
-                    <button className="icon-text small" onClick={() => reviewFollowup(row.original)}>
-                      <Edit3 size={14} /> Review
-                    </button>
-                  )
-                }
-              ]}
-            />
-            <aside className="review-pane">
-              {selectedFollowup ? (
-                <>
-                  <div className="review-header">
-                    <Badge tone={statusTone(selectedFollowup.status)}>{selectedFollowup.status}</Badge>
-                    <Badge tone="info">step {selectedFollowup.cadence_step}</Badge>
-                  </div>
-                  <label>
-                    Status
-                    <select value={followupStatus} onChange={(event) => setFollowupStatus(event.target.value)}>
-                      {followupStatuses.map((status) => (
-                        <option key={status} value={status}>{status}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    Follow-up draft note
-                    <textarea value={followupDraftBody} onChange={(event) => setFollowupDraftBody(event.target.value)} />
-                  </label>
-                  <div className="context-box">
-                    <strong>Due</strong>
-                    <p>{selectedFollowup.due_date}</p>
-                    {selectedFollowup.status === "pending" && isDueOrOverdue(selectedFollowup.due_date) ? (
-                      <p className="warning-text">This follow-up is due now or overdue.</p>
-                    ) : null}
-                    <strong>Original subject</strong>
-                    <p>{selectedFollowup.drafts?.subject || "No subject."}</p>
-                    <strong>Creator contact</strong>
-                    <p>{selectedFollowup.drafts?.creators?.public_contact || "No creator contact."}</p>
-                    {selectedFollowup.drafts?.creators?.profile_url ? (
-                      <a href={selectedFollowup.drafts.creators.profile_url} target="_blank" rel="noreferrer">
-                        Open creator profile <ExternalLink size={14} />
-                      </a>
-                    ) : null}
-                    <strong>Opportunity</strong>
-                    <p>{selectedFollowup.drafts?.opportunities?.summary || "No opportunity summary."}</p>
-                    {selectedFollowup.drafts?.opportunities?.raw_items?.source_url ? (
-                      <a href={selectedFollowup.drafts.opportunities.raw_items.source_url} target="_blank" rel="noreferrer">
-                        Open original source <ExternalLink size={14} />
-                      </a>
-                    ) : null}
-                    <strong>Original body</strong>
-                    <p>{selectedFollowup.drafts?.body || "No body."}</p>
-                  </div>
-                  <div className="button-row">
-                    <button className="primary icon-text" onClick={() => updateFollowup()}>
-                      <Save size={16} /> Save follow-up
-                    </button>
-                    <button className="success icon-text" onClick={() => updateFollowup("completed")}>
-                      <CheckCircle2 size={16} /> Complete
-                    </button>
-                    <button className="danger icon-text" onClick={() => updateFollowup("skipped")}>
-                      <XCircle size={16} /> Skip
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <div className="empty-state">Select a follow-up to review cadence, original message, creator contact, and outcome.</div>
-              )}
-            </aside>
-          </div>
-        ) : null}
-
-        {activeTab === "offers" ? (
-          <div className="split">
-            <DataTable
-              data={data.offers}
-              searchPlaceholder="Filter offers"
-              columns={[
-                { header: "Type", accessorKey: "offer_type" },
-                { header: "Creator", cell: ({ row }) => row.original.creators?.name || "No creator" },
-                { header: "Redeemed", cell: ({ row }) => (row.original.redeemed ? "yes" : "no") },
-                { header: "Committed", cell: ({ row }) => (row.original.content_committed ? "yes" : "no") },
-                { header: "Outcome", accessorKey: "outcome" },
-                {
-                  header: "Action",
-                  cell: ({ row }) => (
-                    <button className="icon-text small" onClick={() => reviewOffer(row.original)}>
-                      <Edit3 size={14} /> Review
-                    </button>
-                  )
-                }
-              ]}
-            />
-            <aside className="review-pane">
-              {selectedOffer ? (
-                <>
-                  <div className="review-header">
-                    <Badge tone={selectedOffer.redeemed ? "good" : "warn"}>{selectedOffer.redeemed ? "redeemed" : "not redeemed"}</Badge>
-                    <Badge tone={selectedOffer.content_committed ? "good" : "neutral"}>{selectedOffer.content_committed ? "committed" : "no commitment"}</Badge>
-                  </div>
-                  <label>
-                    Offer type
-                    <input value={offerType} onChange={(event) => setOfferType(event.target.value)} />
-                  </label>
-                  <label>
-                    Code or link
-                    <input value={offerCode} onChange={(event) => setOfferCode(event.target.value)} />
-                  </label>
-                  <label>
-                    Sent timestamp
-                    <input value={offerSentAt} onChange={(event) => setOfferSentAt(event.target.value)} placeholder="ISO timestamp or blank" />
-                  </label>
-                  <label className="check-row">
-                    <input type="checkbox" checked={offerRedeemed} onChange={(event) => setOfferRedeemed(event.target.checked)} />
-                    Redeemed
-                  </label>
-                  <label className="check-row">
-                    <input type="checkbox" checked={offerCommitted} onChange={(event) => setOfferCommitted(event.target.checked)} />
-                    Content committed
-                  </label>
-                  <label>
-                    Content URL
-                    <input value={offerContentUrl} onChange={(event) => setOfferContentUrl(event.target.value)} />
-                  </label>
-                  <label>
-                    Outcome
-                    <textarea className="compact-textarea" value={offerOutcome} onChange={(event) => setOfferOutcome(event.target.value)} />
-                  </label>
-                  <div className="button-row">
-                    <button className="primary icon-text" onClick={updateOffer}>
-                      <Save size={16} /> Save offer
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <div className="empty-state">Select an offer to track redemption, commitment, content URL, and outcome.</div>
-              )}
-            </aside>
-          </div>
-        ) : null}
-
-        {activeTab === "automation" && data.automation ? (
-          <div className="view-stack">
-            <section className="panel clean-start-panel">
-              <div>
-                <div className="panel-title">
-                  <ShieldAlert size={18} />
-                  <h3>Clean automatic start</h3>
+                  <p className="mt-4 text-3xl font-semibold text-white">{card.count}</p>
+                  <p className="mt-2 text-sm text-zinc-500">Opportunities needing prioritization</p>
                 </div>
-                <p className="muted">
-                  Clears outreach records, starts a fresh collection-to-drafts run, enables scheduled collection and drafts, keeps scheduled sending off, and keeps send dispatches dry-run only.
-                </p>
+                <div className="text-right">
+                  <SoftBadge tone={card.key === "high" ? "bad" : card.key === "medium" ? "warn" : "neutral"}>{trend.delta}</SoftBadge>
+                  <p className="mt-2 text-xs text-zinc-500">{trend.share} of queue</p>
+                </div>
               </div>
-              <div className="clean-start-status">
-                <Badge tone="warn">deletes outreach data</Badge>
-                <Badge tone="good">sending disabled</Badge>
-                <Badge tone="good">dry-run on</Badge>
+            </Card>
+          );
+        })}
+      </section>
+
+      <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_390px]">
+        <Card className="p-5">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <h3 className="font-semibold text-white">Live Opportunity Feed</h3>
+              <p className="text-sm text-zinc-500">Signals from conversations, creators, drafts, and outreach state.</p>
+            </div>
+            <Sparkles className="text-cyan-200" size={18} />
+          </div>
+          <div className="grid gap-3">
+            {feed.map((item) => {
+              const opportunity = opportunities.find((row) => row.id === item.id);
+              return (
+                <button
+                  key={item.id}
+                  className="group grid gap-3 rounded-lg border border-white/10 bg-white/[0.03] p-4 text-left transition hover:border-cyan-300/30 hover:bg-cyan-300/[0.04]"
+                  onClick={() => opportunity && reviewOpportunity(opportunity)}
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="font-medium text-zinc-100">{item.title}</p>
+                      <p className="mt-1 line-clamp-2 text-sm text-zinc-500">{item.detail}</p>
+                    </div>
+                    <ChevronRight className="text-zinc-600 transition group-hover:text-cyan-200" size={18} />
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500">
+                    <SoftBadge>{platformLabel(item.source)}</SoftBadge>
+                    <span>{shortDate(item.timestamp)}</span>
+                    <span>{scoreText(item.score)}</span>
+                    <span>{labelFor(item.action)}</span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </Card>
+
+        <Card className="p-5">
+          <h3 className="font-semibold text-white">Opportunity Review</h3>
+          {selectedOpportunity ? (
+            <div className="mt-4 grid gap-4">
+              <div className="flex flex-wrap gap-2">
+                <SoftBadge tone={toneFor(selectedOpportunity.priority)}>{labelFor(selectedOpportunity.priority)}</SoftBadge>
+                <SoftBadge tone="info">Score {selectedOpportunity.score}</SoftBadge>
+                <SoftBadge>{platformLabel(selectedOpportunity.platform)}</SoftBadge>
               </div>
-              <div className="button-row">
-                {data.automation.workflows.cleanStart?.html_url ? (
-                  <a className="button-link" href={data.automation.workflows.cleanStart.html_url} target="_blank" rel="noreferrer">
-                    Open clean run <ExternalLink size={14} />
+              <Field label="Status">
+                <Select value={opportunityStatus} onChange={(event) => setOpportunityStatus(event.target.value)}>
+                  {opportunityStatuses.map((status) => (
+                    <option key={status} value={status}>
+                      {labelFor(status)}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <ContextBlock
+                rows={[
+                  ["Summary", selectedOpportunity.summary || "No summary."],
+                  ["Pain point", selectedOpportunity.pain_point || "No pain point."],
+                  ["XRWorkout fit", selectedOpportunity.xrworkout_relevance || "No relevance note."],
+                  ["Suggested action", labelFor(selectedOpportunity.recommended_action)]
+                ]}
+              />
+              <div className="flex flex-wrap gap-2">
+                <Button variant="primary" onClick={updateOpportunity}>
+                  <Save size={15} /> Save status
+                </Button>
+                <Button variant="success" onClick={generateLlmDraftFromOpportunity}>
+                  <Sparkles size={15} /> Generate LLM draft
+                </Button>
+                {selectedOpportunity.raw_items?.source_url ? (
+                  <a className="inline-flex min-h-9 items-center gap-2 rounded-md border border-white/10 bg-white/[0.06] px-3 text-sm text-zinc-100" href={selectedOpportunity.raw_items.source_url} target="_blank" rel="noreferrer">
+                    Open source <ExternalLink size={14} />
                   </a>
                 ) : null}
-                <button className="primary icon-text" onClick={cleanAutomaticStart} disabled={cleanStartRunning}>
-                  <RefreshCw size={16} /> {cleanStartRunning ? "Starting..." : "Clean start"}
-                </button>
               </div>
-            </section>
-            <section className="automation-grid">
-              {(["AUTOMATION_ENABLED", "SEND_AUTOMATION_ENABLED", "DRY_RUN_SEND"] as const).map((name) => {
-                const value = data.automation?.variables[name] || (name === "DRY_RUN_SEND" ? "true" : "false");
-                return (
-                  <div className="panel" key={name}>
-                    <div className="panel-title">
-                      <SlidersHorizontal size={18} />
-                      <h3>{name}</h3>
-                    </div>
-                    <Badge tone={value === "true" ? "good" : "warn"}>{value}</Badge>
-                    <div className="button-row">
-                      <button onClick={() => updateVariable(name, "false")}>Set false</button>
-                      <button className="primary" onClick={() => updateVariable(name, "true")}>Set true</button>
-                    </div>
-                  </div>
-                );
-              })}
-            </section>
-            <section className="workflow-grid">
-              {(["collection", "drafts", "manualDraft", "send", "report"] as const).map((workflow) => {
-                const run = data.automation?.workflows[workflow];
-                const isManualDraftWorkflow = workflow === "manualDraft";
-                return (
-                  <div className="panel" key={workflow}>
-                    <div className="panel-title">
-                      <Bot size={18} />
-                      <h3>{isManualDraftWorkflow ? "selected draft" : workflow}</h3>
-                    </div>
-                    <p className="muted">Last run: {run ? formatDate(run.created_at) : "none"}</p>
-                    {isManualDraftWorkflow ? (
-                      <p className="muted">Start this from an opportunity review so the workflow receives the selected opportunity.</p>
-                    ) : null}
-                    <p>
-                      <Badge tone={statusTone(run?.conclusion || run?.status || "unknown")}>{run?.conclusion || run?.status || "unknown"}</Badge>
-                    </p>
-                    <div className="button-row">
-                      {run?.html_url ? (
-                        <a className="button-link" href={run.html_url} target="_blank" rel="noreferrer">
-                          Open run <ExternalLink size={14} />
-                        </a>
-                      ) : null}
-                      <button
-                        className="primary icon-text"
-                        onClick={() => dispatch(workflow)}
-                        disabled={isManualDraftWorkflow || (workflow === "send" && !dryRunSendEnabled)}
-                        title={
-                          isManualDraftWorkflow
-                            ? "Use the opportunity review pane to generate an LLM draft"
-                            : workflow === "send" && !dryRunSendEnabled
-                              ? "DRY_RUN_SEND must be true for dashboard send dispatch"
-                              : "Run workflow now"
-                        }
-                      >
-                        <Play size={16} /> Run now
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </section>
-          </div>
-        ) : null}
+            </div>
+          ) : (
+            <EmptyState title="Select an opportunity" detail="Use the live feed or assistant recommendations to inspect context and act." />
+          )}
+        </Card>
       </section>
-    </main>
+    </div>
+  );
+}
+
+function ConversationsView({
+  rawItems,
+  allRawItems,
+  opportunities,
+  platforms,
+  search,
+  setSearch,
+  platform,
+  setPlatform,
+  relevance,
+  setRelevance,
+  date,
+  setDate,
+  onReviewOpportunity
+}: {
+  rawItems: RawItem[];
+  allRawItems: RawItem[];
+  opportunities: Opportunity[];
+  platforms: string[];
+  search: string;
+  setSearch: (value: string) => void;
+  platform: string;
+  setPlatform: (value: string) => void;
+  relevance: string;
+  setRelevance: (value: string) => void;
+  date: string;
+  setDate: (value: string) => void;
+  onReviewOpportunity: (opportunity: Opportunity) => void;
+  onDraftOpportunity: (opportunity: Opportunity) => void;
+}) {
+  return (
+    <div className="grid gap-5">
+      <Card className="p-4">
+        <div className="grid gap-3 md:grid-cols-[minmax(0,1.6fr)_repeat(3,minmax(150px,1fr))]">
+          <label className="relative">
+            <Search className="pointer-events-none absolute left-3 top-3 text-zinc-500" size={16} />
+            <TextInput className="pl-9" placeholder="Search conversations, authors, communities" value={search} onChange={(event) => setSearch(event.target.value)} />
+          </label>
+          <Select value={platform} onChange={(event) => setPlatform(event.target.value)}>
+            {platforms.map((item) => (
+              <option key={item} value={item}>
+                {item === "all" ? "All Platforms" : platformLabel(item)}
+              </option>
+            ))}
+          </Select>
+          <Select value={relevance} onChange={(event) => setRelevance(event.target.value)}>
+            <option value="all">All Relevance</option>
+            <option value="high">High Signal</option>
+            <option value="medium">Promising</option>
+            <option value="unscored">Not Scored Yet</option>
+          </Select>
+          <Select value={date} onChange={(event) => setDate(event.target.value)}>
+            <option value="all">Any Date</option>
+            <option value="today">Today</option>
+            <option value="week">Last 7 Days</option>
+          </Select>
+        </div>
+      </Card>
+      <div className="flex items-center gap-2 text-sm text-zinc-500">
+        <Filter size={15} />
+        Showing {rawItems.length} of {allRawItems.length} collected conversations
+      </div>
+      <div className="grid gap-3">
+        {rawItems.length ? (
+          rawItems.slice(0, 80).map((item) => {
+            const opportunity = opportunities.find((row) => row.raw_items?.id === item.id);
+            return (
+              <Card key={item.id} className="p-4 transition hover:border-white/20 hover:bg-white/[0.035]">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="mb-2 flex flex-wrap gap-2">
+                      <SoftBadge>{platformLabel(item.source)}</SoftBadge>
+                      <SoftBadge tone={opportunity ? toneFor(opportunity.priority) : "neutral"}>
+                        {opportunity ? scoreText(opportunity.score) : "Not scored yet"}
+                      </SoftBadge>
+                      <SoftBadge>{opportunity?.outreach_safety ? labelFor(opportunity.outreach_safety) : "Review pending"}</SoftBadge>
+                    </div>
+                    <h3 className="text-base font-medium text-white">{item.title || "Untitled conversation"}</h3>
+                    <p className="mt-2 line-clamp-2 text-sm leading-6 text-zinc-500">{item.body || opportunity?.summary || "No body captured."}</p>
+                    <div className="mt-3 flex flex-wrap gap-3 text-xs text-zinc-500">
+                      <span>{item.author_name || "Unknown author"}</span>
+                      <span>{shortDate(item.collected_at || item.published_at)}</span>
+                      <span>Engagement: {opportunity ? labelFor(opportunity.priority) : "Unknown"}</span>
+                      <span>Sentiment: Not scored yet</span>
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 flex-wrap gap-2">
+                    {item.source_url ? (
+                      <a className="inline-flex min-h-9 items-center gap-2 rounded-md border border-white/10 bg-white/[0.06] px-3 text-sm text-zinc-100" href={item.source_url} target="_blank" rel="noreferrer">
+                        View Context <ExternalLink size={14} />
+                      </a>
+                    ) : null}
+                    <Button variant="secondary" disabled={!opportunity} onClick={() => opportunity && onReviewOpportunity(opportunity)}>
+                      Save Opportunity
+                    </Button>
+                    <Button variant="primary" disabled={!opportunity} onClick={() => opportunity && onReviewOpportunity(opportunity)}>
+                      Draft Reply
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            );
+          })
+        ) : (
+          <EmptyState title="No conversations match these filters" detail="Clear a filter or run collection to bring in more source items." />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ConversationMapView({
+  nodes,
+  selectedNode,
+  setSelectedNode
+}: {
+  nodes: ReturnType<typeof platformNodes>;
+  selectedNode: ReturnType<typeof platformNodes>[number];
+  setSelectedNode: (value: string) => void;
+}) {
+  const radius = 190;
+  return (
+    <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <Card className="relative min-h-[620px] overflow-hidden p-5">
+        <div className="absolute inset-6 rounded-full border border-cyan-300/10" />
+        <div className="absolute inset-20 rounded-full border border-cyan-300/10" />
+        <div className="absolute left-1/2 top-1/2 z-10 grid size-36 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border border-cyan-300/30 bg-cyan-300/10 text-center shadow-[0_0_70px_rgba(34,211,238,0.18)]">
+          <div>
+            <Radar className="mx-auto text-cyan-200" size={28} />
+            <p className="mt-2 text-sm font-semibold text-white">XRWorkout</p>
+            <p className="text-xs text-cyan-100/70">signal core</p>
+          </div>
+        </div>
+        <div className="absolute left-1/2 top-1/2 size-[1px]">
+          {nodes.map((node) => {
+            const size = Math.min(118, Math.max(74, 70 + node.volume / 4));
+            const x = Math.cos(node.angle) * radius;
+            const y = Math.sin(node.angle) * radius;
+            return (
+              <button
+                key={node.id}
+                className={cn(
+                  "absolute grid place-items-center rounded-full border text-center transition hover:scale-105",
+                  node.live
+                    ? "border-emerald-300/30 bg-emerald-300/10 text-emerald-100 shadow-[0_0_34px_rgba(52,211,153,0.12)]"
+                    : "border-red-300/20 bg-red-400/8 text-red-100",
+                  selectedNode.id === node.id && "ring-2 ring-cyan-200/50"
+                )}
+                style={{
+                  width: size,
+                  height: size,
+                  transform: `translate(calc(${x}px - 50%), calc(${y}px - 50%))`,
+                  opacity: node.live ? 0.95 : 0.58
+                }}
+                onClick={() => setSelectedNode(node.id)}
+              >
+                <span className="px-2 text-xs font-semibold">{node.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </Card>
+      <Card className="p-5">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h3 className="font-semibold text-white">{selectedNode.label}</h3>
+            <p className="mt-1 text-sm text-zinc-500">Conversation radar details</p>
+          </div>
+          <SoftBadge tone={selectedNode.live ? "good" : "bad"}>{selectedNode.live ? "Live" : "API not set up"}</SoftBadge>
+        </div>
+        <div className="mt-5 grid grid-cols-3 gap-3">
+          <MiniStat label="Volume" value={selectedNode.volume} />
+          <MiniStat label="Opps" value={selectedNode.opportunities} />
+          <MiniStat label="Creators" value={selectedNode.creators} />
+        </div>
+        <div className="mt-5 rounded-lg border border-white/10 bg-white/[0.03] p-4">
+          <p className="text-sm font-medium text-zinc-200">Communities</p>
+          <div className="mt-3 grid gap-2 text-sm text-zinc-400">
+            {selectedNode.id === "reddit" ? (
+              ["r/OculusQuest", "r/VRFitness", "r/VirtualReality"].map((community) => <span key={community}>{community}</span>)
+            ) : selectedNode.live ? (
+              <span>{selectedNode.label} source cluster</span>
+            ) : (
+              <span>Inactive until source integration starts producing data.</span>
+            )}
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function CreatorsView(props: {
+  creators: Creator[];
+  drafts: Draft[];
+  selectedCreator: Creator | null;
+  creatorStatus: string;
+  setCreatorStatus: (value: string) => void;
+  creatorPriority: string;
+  setCreatorPriority: (value: string) => void;
+  creatorContact: string;
+  setCreatorContact: (value: string) => void;
+  creatorFitReason: string;
+  setCreatorFitReason: (value: string) => void;
+  creatorOfferAngle: string;
+  setCreatorOfferAngle: (value: string) => void;
+  reviewCreator: (creator: Creator) => void;
+  updateCreator: () => void;
+}) {
+  const columns = ["Discovered", "Qualified", "Contacted", "Responded", "Partnered"];
+  const stats = [
+    ["Total Creators", props.creators.length],
+    ["High Priority", props.creators.filter((creator) => creator.priority === "high").length],
+    ["Contacted", props.creators.filter((creator) => creator.status === "contacted").length],
+    ["Converted", props.creators.filter((creator) => ["partnered", "converted"].includes(creator.status)).length]
+  ];
+  return (
+    <div className="grid gap-5">
+      <section className="grid gap-3 md:grid-cols-4">
+        {stats.map(([label, value]) => (
+          <Card key={label} className="p-4">
+            <p className="text-xs text-zinc-500">{label}</p>
+            <p className="mt-2 text-3xl font-semibold text-white">{value}</p>
+          </Card>
+        ))}
+      </section>
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
+        <div className="grid gap-3 xl:grid-cols-5">
+          {columns.map((column) => (
+            <Card key={column} className="min-h-[520px] p-3">
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="text-sm font-medium text-zinc-200">{column}</h3>
+                <SoftBadge>{props.creators.filter((creator) => creatorStage(creator) === column).length}</SoftBadge>
+              </div>
+              <div className="grid gap-3">
+                {props.creators
+                  .filter((creator) => creatorStage(creator) === column)
+                  .map((creator) => (
+                    <button
+                      key={creator.id}
+                      className="rounded-lg border border-white/10 bg-white/[0.035] p-3 text-left transition hover:border-cyan-300/30"
+                      onClick={() => props.reviewCreator(creator)}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="grid size-10 place-items-center rounded-md border border-white/10 bg-white/[0.06] text-sm font-semibold text-white">
+                          {initials(creator.name)}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-white">{creator.name}</p>
+                          <p className="text-xs text-zinc-500">{platformLabel(creator.platform)}</p>
+                        </div>
+                      </div>
+                      <p className="mt-3 line-clamp-2 text-xs leading-5 text-zinc-500">{creator.niche || creator.fit_reason || "No niche captured yet."}</p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <SoftBadge tone={toneFor(creator.priority)}>{labelFor(creator.priority)}</SoftBadge>
+                        <SoftBadge>{creator.public_contact ? "Contact Found" : "No Contact"}</SoftBadge>
+                      </div>
+                    </button>
+                  ))}
+              </div>
+            </Card>
+          ))}
+        </div>
+        <CreatorDrawer {...props} />
+      </section>
+    </div>
+  );
+}
+
+function CreatorDrawer({
+  selectedCreator,
+  drafts,
+  creatorStatus,
+  setCreatorStatus,
+  creatorPriority,
+  setCreatorPriority,
+  creatorContact,
+  setCreatorContact,
+  creatorFitReason,
+  setCreatorFitReason,
+  creatorOfferAngle,
+  setCreatorOfferAngle,
+  updateCreator
+}: Parameters<typeof CreatorsView>[0]) {
+  if (!selectedCreator) {
+    return <EmptyState title="Select a creator" detail="Open a kanban card to inspect profile context, contact status, offer angle, and outreach history." />;
+  }
+  const creatorDrafts = drafts.filter((draft) => draft.creator_id === selectedCreator.id);
+  return (
+    <Card className="sticky top-20 max-h-[calc(100vh-6rem)] overflow-auto p-5">
+      <div className="flex items-center gap-3">
+        <div className="grid size-12 place-items-center rounded-lg border border-cyan-300/20 bg-cyan-300/10 text-lg font-semibold text-cyan-100">
+          {initials(selectedCreator.name)}
+        </div>
+        <div>
+          <h3 className="font-semibold text-white">{selectedCreator.name}</h3>
+          <p className="text-sm text-zinc-500">{platformLabel(selectedCreator.platform)}</p>
+        </div>
+      </div>
+      <div className="mt-5 grid gap-4">
+        <Field label="Outreach status">
+          <Select value={creatorStatus} onChange={(event) => setCreatorStatus(event.target.value)}>
+            {creatorStatuses.map((status) => (
+              <option key={status} value={status}>
+                {labelFor(status)}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Priority">
+          <Select value={creatorPriority} onChange={(event) => setCreatorPriority(event.target.value)}>
+            {priorities.map((priority) => (
+              <option key={priority} value={priority}>
+                {labelFor(priority)}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Public contact">
+          <TextInput value={creatorContact} onChange={(event) => setCreatorContact(event.target.value)} placeholder="creator@example.com or public contact note" />
+        </Field>
+        <ContextBlock
+          rows={[
+            ["Audience", selectedCreator.audience_quality || selectedCreator.audience_estimate || "No audience estimate."],
+            ["Recent content", selectedCreator.recent_relevant_content || "No recent content captured."],
+            ["Profile", selectedCreator.profile_url]
+          ]}
+        />
+        <Field label="Notes / fit reason">
+          <TextArea className="min-h-28" value={creatorFitReason} onChange={(event) => setCreatorFitReason(event.target.value)} />
+        </Field>
+        <Field label="Suggested offer angle">
+          <TextArea className="min-h-28" value={creatorOfferAngle} onChange={(event) => setCreatorOfferAngle(event.target.value)} />
+        </Field>
+        <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
+          <p className="text-sm font-medium text-zinc-200">Generated outreach drafts</p>
+          <div className="mt-3 grid gap-2 text-sm text-zinc-500">
+            {creatorDrafts.length ? creatorDrafts.map((draft) => <span key={draft.id}>{draft.subject || labelFor(draft.channel)}</span>) : <span>No linked drafts yet.</span>}
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="primary" onClick={updateCreator}>
+            <Save size={15} /> Save creator
+          </Button>
+          <a className="inline-flex min-h-9 items-center gap-2 rounded-md border border-white/10 bg-white/[0.06] px-3 text-sm text-zinc-100" href={selectedCreator.profile_url} target="_blank" rel="noreferrer">
+            Open profile <ExternalLink size={14} />
+          </a>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function OutreachView(props: {
+  tab: "drafts" | "followups" | "history";
+  setTab: (value: "drafts" | "followups" | "history") => void;
+  drafts: Draft[];
+  followups: Followup[];
+  editingDraft: Draft | null;
+  startEditing: (draft: Draft) => void;
+  draftSubject: string;
+  setDraftSubject: (value: string) => void;
+  draftBody: string;
+  setDraftBody: (value: string) => void;
+  saveDraft: () => void;
+  changeDraftStatus: (status: "needs_review" | "approved" | "rejected" | "edit_needed", runSendWorkflow?: boolean) => void;
+  dryRunSendEnabled: boolean;
+  selectedFollowup: Followup | null;
+  reviewFollowup: (followup: Followup) => void;
+  followupStatus: string;
+  setFollowupStatus: (value: string) => void;
+  followupDraftBody: string;
+  setFollowupDraftBody: (value: string) => void;
+  updateFollowup: (status?: string) => void;
+}) {
+  const visibleDrafts = props.tab === "history" ? props.drafts.filter((draft) => draft.status === "sent" || draft.status === "rejected") : props.drafts.filter((draft) => draft.status !== "sent" && draft.status !== "rejected");
+  return (
+    <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_430px]">
+      <div className="grid gap-4">
+        <Card className="flex flex-wrap gap-2 p-2">
+          {(["drafts", "followups", "history"] as const).map((tab) => (
+            <Button key={tab} variant={props.tab === tab ? "primary" : "ghost"} onClick={() => props.setTab(tab)}>
+              {tab === "drafts" ? "Draft Queue" : tab === "followups" ? "Scheduled Follow-Ups" : "Outreach History"}
+            </Button>
+          ))}
+        </Card>
+        {props.tab === "followups" ? (
+          <div className="grid gap-3">
+            {props.followups.length ? props.followups.map((followup) => <FollowupCard key={followup.id} followup={followup} onOpen={() => props.reviewFollowup(followup)} />) : <EmptyState title="No follow-ups" detail="Follow-up tasks appear after approved emails are sent." />}
+          </div>
+        ) : (
+          <div className="grid gap-3">
+            {visibleDrafts.length ? visibleDrafts.map((draft) => <DraftCard key={draft.id} draft={draft} onOpen={() => props.startEditing(draft)} />) : <EmptyState title="No outreach messages here" detail="Drafts, manual messages, and history will appear as the pipeline runs." />}
+          </div>
+        )}
+      </div>
+      <Card className="sticky top-20 max-h-[calc(100vh-6rem)] overflow-auto p-5">
+        {props.tab === "followups" ? (
+          props.selectedFollowup ? (
+            <div className="grid gap-4">
+              <div className="flex flex-wrap gap-2">
+                <SoftBadge tone={isDueOrOverdue(props.selectedFollowup.due_date) ? "bad" : toneFor(props.selectedFollowup.status)}>
+                  {isDueOrOverdue(props.selectedFollowup.due_date) ? "Due Now" : labelFor(props.selectedFollowup.status)}
+                </SoftBadge>
+                <SoftBadge>Step {props.selectedFollowup.cadence_step}</SoftBadge>
+              </div>
+              <Field label="Status">
+                <Select value={props.followupStatus} onChange={(event) => props.setFollowupStatus(event.target.value)}>
+                  {followupStatuses.map((status) => (
+                    <option key={status} value={status}>
+                      {labelFor(status)}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Follow-up draft note">
+                <TextArea value={props.followupDraftBody} onChange={(event) => props.setFollowupDraftBody(event.target.value)} />
+              </Field>
+              <ContextBlock
+                rows={[
+                  ["Due", props.selectedFollowup.due_date],
+                  ["Original subject", props.selectedFollowup.drafts?.subject || "No subject."],
+                  ["Creator contact", props.selectedFollowup.drafts?.creators?.public_contact || "No creator contact."],
+                  ["Opportunity", props.selectedFollowup.drafts?.opportunities?.summary || "No opportunity summary."]
+                ]}
+              />
+              <div className="flex flex-wrap gap-2">
+                <Button variant="primary" onClick={() => props.updateFollowup()}>
+                  <Save size={15} /> Save
+                </Button>
+                <Button variant="success" onClick={() => props.updateFollowup("completed")}>
+                  <CheckCircle2 size={15} /> Complete
+                </Button>
+                <Button variant="danger" onClick={() => props.updateFollowup("skipped")}>
+                  <XCircle size={15} /> Skip
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <EmptyState title="Select a follow-up" detail="Review cadence, source context, and outcome." />
+          )
+        ) : props.editingDraft ? (
+          <div className="grid gap-4">
+            <div className="flex flex-wrap gap-2">
+              <SoftBadge tone={toneFor(props.editingDraft.status)}>{labelFor(props.editingDraft.status)}</SoftBadge>
+              <SoftBadge>{labelFor(props.editingDraft.channel)}</SoftBadge>
+            </div>
+            <Field label="Subject">
+              <TextInput value={props.draftSubject} onChange={(event) => props.setDraftSubject(event.target.value)} disabled={props.editingDraft.status === "sent"} />
+            </Field>
+            <Field label="Body">
+              <TextArea className="min-h-72" value={props.draftBody} onChange={(event) => props.setDraftBody(event.target.value)} disabled={props.editingDraft.status === "sent"} />
+            </Field>
+            <ContextBlock
+              rows={[
+                ["Recipient/contact", props.editingDraft.creators?.public_contact || "No creator contact."],
+                ["Creator", props.editingDraft.creators?.name || "No linked creator."],
+                ["Opportunity", props.editingDraft.opportunities?.summary || "No opportunity summary."],
+                ["XRWorkout fit", props.editingDraft.opportunities?.xrworkout_relevance || "No fit note."]
+              ]}
+            />
+            <div className="flex flex-wrap gap-2">
+              <Button variant="primary" onClick={props.saveDraft} disabled={props.editingDraft.status === "sent"}>
+                <Save size={15} /> Save text
+              </Button>
+              <Button variant="secondary" onClick={() => props.changeDraftStatus("edit_needed")} disabled={props.editingDraft.status === "sent"}>
+                <ShieldAlert size={15} /> Edit needed
+              </Button>
+              <Button variant="danger" onClick={() => props.changeDraftStatus("rejected")} disabled={props.editingDraft.status === "sent"}>
+                <XCircle size={15} /> Reject
+              </Button>
+              <Button variant="success" onClick={() => props.changeDraftStatus("approved")} disabled={props.editingDraft.status === "sent"}>
+                <CheckCircle2 size={15} /> Approve
+              </Button>
+              <Button
+                variant="success"
+                onClick={() => props.changeDraftStatus("approved", true)}
+                disabled={props.editingDraft.status === "sent" || props.editingDraft.channel !== "email" || !props.dryRunSendEnabled}
+              >
+                <MailCheck size={15} /> Approve + dry-run
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <EmptyState title="Select a message" detail="Review generated text, safety context, recipient, and workflow actions." />
+        )}
+      </Card>
+    </div>
+  );
+}
+
+function AutomationsView({
+  automation,
+  agents,
+  updateVariable,
+  dispatch,
+  cleanAutomaticStart,
+  cleanStartRunning,
+  dryRunSendEnabled
+}: {
+  automation: AutomationData | null;
+  agents: ReturnType<typeof workflowAgents>;
+  updateVariable: (name: "AUTOMATION_ENABLED" | "SEND_AUTOMATION_ENABLED" | "DRY_RUN_SEND", value: string) => void;
+  dispatch: (workflow: string) => void;
+  cleanAutomaticStart: () => void;
+  cleanStartRunning: boolean;
+  dryRunSendEnabled: boolean;
+}) {
+  const workflowSteps = ["Discovery", "Filtering", "Scoring", "Creator Detection", "Draft Generation", "Human Approval", "Outreach", "Analytics"];
+  return (
+    <div className="grid gap-5">
+      <section className="grid gap-4 xl:grid-cols-4">
+        {agents.map((agent) => (
+          <Card key={agent.name} className="p-4">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="font-semibold text-white">{agent.name}</h3>
+                <p className="mt-1 text-sm text-zinc-500">{agent.description}</p>
+              </div>
+              <Bot className="text-cyan-200" size={18} />
+            </div>
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <MiniStat label="Completed" value={agent.completed} />
+              <MiniStat label="Found" value={agent.found} />
+            </div>
+            <div className="mt-4 flex items-center justify-between gap-3">
+              <SoftBadge tone={toneFor(agent.status)}>{labelFor(agent.status)}</SoftBadge>
+              <span className="text-xs text-zinc-500">{shortDate(agent.lastRun)}</span>
+            </div>
+          </Card>
+        ))}
+      </section>
+      <Card className="p-5">
+        <h3 className="font-semibold text-white">Agentic Workflow</h3>
+        <div className="mt-5 grid gap-3 md:grid-cols-4 xl:grid-cols-8">
+          {workflowSteps.map((step, index) => (
+            <div key={step} className="flex items-center gap-3">
+              <div className="grid min-h-20 flex-1 place-items-center rounded-lg border border-white/10 bg-white/[0.035] p-3 text-center text-sm text-zinc-200">
+                {step}
+              </div>
+              {index < workflowSteps.length - 1 ? <ArrowRight className="hidden text-zinc-600 xl:block" size={16} /> : null}
+            </div>
+          ))}
+        </div>
+      </Card>
+      <Card className="p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="font-semibold text-white">Clean Automatic Start</h3>
+            <p className="mt-1 text-sm text-zinc-500">Refreshes outreach data, enables collection/drafts, keeps scheduled sending disabled, and keeps send dispatch dry-run only.</p>
+          </div>
+          <Button variant="primary" onClick={cleanAutomaticStart} disabled={cleanStartRunning}>
+            <RefreshCw size={15} /> {cleanStartRunning ? "Starting..." : "Clean start"}
+          </Button>
+        </div>
+      </Card>
+      <section className="grid gap-4 xl:grid-cols-3">
+        {(["AUTOMATION_ENABLED", "SEND_AUTOMATION_ENABLED", "DRY_RUN_SEND"] as const).map((name) => {
+          const value = automation?.variables[name] || (name === "DRY_RUN_SEND" ? "true" : "false");
+          return (
+            <Card key={name} className="p-4">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="font-semibold text-white">{name}</h3>
+                <SoftBadge tone={toneFor(value)}>{value}</SoftBadge>
+              </div>
+              <div className="mt-4 flex gap-2">
+                <Button variant="secondary" onClick={() => updateVariable(name, "false")}>Set false</Button>
+                <Button variant="primary" onClick={() => updateVariable(name, "true")}>Set true</Button>
+              </div>
+            </Card>
+          );
+        })}
+      </section>
+      <section className="grid gap-4 xl:grid-cols-5">
+        {(["collection", "drafts", "manualDraft", "send", "report"] as const).map((workflow) => {
+          const run = automation?.workflows[workflow];
+          const isManualDraftWorkflow = workflow === "manualDraft";
+          return (
+            <Card key={workflow} className="p-4">
+              <h3 className="font-semibold text-white">{isManualDraftWorkflow ? "Selected Draft" : labelFor(workflow)}</h3>
+              <p className="mt-2 text-sm text-zinc-500">Last run: {shortDate(run?.created_at)}</p>
+              <div className="mt-3">
+                <SoftBadge tone={toneFor(run?.conclusion || run?.status || "unknown")}>{labelFor(run?.conclusion || run?.status || "unknown")}</SoftBadge>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {run?.html_url ? (
+                  <a className="inline-flex min-h-9 items-center gap-2 rounded-md border border-white/10 bg-white/[0.06] px-3 text-sm text-zinc-100" href={run.html_url} target="_blank" rel="noreferrer">
+                    Open <ExternalLink size={14} />
+                  </a>
+                ) : null}
+                <Button variant="primary" onClick={() => dispatch(workflow)} disabled={isManualDraftWorkflow || (workflow === "send" && !dryRunSendEnabled)}>
+                  <Play size={15} /> Run
+                </Button>
+              </div>
+            </Card>
+          );
+        })}
+      </section>
+    </div>
+  );
+}
+
+function AnalyticsView({ summary, opportunities, creators, drafts, rawItems }: { summary: SummaryData | null; opportunities: Opportunity[]; creators: Creator[]; drafts: Draft[]; rawItems: RawItem[] }) {
+  const funnel = funnelData(summary, opportunities, creators, drafts);
+  return (
+    <div className="grid gap-5">
+      <section className="grid gap-4 xl:grid-cols-4">
+        <Card className="p-4"><MiniStat label="Response Rate" value={responseRate(drafts)} /></Card>
+        <Card className="p-4"><MiniStat label="Conversion Rate" value={conversionRate(creators)} /></Card>
+        <Card className="p-4"><MiniStat label="Top Source" value={summary?.sourceQuality[0]?.source ? platformLabel(summary.sourceQuality[0].source) : "None"} /></Card>
+        <Card className="p-4"><MiniStat label="Qualified" value={funnel[1].value} /></Card>
+      </section>
+      <section className="grid gap-4 xl:grid-cols-2">
+        <ChartCard title="Conversations Over Time"><AreaSummary data={conversationsByDay(rawItems)} /></ChartCard>
+        <ChartCard title="Outreach Sent"><AreaSummary data={outreachByDay(drafts)} /></ChartCard>
+        <ChartCard title="Top Performing Platforms"><BarSummary data={(summary?.sourceQuality || []).slice(0, 6).map((row) => ({ name: platformLabel(row.source), value: row.highPriority || row.opportunities }))} /></ChartCard>
+        <ChartCard title="Response + Conversion Funnel"><BarSummary data={funnel} /></ChartCard>
+      </section>
+      <Card className="p-5">
+        <h3 className="font-semibold text-white">Source Attribution</h3>
+        <div className="mt-4 grid gap-2">
+          {(summary?.sourceQuality || []).map((source) => (
+            <div key={source.source} className="grid gap-2 rounded-lg border border-white/10 bg-white/[0.03] p-3 text-sm text-zinc-400 md:grid-cols-6">
+              <strong className="text-zinc-100">{platformLabel(source.source)}</strong>
+              <span>{source.rawItems} conversations</span>
+              <span>{source.opportunities} opportunities</span>
+              <span>{source.highPriority} high priority</span>
+              <span>avg {source.averageScore}</span>
+              <span>{source.drafts} drafts</span>
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function SettingsView({ session, automation, nodes, updateVariable }: { session: SessionState; automation: AutomationData | null; nodes: ReturnType<typeof platformNodes>; updateVariable: (name: "AUTOMATION_ENABLED" | "SEND_AUTOMATION_ENABLED" | "DRY_RUN_SEND", value: string) => void }) {
+  return (
+    <div className="grid gap-5 xl:grid-cols-2">
+      <Card className="p-5">
+        <h3 className="font-semibold text-white">Operator</h3>
+        <p className="mt-3 text-sm text-zinc-400">{session.email}</p>
+        <p className="mt-2 text-sm text-zinc-500">Secrets are not exposed in the dashboard.</p>
+      </Card>
+      <Card className="p-5">
+        <h3 className="font-semibold text-white">Safety State</h3>
+        <div className="mt-4 grid gap-3">
+          {(["AUTOMATION_ENABLED", "SEND_AUTOMATION_ENABLED", "DRY_RUN_SEND"] as const).map((name) => {
+            const value = automation?.variables[name] || (name === "DRY_RUN_SEND" ? "true" : "false");
+            return (
+              <div key={name} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white/10 bg-white/[0.03] p-3">
+                <span className="text-sm text-zinc-300">{name}</span>
+                <div className="flex gap-2">
+                  <SoftBadge tone={toneFor(value)}>{value}</SoftBadge>
+                  <Button variant="secondary" onClick={() => updateVariable(name, value === "true" ? "false" : "true")}>Toggle</Button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+      <Card className="p-5 xl:col-span-2">
+        <h3 className="font-semibold text-white">Integration Status</h3>
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
+          {nodes.map((node) => (
+            <div key={node.id} className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm font-medium text-zinc-100">{node.label}</span>
+                <SoftBadge tone={node.live ? "good" : "bad"}>{node.live ? "Live" : "Inactive"}</SoftBadge>
+              </div>
+              <p className="mt-2 text-xs text-zinc-500">{node.volume} conversations, {node.opportunities} opportunities</p>
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function AssistantPanel({ recommendations, onOpen }: { recommendations: Recommendation[]; onOpen: (recommendation: Recommendation) => void }) {
+  return (
+    <aside className="hidden xl:block">
+      <Card className="sticky top-20 p-5">
+        <div className="flex items-center gap-2">
+          <Sparkles className="text-cyan-200" size={18} />
+          <h3 className="font-semibold text-white">AI Assistant</h3>
+        </div>
+        <p className="mt-2 text-sm text-zinc-500">Recommended next moves from current outreach data.</p>
+        <div className="mt-5 grid gap-3">
+          {recommendations.length ? recommendations.map((item) => (
+            <button key={item.id} className="rounded-lg border border-white/10 bg-white/[0.03] p-3 text-left transition hover:border-cyan-300/30" onClick={() => onOpen(item)}>
+              <div className="flex items-start justify-between gap-3">
+                <p className="text-sm font-medium text-zinc-100">{item.title}</p>
+                <SoftBadge tone={item.confidence >= 80 ? "good" : "info"}>{item.confidence}%</SoftBadge>
+              </div>
+              <p className="mt-2 line-clamp-3 text-xs leading-5 text-zinc-500">{item.rationale}</p>
+              <p className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-cyan-200">
+                {item.action} <ArrowRight size={13} />
+              </p>
+            </button>
+          )) : <EmptyState title="No recommendations yet" detail="Recommendations appear when opportunities, drafts, creators, or follow-ups need action." />}
+        </div>
+      </Card>
+    </aside>
+  );
+}
+
+function DraftCard({ draft, onOpen }: { draft: Draft; onOpen: () => void }) {
+  return (
+    <button className="rounded-lg border border-white/10 bg-white/[0.03] p-4 text-left transition hover:border-cyan-300/30" onClick={onOpen}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 className="font-medium text-white">{draft.subject || labelFor(draft.channel)}</h3>
+          <p className="mt-1 text-sm text-zinc-500">{draft.creators?.name || "No creator"} • {platformLabel(draft.opportunities?.platform || draft.channel)}</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <SoftBadge tone={toneFor(draft.status)}>{labelFor(draft.status)}</SoftBadge>
+          <SoftBadge>{labelFor(draft.channel)}</SoftBadge>
+        </div>
+      </div>
+      <p className="mt-3 line-clamp-2 text-sm leading-6 text-zinc-500">{draft.body}</p>
+    </button>
+  );
+}
+
+function FollowupCard({ followup, onOpen }: { followup: Followup; onOpen: () => void }) {
+  return (
+    <button className="rounded-lg border border-white/10 bg-white/[0.03] p-4 text-left transition hover:border-cyan-300/30" onClick={onOpen}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 className="font-medium text-white">{followup.drafts?.subject || "Follow-up task"}</h3>
+          <p className="mt-1 text-sm text-zinc-500">{followup.drafts?.creators?.name || "No creator"} • Due {followup.due_date}</p>
+        </div>
+        <SoftBadge tone={isDueOrOverdue(followup.due_date) ? "bad" : toneFor(followup.status)}>
+          {isDueOrOverdue(followup.due_date) ? "Due" : labelFor(followup.status)}
+        </SoftBadge>
+      </div>
+      <p className="mt-3 line-clamp-2 text-sm leading-6 text-zinc-500">{followup.draft_body || followup.drafts?.body || "Review the original outreach and decide the next touch."}</p>
+    </button>
+  );
+}
+
+function MiniStat({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div>
+      <p className="text-xs text-zinc-500">{label}</p>
+      <p className="mt-1 text-xl font-semibold text-white">{value}</p>
+    </div>
+  );
+}
+
+function ContextBlock({ rows }: { rows: Array<[string, ReactNode]> }) {
+  return (
+    <div className="grid gap-3 rounded-lg border border-white/10 bg-white/[0.03] p-4">
+      {rows.map(([label, value]) => (
+        <div key={label}>
+          <p className="text-xs font-medium uppercase tracking-[0.14em] text-zinc-600">{label}</p>
+          <div className="mt-1 text-sm leading-6 text-zinc-300">{value}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ChartCard({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <Card className="p-5">
+      <h3 className="font-semibold text-white">{title}</h3>
+      <div className="mt-4">{children}</div>
+    </Card>
   );
 }
