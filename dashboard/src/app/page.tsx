@@ -13,6 +13,7 @@ import {
   LayoutDashboard,
   LogOut,
   MailCheck,
+  Minimize2,
   MessageSquare,
   Network,
   Play,
@@ -26,6 +27,7 @@ import {
   Sparkles,
   Target,
   Users,
+  X,
   XCircle
 } from "lucide-react";
 import { type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
@@ -145,6 +147,16 @@ function conversionRate(creators: Creator[]) {
   return percentage(converted, creators.length);
 }
 
+function defaultCreatorPanelPosition() {
+  if (typeof window === "undefined") {
+    return { x: 920, y: 96 };
+  }
+  return {
+    x: Math.max(24, window.innerWidth - 500),
+    y: 96
+  };
+}
+
 export default function Page() {
   const hasSupabaseConfig = hasClientSupabaseConfig();
   const supabase = useMemo(() => clientSupabase(), []);
@@ -167,6 +179,8 @@ export default function Page() {
   const [creatorPriority, setCreatorPriority] = useState("medium");
   const [creatorFitReason, setCreatorFitReason] = useState("");
   const [creatorOfferAngle, setCreatorOfferAngle] = useState("");
+  const [creatorPanelPosition, setCreatorPanelPosition] = useState(() => defaultCreatorPanelPosition());
+  const [minimizedCreators, setMinimizedCreators] = useState<Creator[]>([]);
   const [selectedFollowup, setSelectedFollowup] = useState<Followup | null>(null);
   const [followupStatus, setFollowupStatus] = useState("pending");
   const [followupDraftBody, setFollowupDraftBody] = useState("");
@@ -260,12 +274,25 @@ export default function Page() {
 
   function reviewCreator(creator: Creator) {
     setSelectedCreator(creator);
+    setMinimizedCreators((current) => current.filter((item) => item.id !== creator.id));
     setCreatorStatus(creator.status || "new");
     setCreatorContact(creator.public_contact || "");
     setCreatorPriority(creator.priority || "medium");
     setCreatorFitReason(creator.fit_reason || "");
     setCreatorOfferAngle(creator.offer_angle || "");
     setActiveView("creators");
+  }
+
+  function minimizeCreator() {
+    if (!selectedCreator) return;
+    setMinimizedCreators((current) =>
+      current.some((creator) => creator.id === selectedCreator.id) ? current : [...current, selectedCreator]
+    );
+    setSelectedCreator(null);
+  }
+
+  function closeCreator() {
+    setSelectedCreator(null);
   }
 
   function reviewFollowup(followup: Followup) {
@@ -604,7 +631,6 @@ export default function Page() {
                 <CreatorsView
                   creators={data.creators}
                   drafts={data.drafts}
-                  selectedCreator={selectedCreator}
                   creatorStatus={creatorStatus}
                   setCreatorStatus={setCreatorStatus}
                   creatorPriority={creatorPriority}
@@ -690,6 +716,30 @@ export default function Page() {
               />
             ) : null}
           </div>
+          {activeView === "creators" && selectedCreator ? (
+            <CreatorFloatingTab
+              selectedCreator={selectedCreator}
+              drafts={data.drafts}
+              creatorStatus={creatorStatus}
+              setCreatorStatus={setCreatorStatus}
+              creatorPriority={creatorPriority}
+              setCreatorPriority={setCreatorPriority}
+              creatorContact={creatorContact}
+              setCreatorContact={setCreatorContact}
+              creatorFitReason={creatorFitReason}
+              setCreatorFitReason={setCreatorFitReason}
+              creatorOfferAngle={creatorOfferAngle}
+              setCreatorOfferAngle={setCreatorOfferAngle}
+              updateCreator={updateCreator}
+              onMinimize={minimizeCreator}
+              onClose={closeCreator}
+              position={creatorPanelPosition}
+              setPosition={setCreatorPanelPosition}
+            />
+          ) : null}
+          {activeView === "creators" && minimizedCreators.length ? (
+            <MinimizedCreatorDock creators={minimizedCreators} onOpen={reviewCreator} onClose={(creatorId) => setMinimizedCreators((current) => current.filter((creator) => creator.id !== creatorId))} />
+          ) : null}
         </section>
       </div>
     </main>
@@ -1046,7 +1096,6 @@ function ConversationMapView({
 function CreatorsView(props: {
   creators: Creator[];
   drafts: Draft[];
-  selectedCreator: Creator | null;
   creatorStatus: string;
   setCreatorStatus: (value: string) => void;
   creatorPriority: string;
@@ -1077,52 +1126,47 @@ function CreatorsView(props: {
           </Card>
         ))}
       </section>
-      <section className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_420px]">
-        <div className="min-w-0 overflow-x-auto pb-3">
-          <div className="grid min-w-[1180px] grid-cols-5 gap-3">
-            {columns.map((column) => (
-              <Card key={column} className="min-h-[520px] p-3">
-                <div className="mb-3 flex items-center justify-between">
-                  <h3 className="text-sm font-medium text-zinc-200">{column}</h3>
-                  <SoftBadge>{props.creators.filter((creator) => creatorStage(creator) === column).length}</SoftBadge>
-                </div>
-                <div className="grid gap-3">
-                  {props.creators
-                    .filter((creator) => creatorStage(creator) === column)
-                    .map((creator) => (
-                      <button
-                        key={creator.id}
-                        className="rounded-lg border border-white/10 bg-white/[0.035] p-3 text-left transition hover:border-cyan-300/30"
-                        onClick={() => props.reviewCreator(creator)}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="grid size-10 place-items-center rounded-md border border-white/10 bg-white/[0.06] text-sm font-semibold text-white">
-                            {initials(creator.name)}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-medium text-white">{creator.name}</p>
-                            <p className="text-xs text-zinc-500">{platformLabel(creator.platform)}</p>
-                          </div>
-                        </div>
-                        <p className="mt-3 line-clamp-2 text-xs leading-5 text-zinc-500">{creator.niche || creator.fit_reason || "No niche captured yet."}</p>
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          <SoftBadge tone={toneFor(creator.priority)}>{labelFor(creator.priority)}</SoftBadge>
-                          <SoftBadge>{creator.public_contact ? "Contact Found" : "No Contact"}</SoftBadge>
-                        </div>
-                      </button>
-                    ))}
-                </div>
-              </Card>
-            ))}
-          </div>
-        </div>
-        <CreatorDrawer {...props} />
+      <section className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-3">
+        {columns.map((column) => (
+          <Card key={column} className="min-h-[520px] p-3">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-sm font-medium text-zinc-200">{column}</h3>
+              <SoftBadge>{props.creators.filter((creator) => creatorStage(creator) === column).length}</SoftBadge>
+            </div>
+            <div className="grid gap-3">
+              {props.creators
+                .filter((creator) => creatorStage(creator) === column)
+                .map((creator) => (
+                  <button
+                    key={creator.id}
+                    className="rounded-lg border border-white/10 bg-white/[0.035] p-3 text-left transition hover:border-cyan-300/30"
+                    onClick={() => props.reviewCreator(creator)}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="grid size-10 place-items-center rounded-md border border-white/10 bg-white/[0.06] text-sm font-semibold text-white">
+                        {initials(creator.name)}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-white">{creator.name}</p>
+                        <p className="text-xs text-zinc-500">{platformLabel(creator.platform)}</p>
+                      </div>
+                    </div>
+                    <p className="mt-3 line-clamp-2 text-xs leading-5 text-zinc-500">{creator.niche || creator.fit_reason || "No niche captured yet."}</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <SoftBadge tone={toneFor(creator.priority)}>{labelFor(creator.priority)}</SoftBadge>
+                      <SoftBadge>{creator.public_contact ? "Contact Found" : "No Contact"}</SoftBadge>
+                    </div>
+                  </button>
+                ))}
+            </div>
+          </Card>
+        ))}
       </section>
     </div>
   );
 }
 
-function CreatorDrawer({
+function CreatorFloatingTab({
   selectedCreator,
   drafts,
   creatorStatus,
@@ -1135,74 +1179,167 @@ function CreatorDrawer({
   setCreatorFitReason,
   creatorOfferAngle,
   setCreatorOfferAngle,
-  updateCreator
-}: Parameters<typeof CreatorsView>[0]) {
-  if (!selectedCreator) {
-    return <EmptyState title="Select a creator" detail="Open a kanban card to inspect profile context, contact status, offer angle, and outreach history." />;
-  }
+  updateCreator,
+  onMinimize,
+  onClose,
+  position,
+  setPosition
+}: {
+  selectedCreator: Creator;
+  drafts: Draft[];
+  creatorStatus: string;
+  setCreatorStatus: (value: string) => void;
+  creatorPriority: string;
+  setCreatorPriority: (value: string) => void;
+  creatorContact: string;
+  setCreatorContact: (value: string) => void;
+  creatorFitReason: string;
+  setCreatorFitReason: (value: string) => void;
+  creatorOfferAngle: string;
+  setCreatorOfferAngle: (value: string) => void;
+  updateCreator: () => void;
+  onMinimize: () => void;
+  onClose: () => void;
+  position: { x: number; y: number };
+  setPosition: (position: { x: number; y: number }) => void;
+}) {
+  const [dragOffset, setDragOffset] = useState<{ x: number; y: number } | null>(null);
   const creatorDrafts = drafts.filter((draft) => draft.creator_id === selectedCreator.id);
+
+  function clampPosition(nextX: number, nextY: number) {
+    if (typeof window === "undefined") return { x: nextX, y: nextY };
+    const maxX = Math.max(16, window.innerWidth - 500);
+    const maxY = Math.max(76, window.innerHeight - 220);
+    return {
+      x: Math.min(Math.max(16, nextX), maxX),
+      y: Math.min(Math.max(76, nextY), maxY)
+    };
+  }
+
   return (
-    <Card className="sticky top-20 max-h-[calc(100vh-6rem)] overflow-auto p-5">
-      <div className="flex items-center gap-3">
-        <div className="grid size-12 place-items-center rounded-lg border border-cyan-300/20 bg-cyan-300/10 text-lg font-semibold text-cyan-100">
-          {initials(selectedCreator.name)}
+    <Card
+      className="fixed z-40 w-[min(460px,calc(100vw-2rem))] overflow-hidden border-cyan-300/20 shadow-[0_30px_120px_rgba(0,0,0,0.52)]"
+      style={{ left: position.x, top: position.y }}
+    >
+      <div
+        className="flex cursor-move items-center justify-between gap-3 border-b border-white/10 bg-white/[0.04] px-4 py-3"
+        onPointerDown={(event) => {
+          event.currentTarget.setPointerCapture(event.pointerId);
+          setDragOffset({ x: event.clientX - position.x, y: event.clientY - position.y });
+        }}
+        onPointerMove={(event) => {
+          if (!dragOffset) return;
+          setPosition(clampPosition(event.clientX - dragOffset.x, event.clientY - dragOffset.y));
+        }}
+        onPointerUp={(event) => {
+          event.currentTarget.releasePointerCapture(event.pointerId);
+          setDragOffset(null);
+        }}
+        onPointerCancel={() => setDragOffset(null)}
+      >
+        <div className="min-w-0">
+          <p className="text-xs font-medium uppercase tracking-[0.14em] text-cyan-200">Creator Tab</p>
+          <h3 className="truncate text-sm font-semibold text-white">{selectedCreator.name}</h3>
         </div>
-        <div>
-          <h3 className="font-semibold text-white">{selectedCreator.name}</h3>
-          <p className="text-sm text-zinc-500">{platformLabel(selectedCreator.platform)}</p>
+        <div className="flex shrink-0 gap-1">
+          <Button className="size-8 p-0" variant="ghost" onPointerDown={(event) => event.stopPropagation()} onClick={onMinimize} aria-label="Minimize creator tab" title="Minimize">
+            <Minimize2 size={15} />
+          </Button>
+          <Button className="size-8 p-0" variant="ghost" onPointerDown={(event) => event.stopPropagation()} onClick={onClose} aria-label="Close creator tab" title="Close">
+            <X size={15} />
+          </Button>
         </div>
       </div>
-      <div className="mt-5 grid gap-4">
-        <Field label="Outreach status">
-          <Select value={creatorStatus} onChange={(event) => setCreatorStatus(event.target.value)}>
-            {creatorStatuses.map((status) => (
-              <option key={status} value={status}>
-                {labelFor(status)}
-              </option>
-            ))}
-          </Select>
-        </Field>
-        <Field label="Priority">
-          <Select value={creatorPriority} onChange={(event) => setCreatorPriority(event.target.value)}>
-            {priorities.map((priority) => (
-              <option key={priority} value={priority}>
-                {labelFor(priority)}
-              </option>
-            ))}
-          </Select>
-        </Field>
-        <Field label="Public contact">
-          <TextInput value={creatorContact} onChange={(event) => setCreatorContact(event.target.value)} placeholder="creator@example.com or public contact note" />
-        </Field>
-        <ContextBlock
-          rows={[
-            ["Audience", selectedCreator.audience_quality || selectedCreator.audience_estimate || "No audience estimate."],
-            ["Recent content", selectedCreator.recent_relevant_content || "No recent content captured."],
-            ["Profile", selectedCreator.profile_url]
-          ]}
-        />
-        <Field label="Notes / fit reason">
-          <TextArea className="min-h-28" value={creatorFitReason} onChange={(event) => setCreatorFitReason(event.target.value)} />
-        </Field>
-        <Field label="Suggested offer angle">
-          <TextArea className="min-h-28" value={creatorOfferAngle} onChange={(event) => setCreatorOfferAngle(event.target.value)} />
-        </Field>
-        <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
-          <p className="text-sm font-medium text-zinc-200">Generated outreach drafts</p>
-          <div className="mt-3 grid gap-2 text-sm text-zinc-500">
-            {creatorDrafts.length ? creatorDrafts.map((draft) => <span key={draft.id}>{draft.subject || labelFor(draft.channel)}</span>) : <span>No linked drafts yet.</span>}
+      <div className="max-h-[calc(100vh-8rem)] overflow-auto p-5">
+        <div className="flex items-center gap-3">
+          <div className="grid size-12 place-items-center rounded-lg border border-cyan-300/20 bg-cyan-300/10 text-lg font-semibold text-cyan-100">
+            {initials(selectedCreator.name)}
+          </div>
+          <div className="min-w-0">
+            <h3 className="truncate font-semibold text-white">{selectedCreator.name}</h3>
+            <p className="text-sm text-zinc-500">{platformLabel(selectedCreator.platform)}</p>
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="primary" onClick={updateCreator}>
-            <Save size={15} /> Save creator
-          </Button>
-          <a className="inline-flex min-h-9 items-center gap-2 rounded-md border border-white/10 bg-white/[0.06] px-3 text-sm text-zinc-100" href={selectedCreator.profile_url} target="_blank" rel="noreferrer">
-            Open profile <ExternalLink size={14} />
-          </a>
+        <div className="mt-5 grid gap-4">
+          <Field label="Outreach status">
+            <Select value={creatorStatus} onChange={(event) => setCreatorStatus(event.target.value)}>
+              {creatorStatuses.map((status) => (
+                <option key={status} value={status}>
+                  {labelFor(status)}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Priority">
+            <Select value={creatorPriority} onChange={(event) => setCreatorPriority(event.target.value)}>
+              {priorities.map((priority) => (
+                <option key={priority} value={priority}>
+                  {labelFor(priority)}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Public contact">
+            <TextInput value={creatorContact} onChange={(event) => setCreatorContact(event.target.value)} placeholder="creator@example.com or public contact note" />
+          </Field>
+          <ContextBlock
+            rows={[
+              ["Audience", selectedCreator.audience_quality || selectedCreator.audience_estimate || "No audience estimate."],
+              ["Recent content", selectedCreator.recent_relevant_content || "No recent content captured."],
+              ["Profile", selectedCreator.profile_url]
+            ]}
+          />
+          <Field label="Notes / fit reason">
+            <TextArea className="min-h-28" value={creatorFitReason} onChange={(event) => setCreatorFitReason(event.target.value)} />
+          </Field>
+          <Field label="Suggested offer angle">
+            <TextArea className="min-h-28" value={creatorOfferAngle} onChange={(event) => setCreatorOfferAngle(event.target.value)} />
+          </Field>
+          <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
+            <p className="text-sm font-medium text-zinc-200">Generated outreach drafts</p>
+            <div className="mt-3 grid gap-2 text-sm text-zinc-500">
+              {creatorDrafts.length ? creatorDrafts.map((draft) => <span key={draft.id}>{draft.subject || labelFor(draft.channel)}</span>) : <span>No linked drafts yet.</span>}
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="primary" onClick={updateCreator}>
+              <Save size={15} /> Save creator
+            </Button>
+            <a className="inline-flex min-h-9 items-center gap-2 rounded-md border border-white/10 bg-white/[0.06] px-3 text-sm text-zinc-100" href={selectedCreator.profile_url} target="_blank" rel="noreferrer">
+              Open profile <ExternalLink size={14} />
+            </a>
+          </div>
         </div>
       </div>
     </Card>
+  );
+}
+
+function MinimizedCreatorDock({
+  creators,
+  onOpen,
+  onClose
+}: {
+  creators: Creator[];
+  onOpen: (creator: Creator) => void;
+  onClose: (creatorId: string) => void;
+}) {
+  return (
+    <div className="fixed bottom-4 left-1/2 z-40 flex max-w-[calc(100vw-2rem)] -translate-x-1/2 gap-2 overflow-auto rounded-lg border border-white/10 bg-zinc-950/92 p-2 shadow-[0_18px_70px_rgba(0,0,0,0.45)] backdrop-blur">
+      {creators.map((creator) => (
+        <div key={creator.id} className="flex items-center gap-2 rounded-md border border-white/10 bg-white/[0.04] p-1">
+          <button className="flex min-h-9 max-w-56 items-center gap-2 px-2 text-left text-sm text-zinc-200" onClick={() => onOpen(creator)} title={`Reopen ${creator.name}`}>
+            <span className="grid size-7 shrink-0 place-items-center rounded border border-white/10 bg-white/[0.06] text-xs font-semibold">
+              {initials(creator.name)}
+            </span>
+            <span className="truncate">{creator.name}</span>
+          </button>
+          <Button className="size-8 p-0" variant="ghost" onClick={() => onClose(creator.id)} aria-label={`Close minimized ${creator.name}`}>
+            <X size={14} />
+          </Button>
+        </div>
+      ))}
+    </div>
   );
 }
 
