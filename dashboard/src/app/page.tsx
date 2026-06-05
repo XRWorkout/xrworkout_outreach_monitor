@@ -451,6 +451,7 @@ export default function Page() {
         nowMs - new Date(item.collected_at).getTime() <= 7 * 24 * 60 * 60 * 1000);
     return matchesSearch && matchesPlatform && matchesRelevance && matchesDate;
   });
+  const showAssistant = activeView !== "creators";
 
   if (loading && !session) {
     return <main className="grid min-h-screen place-items-center bg-zinc-950 text-zinc-100">Loading XRWorkout Outreach OS...</main>;
@@ -549,7 +550,7 @@ export default function Page() {
             </div>
           </header>
 
-          <div className="grid gap-5 p-4 xl:grid-cols-[minmax(0,1fr)_340px] xl:p-6">
+          <div className={cn("grid gap-5 p-4 xl:p-6", showAssistant && "xl:grid-cols-[minmax(0,1fr)_340px]")}>
             <div className="min-w-0">
               {notice ? <div className="mb-4 rounded-md border border-cyan-300/20 bg-cyan-300/10 p-3 text-sm text-cyan-100">{notice}</div> : null}
               {error ? <div className="mb-4 rounded-md border border-red-300/20 bg-red-400/10 p-3 text-sm text-red-100">{error}</div> : null}
@@ -665,27 +666,29 @@ export default function Page() {
               ) : null}
             </div>
 
-            <AssistantPanel
-              recommendations={recommendations}
-              onOpen={(recommendation) => {
-                if (recommendation.kind === "opportunity") {
-                  const target = data.opportunities.find((row) => row.id === recommendation.targetId);
-                  if (target) reviewOpportunity(target);
-                }
-                if (recommendation.kind === "creator") {
-                  const target = data.creators.find((row) => row.id === recommendation.targetId);
-                  if (target) reviewCreator(target);
-                }
-                if (recommendation.kind === "draft") {
-                  const target = data.drafts.find((row) => row.id === recommendation.targetId);
-                  if (target) startEditing(target);
-                }
-                if (recommendation.kind === "followup") {
-                  const target = data.followups.find((row) => row.id === recommendation.targetId);
-                  if (target) reviewFollowup(target);
-                }
-              }}
-            />
+            {showAssistant ? (
+              <AssistantPanel
+                recommendations={recommendations}
+                onOpen={(recommendation) => {
+                  if (recommendation.kind === "opportunity") {
+                    const target = data.opportunities.find((row) => row.id === recommendation.targetId);
+                    if (target) reviewOpportunity(target);
+                  }
+                  if (recommendation.kind === "creator") {
+                    const target = data.creators.find((row) => row.id === recommendation.targetId);
+                    if (target) reviewCreator(target);
+                  }
+                  if (recommendation.kind === "draft") {
+                    const target = data.drafts.find((row) => row.id === recommendation.targetId);
+                    if (target) startEditing(target);
+                  }
+                  if (recommendation.kind === "followup") {
+                    const target = data.followups.find((row) => row.id === recommendation.targetId);
+                    if (target) reviewFollowup(target);
+                  }
+                }}
+              />
+            ) : null}
           </div>
         </section>
       </div>
@@ -1074,42 +1077,44 @@ function CreatorsView(props: {
           </Card>
         ))}
       </section>
-      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
-        <div className="grid gap-3 xl:grid-cols-5">
-          {columns.map((column) => (
-            <Card key={column} className="min-h-[520px] p-3">
-              <div className="mb-3 flex items-center justify-between">
-                <h3 className="text-sm font-medium text-zinc-200">{column}</h3>
-                <SoftBadge>{props.creators.filter((creator) => creatorStage(creator) === column).length}</SoftBadge>
-              </div>
-              <div className="grid gap-3">
-                {props.creators
-                  .filter((creator) => creatorStage(creator) === column)
-                  .map((creator) => (
-                    <button
-                      key={creator.id}
-                      className="rounded-lg border border-white/10 bg-white/[0.035] p-3 text-left transition hover:border-cyan-300/30"
-                      onClick={() => props.reviewCreator(creator)}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="grid size-10 place-items-center rounded-md border border-white/10 bg-white/[0.06] text-sm font-semibold text-white">
-                          {initials(creator.name)}
+      <section className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_420px]">
+        <div className="min-w-0 overflow-x-auto pb-3">
+          <div className="grid min-w-[1180px] grid-cols-5 gap-3">
+            {columns.map((column) => (
+              <Card key={column} className="min-h-[520px] p-3">
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="text-sm font-medium text-zinc-200">{column}</h3>
+                  <SoftBadge>{props.creators.filter((creator) => creatorStage(creator) === column).length}</SoftBadge>
+                </div>
+                <div className="grid gap-3">
+                  {props.creators
+                    .filter((creator) => creatorStage(creator) === column)
+                    .map((creator) => (
+                      <button
+                        key={creator.id}
+                        className="rounded-lg border border-white/10 bg-white/[0.035] p-3 text-left transition hover:border-cyan-300/30"
+                        onClick={() => props.reviewCreator(creator)}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="grid size-10 place-items-center rounded-md border border-white/10 bg-white/[0.06] text-sm font-semibold text-white">
+                            {initials(creator.name)}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-medium text-white">{creator.name}</p>
+                            <p className="text-xs text-zinc-500">{platformLabel(creator.platform)}</p>
+                          </div>
                         </div>
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-medium text-white">{creator.name}</p>
-                          <p className="text-xs text-zinc-500">{platformLabel(creator.platform)}</p>
+                        <p className="mt-3 line-clamp-2 text-xs leading-5 text-zinc-500">{creator.niche || creator.fit_reason || "No niche captured yet."}</p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <SoftBadge tone={toneFor(creator.priority)}>{labelFor(creator.priority)}</SoftBadge>
+                          <SoftBadge>{creator.public_contact ? "Contact Found" : "No Contact"}</SoftBadge>
                         </div>
-                      </div>
-                      <p className="mt-3 line-clamp-2 text-xs leading-5 text-zinc-500">{creator.niche || creator.fit_reason || "No niche captured yet."}</p>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        <SoftBadge tone={toneFor(creator.priority)}>{labelFor(creator.priority)}</SoftBadge>
-                        <SoftBadge>{creator.public_contact ? "Contact Found" : "No Contact"}</SoftBadge>
-                      </div>
-                    </button>
-                  ))}
-              </div>
-            </Card>
-          ))}
+                      </button>
+                    ))}
+                </div>
+              </Card>
+            ))}
+          </div>
         </div>
         <CreatorDrawer {...props} />
       </section>
