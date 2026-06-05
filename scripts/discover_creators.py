@@ -39,6 +39,27 @@ MOVEMENT_TERMS = [
     "gym",
 ]
 
+EMAIL_RE = re.compile(r"(?<![A-Z0-9._%+-])([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})(?![A-Z0-9._%+-])", re.IGNORECASE)
+
+
+def public_contact_from_item(item: dict[str, Any]) -> str | None:
+    raw_json = item.get("raw_json") if isinstance(item.get("raw_json"), dict) else {}
+    public_contact = raw_json.get("public_contact")
+    if isinstance(public_contact, str) and public_contact.strip():
+        return public_contact.strip()
+
+    text = "\n".join(
+        str(value or "")
+        for value in [
+            item.get("title"),
+            item.get("body"),
+            item.get("author_name"),
+            raw_json.get("keyword"),
+        ]
+    )
+    match = EMAIL_RE.search(text)
+    return match.group(1) if match else None
+
 
 def has_term(text: str, term: str) -> bool:
     if " " in term:
@@ -77,7 +98,7 @@ def fallback_creator_fit(item: dict[str, Any]) -> dict[str, Any] | None:
         "name": name,
         "platform": item.get("source"),
         "profile_url": profile_url,
-        "public_contact": None,
+        "public_contact": public_contact_from_item(item),
         "niche": "Potential VR fitness creator",
         "audience_estimate": "Unknown",
         "audience_quality": "Needs human review",
@@ -98,7 +119,7 @@ def creator_row(item: dict[str, Any], fit: dict[str, Any]) -> dict[str, Any]:
         "name": fit.get("name") or item.get("author_name") or "Unknown",
         "platform": fit.get("platform") or item["source"],
         "profile_url": fit.get("profile_url") or item.get("author_url") or item.get("source_url"),
-        "public_contact": fit.get("public_contact"),
+        "public_contact": fit.get("public_contact") or public_contact_from_item(item),
         "niche": fit.get("niche", ""),
         "audience_estimate": fit.get("audience_estimate", ""),
         "audience_quality": fit.get("audience_quality", ""),

@@ -3,7 +3,9 @@ export type RawItem = {
   source: string;
   source_url?: string | null;
   title?: string | null;
+  body?: string | null;
   author_name?: string | null;
+  author_url?: string | null;
   collected_at?: string | null;
   processed_at?: string | null;
 };
@@ -33,6 +35,7 @@ export type Creator = {
   public_contact?: string | null;
   niche?: string | null;
   audience_quality?: string | null;
+  recent_relevant_content?: string | null;
   fit_reason?: string | null;
   offer_angle?: string | null;
   priority: string;
@@ -92,9 +95,29 @@ export type SummaryData = {
     offers: number;
   };
   rawItems: Array<{ source: string; processed_at?: string | null }>;
-  opportunities: Array<{ priority: string; status: string; platform: string }>;
-  drafts: Array<{ status: string; channel: string }>;
+  opportunities: Array<{ priority: string; status: string; platform: string; score: number }>;
+  drafts: Array<{ status: string; channel: string; opportunities?: { platform?: string | null; raw_items?: { source?: string | null } | null } | null }>;
   followups: Array<{ status: string; due_date: string }>;
+  creators: Array<{ status: string; public_contact?: string | null }>;
+  sourceQuality: Array<{
+    source: string;
+    rawItems: number;
+    opportunities: number;
+    highPriority: number;
+    averageScore: number;
+    drafts: number;
+    approvedOrSent: number;
+  }>;
+  actionQueue: {
+    highPriorityOpportunities: number;
+    draftsNeedingReview: number;
+    approvedDrafts: number;
+    sentDrafts: number;
+    rejectedDrafts: number;
+    creatorsMissingContact: number;
+    creatorsContactReady: number;
+    dueFollowups: number;
+  };
 };
 
 export type AutomationData = {

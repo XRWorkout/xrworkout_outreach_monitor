@@ -82,6 +82,11 @@ function formatDate(value?: string | null) {
   }).format(new Date(value));
 }
 
+function isDueOrOverdue(value?: string | null) {
+  if (!value) return false;
+  return value <= new Date().toISOString().slice(0, 10);
+}
+
 export default function Page() {
   const hasSupabaseConfig = hasClientSupabaseConfig();
   const supabase = useMemo(() => clientSupabase(), []);
@@ -421,6 +426,18 @@ export default function Page() {
       { header: "Channel", accessorKey: "channel" },
       { header: "Subject", accessorKey: "subject", cell: ({ row }) => row.original.subject || "No subject" },
       { header: "Creator", cell: ({ row }) => row.original.creators?.name || "No creator" },
+      { header: "Contact", cell: ({ row }) => row.original.creators?.public_contact || "missing" },
+      {
+        header: "Source",
+        cell: ({ row }) =>
+          row.original.opportunities?.raw_items?.source_url ? (
+            <a href={row.original.opportunities.raw_items.source_url} target="_blank" rel="noreferrer">
+              Open <ExternalLink size={14} />
+            </a>
+          ) : (
+            "none"
+          )
+      },
       { header: "Updated", accessorKey: "updated_at", cell: ({ row }) => formatDate(row.original.updated_at) },
       {
         header: "Action",
@@ -440,6 +457,7 @@ export default function Page() {
       { header: "Name", accessorKey: "name" },
       { header: "Platform", accessorKey: "platform" },
       { header: "Contact", accessorKey: "public_contact", cell: ({ row }) => row.original.public_contact || "none" },
+      { header: "Status", accessorKey: "status", cell: ({ row }) => <Badge tone={statusTone(row.original.status)}>{row.original.status}</Badge> },
       { header: "Niche", accessorKey: "niche" },
       { header: "Fit", accessorKey: "fit_reason", cell: ({ row }) => <span className="line-clamp">{row.original.fit_reason || "none"}</span> },
       {
@@ -487,6 +505,7 @@ export default function Page() {
 
   const summary = data.summary;
   const dryRunSendEnabled = (data.automation?.variables.DRY_RUN_SEND || "true") === "true";
+  const bestSource = summary?.sourceQuality[0];
 
   return (
     <main className="app-shell">
@@ -535,6 +554,18 @@ export default function Page() {
               <Metric label="Follow-ups" value={summary.counts.followups} detail="Pending cadence" />
               <Metric label="Offers" value={summary.counts.offers} detail="Creator offers" />
             </section>
+            <section className="metric-grid">
+              <Metric label="High priority" value={summary.actionQueue.highPriorityOpportunities} detail="Opportunity review" />
+              <Metric label="Drafts to review" value={summary.actionQueue.draftsNeedingReview} detail="Approval queue" />
+              <Metric label="Missing contact" value={summary.actionQueue.creatorsMissingContact} detail="Creator records" />
+              <Metric label="Contact ready" value={summary.actionQueue.creatorsContactReady} detail="Creator records" />
+              <Metric label="Due follow-ups" value={summary.actionQueue.dueFollowups} detail="Pending now" />
+              <Metric
+                label="Best source"
+                value={bestSource?.source || "none"}
+                detail={bestSource ? `${bestSource.highPriority} high, avg ${bestSource.averageScore}` : "No ranked source"}
+              />
+            </section>
             <section className="chart-grid">
               <div className="panel">
                 <h3>Source mix</h3>
@@ -551,6 +582,22 @@ export default function Page() {
               <div className="panel">
                 <h3>Follow-up status</h3>
                 <PieSummary data={groupCounts(summary.followups, "status")} />
+              </div>
+            </section>
+            <section className="panel">
+              <h3>Source quality</h3>
+              <div className="quality-list">
+                {summary.sourceQuality.length ? summary.sourceQuality.map((source) => (
+                  <div className="quality-row" key={source.source}>
+                    <strong>{source.source}</strong>
+                    <span>raw {source.rawItems}</span>
+                    <span>opps {source.opportunities}</span>
+                    <span>high {source.highPriority}</span>
+                    <span>avg {source.averageScore}</span>
+                    <span>drafts {source.drafts}</span>
+                    <span>approved/sent {source.approvedOrSent}</span>
+                  </div>
+                )) : <p className="muted">No source data yet.</p>}
               </div>
             </section>
           </div>
@@ -631,8 +678,26 @@ export default function Page() {
                     <textarea value={draftBody} onChange={(event) => setDraftBody(event.target.value)} disabled={editingDraft.status === "sent"} />
                   </label>
                   <div className="context-box">
+                    <strong>Recipient/contact</strong>
+                    <p>{editingDraft.creators?.public_contact || "No creator contact. Add a public contact on the creator before sending."}</p>
+                    {editingDraft.creators?.profile_url ? (
+                      <a href={editingDraft.creators.profile_url} target="_blank" rel="noreferrer">
+                        Open creator profile <ExternalLink size={14} />
+                      </a>
+                    ) : null}
+                  </div>
+                  <div className="context-box">
                     <strong>Opportunity</strong>
                     <p>{editingDraft.opportunities?.summary || "No opportunity summary available."}</p>
+                    <strong>Pain point</strong>
+                    <p>{editingDraft.opportunities?.pain_point || "No pain point."}</p>
+                    <strong>XRWorkout fit</strong>
+                    <p>{editingDraft.opportunities?.xrworkout_relevance || "No fit note."}</p>
+                    {editingDraft.opportunities?.raw_items?.source_url ? (
+                      <a href={editingDraft.opportunities.raw_items.source_url} target="_blank" rel="noreferrer">
+                        Open original source <ExternalLink size={14} />
+                      </a>
+                    ) : null}
                     <strong>Creator</strong>
                     <p>{editingDraft.creators?.name || "No linked creator."}</p>
                   </div>
@@ -696,6 +761,16 @@ export default function Page() {
                     Public contact
                     <input value={creatorContact} onChange={(event) => setCreatorContact(event.target.value)} placeholder="creator@example.com or public contact note" />
                   </label>
+                  <div className="context-box">
+                    <strong>Profile</strong>
+                    <p>{selectedCreator.profile_url}</p>
+                    {selectedCreator.recent_relevant_content ? (
+                      <>
+                        <strong>Recent relevant content</strong>
+                        <p>{selectedCreator.recent_relevant_content}</p>
+                      </>
+                    ) : null}
+                  </div>
                   <label>
                     Fit reason
                     <textarea className="compact-textarea" value={creatorFitReason} onChange={(event) => setCreatorFitReason(event.target.value)} />
@@ -726,10 +801,19 @@ export default function Page() {
               data={data.followups}
               searchPlaceholder="Filter follow-ups"
               columns={[
-                { header: "Status", accessorKey: "status", cell: ({ row }) => <Badge tone={statusTone(row.original.status)}>{row.original.status}</Badge> },
+                {
+                  header: "Status",
+                  accessorKey: "status",
+                  cell: ({ row }) => (
+                    <Badge tone={row.original.status === "pending" && isDueOrOverdue(row.original.due_date) ? "bad" : statusTone(row.original.status)}>
+                      {row.original.status === "pending" && isDueOrOverdue(row.original.due_date) ? "due" : row.original.status}
+                    </Badge>
+                  )
+                },
                 { header: "Due", accessorKey: "due_date" },
                 { header: "Step", accessorKey: "cadence_step" },
                 { header: "Draft", cell: ({ row }) => row.original.drafts?.subject || "No subject" },
+                { header: "Contact", cell: ({ row }) => row.original.drafts?.creators?.public_contact || "missing" },
                 {
                   header: "Action",
                   cell: ({ row }) => (
@@ -762,10 +846,25 @@ export default function Page() {
                   <div className="context-box">
                     <strong>Due</strong>
                     <p>{selectedFollowup.due_date}</p>
+                    {selectedFollowup.status === "pending" && isDueOrOverdue(selectedFollowup.due_date) ? (
+                      <p className="warning-text">This follow-up is due now or overdue.</p>
+                    ) : null}
                     <strong>Original subject</strong>
                     <p>{selectedFollowup.drafts?.subject || "No subject."}</p>
                     <strong>Creator contact</strong>
                     <p>{selectedFollowup.drafts?.creators?.public_contact || "No creator contact."}</p>
+                    {selectedFollowup.drafts?.creators?.profile_url ? (
+                      <a href={selectedFollowup.drafts.creators.profile_url} target="_blank" rel="noreferrer">
+                        Open creator profile <ExternalLink size={14} />
+                      </a>
+                    ) : null}
+                    <strong>Opportunity</strong>
+                    <p>{selectedFollowup.drafts?.opportunities?.summary || "No opportunity summary."}</p>
+                    {selectedFollowup.drafts?.opportunities?.raw_items?.source_url ? (
+                      <a href={selectedFollowup.drafts.opportunities.raw_items.source_url} target="_blank" rel="noreferrer">
+                        Open original source <ExternalLink size={14} />
+                      </a>
+                    ) : null}
                     <strong>Original body</strong>
                     <p>{selectedFollowup.drafts?.body || "No body."}</p>
                   </div>

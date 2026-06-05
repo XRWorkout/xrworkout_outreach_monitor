@@ -97,14 +97,25 @@ Updated on 2026-05-26.
 - [x] Added `scripts/reset_outreach_data.py` and database reset coverage; reset deletes `followups`, `offers`, `drafts`, `opportunities`, `creators`, and `raw_items` while leaving schema and audit logs intact.
 - [x] Verified after clean-start implementation: backend tests passed, dashboard tests passed, dashboard typecheck passed, and dashboard lint passed.
 - [x] Fixed local dashboard validation reliability on 2026-06-04 by narrowing ESLint and TypeScript scopes away from generated `.next` output; verified `npm run build`, `npm run lint`, and `npx tsc --noEmit` complete locally.
+- [x] Implemented the operational finish pass on 2026-06-05: draft review now shows recipient/contact, creator profile, linked opportunity context, and original source links.
+- [x] Added dashboard action metrics and source-quality ranking so the overview identifies which source is producing the best opportunities.
+- [x] Made due and overdue follow-ups obvious in the dashboard and added creator contact, profile, opportunity, and source context to follow-up review.
+- [x] Preserved visible public contact emails from YouTube API metadata and carried visible public contact metadata through creator discovery for human validation.
+- [x] Expanded `scripts/list_due_followups.py` and `scripts/weekly_report.py` with contact/profile/source context, action queues, due follow-up counts, and source-quality ranking.
+- [x] Verified the operational finish pass: backend tests passed, dashboard tests passed, dashboard typecheck passed, dashboard lint passed, and dashboard production build passed.
+- [x] Ran the enhanced weekly report on 2026-06-05: best current source is YouTube with `7` high-priority opportunities, average score `41.4`, `6` drafts, and `1` approved/sent draft.
 
 ## Current Next Tasks
 
-- [ ] Deploy the dashboard update, then use the automation tab `Clean start` button to wipe outreach rows and launch a fresh automatic pipeline.
+- [ ] Deploy the latest dashboard update with improved draft context, contact validation, follow-up context, and source-quality reporting.
+- [ ] Use the automation tab `Clean start` button to wipe outreach rows and launch a fresh automatic pipeline after the dashboard deployment is live.
 - [ ] After the clean workflow completes, confirm the dashboard has fresh raw items, opportunities, creators, and any generated `needs_review` drafts.
 - [ ] Keep `SEND_AUTOMATION_ENABLED=false` so scheduled approved sends remain disabled.
 - [ ] Keep `DRY_RUN_SEND=true` so dashboard send workflow dispatches remain dry-run only.
-- [ ] Polish existing dashboard features before adding new sources: empty states, loading/error states, draft editing ergonomics, table filters, and automation status clarity.
+- [ ] Review the current 24 creator rows for contact validity and mark valid prospects `contact_ready`; 23 currently lack public contact.
+- [ ] Review the 5 `needs_review` drafts with the improved source/opportunity context; reject weak targets and approve only safe email drafts.
+- [ ] Resolve the pending overdue follow-up from 2026-06-01 through the dashboard; follow-up sending remains operator-handled in v1.
+- [ ] Polish remaining dashboard features before adding new sources: table filters, automation status clarity, and any remaining loading/error states observed after deployment.
 - [ ] Add deeper route-handler tests for the dashboard API write paths if the current schema/helper coverage is not enough.
 - [ ] Treat Reddit API credentials as a future upgrade only if RSS collection becomes unreliable.
 - [ ] Decide when the project is complete enough to enable schedules; do not enable them yet.
@@ -127,3 +138,4 @@ Updated on 2026-05-26.
 - [ ] Scheduled collection/draft/report automation should be enabled only through the dashboard `Clean start` flow or an explicit operator decision.
 - [ ] Scheduled approved sending is intentionally disabled with `SEND_AUTOMATION_ENABLED=false`.
 - [ ] Follow-up sending is intentionally operator-handled in v1; one pending follow-up is due on 2026-06-01.
+- [ ] New source additions are intentionally paused until the Reddit/YouTube/Twitch review loop is trusted.

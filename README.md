@@ -19,7 +19,7 @@ Doing that manually is slow and inconsistent. This repo builds the operating lay
 - Track sent drafts, follow-ups, and creator offers in Supabase.
 - Run on GitHub Actions, with LLM-dependent jobs on a self-hosted server runner that has Codex CLI installed and authenticated.
 - Use explicit automation switches before treating scheduled jobs as always-on production automation.
-- Provide a Next.js visual dashboard for review queues, draft editing, approval, and automation controls.
+- Provide a Next.js visual dashboard for review queues, contact validation, draft editing, approval, follow-ups, source-quality reporting, and automation controls.
 
 ## Operating Principle
 
@@ -56,7 +56,7 @@ Approved-only sender sends email through Brevo
 Follow-up tasks and reporting keep the loop visible
         |
         v
-Dashboard presents queues, charts, draft controls, and automation status
+Dashboard presents queues, source-quality reporting, draft controls, follow-ups, and automation status
 ```
 
 ## What Is Implemented
@@ -70,23 +70,23 @@ Dashboard presents queues, charts, draft controls, and automation status
 - Brevo email sender with dry-run support.
 - Approval-only sending logic.
 - Follow-up task creation after sent emails.
-- Weekly report script.
+- Weekly report script with action queues and source-quality ranking.
 - Clean reset script for deleting operational outreach rows before a fresh run.
 - GitHub Actions schedules for collection, drafts, approved sends, and weekly reporting.
 - Manual clean automatic start workflow that resets outreach data, runs collection/classification/creator discovery/draft generation, then reports counts.
 - Scheduled collection, draft, and report jobs are gated by `AUTOMATION_ENABLED`; scheduled approved sends are gated by `SEND_AUTOMATION_ENABLED`; manual runs still work for validation.
-- Next.js dashboard under `dashboard/` with Supabase login, operator allowlist, draft editing, workflow dispatch, and automation variable controls.
+- Next.js dashboard under `dashboard/` with Supabase login, operator allowlist, draft editing, linked opportunity/source context, contact validation, follow-up handling, source-quality reporting, workflow dispatch, and automation variable controls.
 - Deployed dashboard for day-to-day review and automation controls.
 - Audited dashboard editing for opportunity status, creator review fields, follow-up outcomes, and offer outcomes.
 - Manual dashboard dispatch from selected opportunities into the LLM draft generator.
 - Dashboard clean automatic start control for wiping outreach rows, launching the fresh pipeline, enabling scheduled collection/drafts, and keeping sends disabled in dry-run mode.
 - Dry-run-only dashboard send dispatch while `DRY_RUN_SEND=true`.
-- Unit tests for deduplication, scoring rules, follow-up timing, database batch dedupe, and sender recipient extraction.
+- Unit tests for deduplication, scoring rules, follow-up timing/context, database batch dedupe, public contact extraction, source-quality reporting, and sender recipient extraction.
 
 ## What Is Planned
 
 - Expand dashboard outcome tracking after the first controlled send loop is complete.
-- Add due-follow-up processing for pending follow-up tasks.
+- Add new sources only after the Reddit/YouTube/Twitch review loop is consistently producing high-quality opportunities.
 
 ## Tech Stack
 
@@ -124,16 +124,16 @@ Dashboard presents queues, charts, draft controls, and automation status
 |---|---|
 | `scripts/collect_reddit_rss.py` | Collects low-volume public Reddit RSS entries matching VR fitness keywords. |
 | `scripts/collect_reddit.py` | Legacy PRAW collector retained for a future Reddit API upgrade. |
-| `scripts/collect_youtube.py` | Collects relevant YouTube videos and channel context. |
+| `scripts/collect_youtube.py` | Collects relevant YouTube videos and channel context, preserving visible public contact emails from API metadata when present. |
 | `scripts/collect_twitch.py` | Collects relevant Twitch channel records. |
 | `scripts/classify_opportunities.py` | Scores raw items and creates outreach opportunities. |
-| `scripts/discover_creators.py` | Promotes strong creator prospects into `creators`. |
+| `scripts/discover_creators.py` | Promotes strong creator prospects into `creators` and carries forward visible public contact metadata for human validation. |
 | `scripts/generate_drafts.py` | Creates outreach drafts for high-priority safe opportunities. |
 | `scripts/generate_draft_for_opportunity.py` | Creates one LLM-generated `needs_review` draft for an operator-selected opportunity. |
 | `scripts/reset_outreach_data.py` | Deletes operational outreach rows from `followups`, `offers`, `drafts`, `opportunities`, `creators`, and `raw_items`; keeps schema and audit logs. |
 | `scripts/send_approved.py` | Sends only approved email drafts and creates follow-up tasks. |
-| `scripts/list_due_followups.py` | Lists pending follow-ups due on or before a selected date for operator handling. |
-| `scripts/weekly_report.py` | Prints operational counts and review reminders. |
+| `scripts/list_due_followups.py` | Lists pending follow-ups due on or before a selected date with contact, profile, opportunity, and source context for operator handling. |
+| `scripts/weekly_report.py` | Prints operational counts, action queues, source-quality ranking, and review reminders. |
 
 ## Setup
 
@@ -236,7 +236,8 @@ Keep `DRY_RUN_SEND=true` during setup. The send script can also be run with `--d
 6. Edit weak drafts or mark them `edit_needed`.
 7. Mark only safe, useful email drafts as `approved`.
 8. Run approved-send only as a dry-run while `DRY_RUN_SEND=true`.
-9. Review follow-up tasks and weekly reporting to track outcomes.
+9. Review due/overdue follow-up tasks with the linked contact, opportunity, and source context.
+10. Use weekly reporting to identify which source is producing the best opportunities before adding more sources.
 
 Public comments and DMs remain manual in v1.
 
@@ -251,7 +252,7 @@ The repo includes four scheduled workflows plus manual workflows for selected-op
 | `manual-opportunity-draft.yml` | Manual only | Generates one LLM draft for an operator-selected opportunity. |
 | `clean-automatic-start.yml` | Manual only | Deletes operational outreach rows, runs collection/classification/creator discovery/draft generation, and reports counts. |
 | `daily-send.yml` | Daily 17:00 UTC | Processes approved email drafts; scheduled runs require `SEND_AUTOMATION_ENABLED=true`. |
-| `weekly-report.yml` | Friday 18:00 UTC | Prints weekly operational counts. |
+| `weekly-report.yml` | Friday 18:00 UTC | Prints operational counts, action queues, and source-quality ranking. |
 
 All workflows can also be run manually from GitHub Actions.
 
@@ -269,14 +270,14 @@ Launch control:
 
 The dashboard reads from Supabase and makes the outreach queue easier to operate than Supabase Studio. It does not replace Supabase as the source of truth.
 
-Planned views:
+Current views:
 
-- Overview metrics for raw items, opportunities, creators, drafts, sent emails, follow-ups, and offers.
-- Source charts showing platform volume, source quality, classification rate, and high-priority rate.
+- Overview metrics for raw items, opportunities, creators, drafts, follow-ups, offers, action queues, and best-performing source.
+- Source charts and source-quality ranking showing platform volume, classified opportunities, high-priority count, average score, drafts, and approved/sent count.
 - Opportunity queue with filters for platform, priority, score, age, safety status, and recommended action.
-- Draft review view with source context, creator context, subject/body, safety notes, and approve/reject/edit-needed actions.
-- Creator pipeline with contact availability, niche, fit reason, offer angle, and outreach history.
-- Follow-up queue for due and overdue follow-ups.
+- Draft review view with editable subject/body, recipient contact, creator profile, linked opportunity, original source link, and approve/reject/edit-needed actions.
+- Creator pipeline with contact availability, profile URL, recent relevant content, niche, fit reason, offer angle, status, and priority.
+- Follow-up queue for due and overdue follow-ups with original draft, creator contact, creator profile, linked opportunity, and source link.
 - Offer tracking for the 3-month-free creator offer and content outcomes.
 - Automation status showing schedule state, last workflow runs, failures, `AUTOMATION_ENABLED`, `SEND_AUTOMATION_ENABLED`, and `DRY_RUN_SEND`.
 - Automation controls for toggling automation variables, starting a clean automatic pipeline, and manually dispatching collection, draft, approved-send dry runs, and reports.
@@ -309,9 +310,10 @@ The core system is implemented and tested locally. YouTube and Twitch collection
 Remaining launch blockers:
 
 - Reddit API app credentials are optional future fallback work if RSS becomes unreliable.
-- Review real Supabase rows and generate at least one reviewable draft.
+- Deploy the latest dashboard update, then review real Supabase rows and generated drafts through the improved dashboard context.
 - Keep scheduled automation disabled until the project is ready for production operation.
 - Keep follow-up sending operator-handled in v1.
+- Keep new source additions paused until existing source quality and review operations are trusted.
 
 ## Maintenance
 

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 from datetime import datetime, timezone
 from typing import Any
 
@@ -10,6 +11,15 @@ from googleapiclient.discovery import build
 from xroutreach.config import KEYWORDS, require, settings
 from xroutreach.db import OutreachDB
 from xroutreach.dedupe import dedupe_hash
+
+
+EMAIL_RE = re.compile(r"(?<![A-Z0-9._%+-])([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})(?![A-Z0-9._%+-])", re.IGNORECASE)
+
+
+def public_email_from_text(*values: str | None) -> str | None:
+    text = "\n".join(value or "" for value in values)
+    match = EMAIL_RE.search(text)
+    return match.group(1) if match else None
 
 
 def main() -> None:
@@ -37,6 +47,7 @@ def main() -> None:
             snippet = item["snippet"]
             url = f"https://www.youtube.com/watch?v={video_id}"
             published_at = snippet.get("publishedAt") or datetime.now(timezone.utc).isoformat()
+            public_contact = public_email_from_text(snippet.get("description"), snippet.get("channelTitle"))
             rows.append(
                 {
                     "source": "youtube",
@@ -47,7 +58,7 @@ def main() -> None:
                     "title": snippet.get("title"),
                     "body": snippet.get("description", ""),
                     "published_at": published_at,
-                    "raw_json": {"keyword": keyword, "snippet": snippet},
+                    "raw_json": {"keyword": keyword, "snippet": snippet, "public_contact": public_contact},
                     "dedupe_hash": dedupe_hash("youtube", video_id, url),
                 }
             )

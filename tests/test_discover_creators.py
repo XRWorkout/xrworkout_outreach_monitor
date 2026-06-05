@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from scripts.discover_creators import creator_row, fallback_creator_fit, fit_source_item
+from scripts.discover_creators import creator_row, fallback_creator_fit, fit_source_item, public_contact_from_item
 
 
 def test_fallback_creator_fit_promotes_keyword_matched_creator():
@@ -21,6 +21,28 @@ def test_fallback_creator_fit_promotes_keyword_matched_creator():
     assert fit["profile_url"] == "https://www.youtube.com/channel/creator"
     assert fit["priority"] == "low"
     assert fit["public_contact"] is None
+
+
+def test_public_contact_from_item_uses_public_metadata_email():
+    item = {
+        "title": "Quest workouts",
+        "body": "",
+        "author_name": "Creator",
+        "raw_json": {"public_contact": "creator@example.com"},
+    }
+
+    assert public_contact_from_item(item) == "creator@example.com"
+
+
+def test_public_contact_from_item_finds_visible_body_email():
+    item = {
+        "title": "Quest workouts",
+        "body": "Business: creator@example.com",
+        "author_name": "Creator",
+        "raw_json": {},
+    }
+
+    assert public_contact_from_item(item) == "creator@example.com"
 
 
 def test_fallback_creator_fit_skips_unrelated_creator_even_with_search_keyword():
@@ -78,6 +100,29 @@ def test_creator_row_prefers_llm_fields_but_keeps_review_status():
     assert row["recent_relevant_content"] == "https://www.twitch.tv/vrcreator"
     assert row["fit_reason"] == "Talks about: VR fitness and Quest games. Fit: Streams Quest workouts"
     assert row["status"] == "new"
+
+
+def test_creator_row_falls_back_to_public_metadata_contact():
+    item = {
+        "source": "youtube",
+        "source_url": "https://www.youtube.com/watch?v=abc",
+        "author_name": "Quest Creator",
+        "author_url": "https://www.youtube.com/channel/creator",
+        "raw_json": {"public_contact": "creator@example.com"},
+    }
+    fit = {
+        "name": "Quest Creator",
+        "profile_url": "https://www.youtube.com/channel/creator",
+        "public_contact": None,
+        "niche": "VR fitness",
+        "audience_estimate": "Small",
+        "audience_quality": "Relevant",
+        "fit_reason": "Reviews Quest fitness",
+        "offer_angle": "Try XRWorkout",
+        "priority": "medium",
+    }
+
+    assert creator_row(item, fit)["public_contact"] == "creator@example.com"
 
 
 def test_fit_source_item_matches_by_raw_item_id_first():

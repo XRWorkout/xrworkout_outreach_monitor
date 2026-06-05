@@ -7,7 +7,7 @@ export async function GET(request: Request) {
     await requireOperator(request);
     const { data, error } = await supabaseAdmin()
       .from("followups")
-      .select("*, drafts(*, creators(*), opportunities(*))")
+      .select("*, drafts(*, creators(*), opportunities(*, raw_items(*)))")
       .order("due_date", { ascending: true })
       .limit(200);
 

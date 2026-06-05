@@ -288,6 +288,26 @@ textarea {
   margin: 0;
 }
 
+.quality-list {
+  display: grid;
+  gap: 8px;
+}
+
+.quality-row {
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 1.2fr repeat(6, minmax(72px, 1fr));
+  padding: 10px;
+}
+
+.quality-row span {
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
 .panel-title {
   display: flex;
   align-items: center;
@@ -460,6 +480,11 @@ td a {
   color: var(--muted);
 }
 
+.warning-text {
+  color: var(--red) !important;
+  font-weight: 700;
+}
+
 .empty-state {
   color: var(--muted);
   min-height: 220px;
@@ -482,13 +507,14 @@ td a {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
-  .metric-grid,
-  .chart-grid,
-  .automation-grid,
-  .workflow-grid,
-  .clean-start-panel,
-  .split {
-    grid-template-columns: 1fr;
+	  .metric-grid,
+	  .chart-grid,
+	  .automation-grid,
+	  .workflow-grid,
+	  .quality-row,
+	  .clean-start-panel,
+	  .split {
+	    grid-template-columns: 1fr;
   }
 
   .clean-start-status {

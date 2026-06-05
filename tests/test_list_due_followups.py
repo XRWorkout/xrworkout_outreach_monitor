@@ -10,8 +10,15 @@ def test_followup_summary_flattens_context():
         "draft_body": "Follow up note",
         "drafts": {
             "subject": "Creator access",
-            "creators": {"name": "Creator", "public_contact": "creator@example.com"},
-            "opportunities": {"summary": "VR fitness video"},
+            "creators": {
+                "name": "Creator",
+                "public_contact": "creator@example.com",
+                "profile_url": "https://www.youtube.com/@creator",
+            },
+            "opportunities": {
+                "summary": "VR fitness video",
+                "raw_items": {"source_url": "https://www.youtube.com/watch?v=abc"},
+            },
         },
     }
 
@@ -22,7 +29,9 @@ def test_followup_summary_flattens_context():
         "status": "pending",
         "creator": "Creator",
         "contact": "creator@example.com",
+        "profile_url": "https://www.youtube.com/@creator",
         "subject": "Creator access",
         "opportunity": "VR fitness video",
+        "source_url": "https://www.youtube.com/watch?v=abc",
         "draft_body": "Follow up note",
     }

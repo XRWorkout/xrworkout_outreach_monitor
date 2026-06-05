@@ -20,8 +20,10 @@ def followup_summary(row: dict) -> dict:
         "status": row.get("status"),
         "creator": creator.get("name"),
         "contact": creator.get("public_contact"),
+        "profile_url": creator.get("profile_url"),
         "subject": draft.get("subject"),
         "opportunity": opportunity.get("summary"),
+        "source_url": (opportunity.get("raw_items") or {}).get("source_url"),
         "draft_body": row.get("draft_body"),
     }
 
@@ -35,8 +37,12 @@ def print_text(rows: list[dict]) -> None:
         print(f"{summary['due_date']} step {summary['cadence_step']} - {summary['creator'] or 'Unknown creator'}")
         print(f"  contact: {summary['contact'] or 'none'}")
         print(f"  subject: {summary['subject'] or 'No subject'}")
+        if summary["profile_url"]:
+            print(f"  profile: {summary['profile_url']}")
         if summary["opportunity"]:
             print(f"  opportunity: {summary['opportunity']}")
+        if summary["source_url"]:
+            print(f"  source: {summary['source_url']}")
         if summary["draft_body"]:
             print(f"  note: {summary['draft_body']}")
 
