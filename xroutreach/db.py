@@ -127,7 +127,7 @@ class OutreachDB:
     def delete_operational_data(self) -> dict[str, int]:
         counts = self.weekly_counts()
         for table in ["followups", "offers", "drafts", "opportunities", "creators", "raw_items"]:
-            self.client.table(table).delete().not_("id", "is", "null").execute()
+            self.client.table(table).delete().filter("id", "not.is", "null").execute()
         return counts
 
     def weekly_counts(self) -> dict[str, int]:

@@ -33,6 +33,10 @@ class FakeTable:
         self.filters.append(("not", name, operator, value))
         return self
 
+    def filter(self, name, operator, value):
+        self.filters.append(("filter", name, operator, value))
+        return self
+
     def eq(self, name, value):
         self.filters.append(("eq", name, value))
         return self
@@ -144,4 +148,4 @@ def test_delete_operational_data_deletes_dependency_order():
     assert db.client.table_calls[-6:] == ["followups", "offers", "drafts", "opportunities", "creators", "raw_items"]
     for table in ["followups", "offers", "drafts", "opportunities", "creators", "raw_items"]:
         assert db.client.tables[table].deleted
-        assert ("not", "id", "is", "null") in db.client.tables[table].filters
+        assert ("filter", "id", "not.is", "null") in db.client.tables[table].filters
