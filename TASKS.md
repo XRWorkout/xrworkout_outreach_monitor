@@ -106,15 +106,15 @@ Updated on 2026-05-26.
 - [x] Ran the enhanced weekly report on 2026-06-05: best current source is YouTube with `7` high-priority opportunities, average score `41.4`, `6` drafts, and `1` approved/sent draft.
 - [x] Redesigned the dashboard into XRWorkout Outreach OS with dark-mode navigation, first-class Dashboard/Conversations/Conversation Map/Creators/Outreach/Automations/Analytics/Settings views, presentation-layer labels, card feeds, creator kanban, automation agent cards, and visual analytics.
 - [x] Verified the Outreach OS redesign locally: dashboard lint passed, typecheck passed, focused Vitest run passed, and production build passed.
+- [x] Ran Clean automatic start successfully on 2026-06-06 after fixing the Supabase reset delete filter; refreshed state was `raw_items: 142`, `opportunities: 75`, `creators: 33`, `drafts: 5`, and `6` high-priority opportunities.
+- [x] Added dashboard Run Monitor view on 2026-06-06 to show live GitHub Actions run status, per-step status, estimated timing, failed-step guidance, likely fixes, and GitHub run links.
 
 ## Current Next Tasks
 
-- [ ] Deploy the latest dashboard update with the redesigned XRWorkout Outreach OS interface.
-- [ ] Use the automation tab `Clean start` button to wipe outreach rows and launch a fresh automatic pipeline after the dashboard deployment is live.
-- [ ] After the clean workflow completes, confirm the dashboard has fresh raw items, opportunities, creators, and any generated `needs_review` drafts.
+- [ ] Deploy the latest dashboard update with follower filters, cleaned conversation review, and the Run Monitor interface.
 - [ ] Keep `SEND_AUTOMATION_ENABLED=false` so scheduled approved sends remain disabled.
 - [ ] Keep `DRY_RUN_SEND=true` so dashboard send workflow dispatches remain dry-run only.
-- [ ] Review the current 24 creator rows for contact validity and mark valid prospects `contact_ready`; 22 currently lack public contact.
+- [ ] Review the current 33 creator rows for contact validity and mark valid prospects `contact_ready`; all 33 currently lack public contact.
 - [ ] Review the 5 `needs_review` drafts with the improved source/opportunity context; reject weak targets and approve only safe email drafts.
 - [ ] Add deeper route-handler tests for the dashboard API write paths if the current schema/helper coverage is not enough.
 - [ ] Treat Reddit API credentials as a future upgrade only if RSS collection becomes unreliable.

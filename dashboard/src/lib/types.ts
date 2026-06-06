@@ -144,4 +144,40 @@ export type AutomationData = {
       }
     | null
   >;
+  runDetails?: Record<"collection" | "drafts" | "manualDraft" | "send" | "report" | "cleanStart", WorkflowRunDetail | null>;
+};
+
+export type WorkflowRunStep = {
+  name: string;
+  number: number;
+  status: string | null;
+  conclusion: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  estimate_seconds: number;
+  likely_fix: string;
+};
+
+export type WorkflowRunJob = {
+  id: number;
+  name: string;
+  status: string | null;
+  conclusion: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  html_url: string;
+  steps: WorkflowRunStep[];
+};
+
+export type WorkflowRunDetail = {
+  workflow: "collection" | "drafts" | "manualDraft" | "send" | "report" | "cleanStart";
+  run_id: number;
+  name: string | null;
+  status: string | null;
+  conclusion: string | null;
+  created_at: string;
+  updated_at: string;
+  run_started_at: string | null;
+  html_url: string;
+  jobs: WorkflowRunJob[];
 };

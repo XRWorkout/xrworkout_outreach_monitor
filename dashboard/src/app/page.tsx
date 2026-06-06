@@ -49,7 +49,7 @@ import {
   workflowAgents,
   type Recommendation
 } from "@/lib/view-models";
-import type { AutomationData, Creator, Draft, Followup, Offer, Opportunity, RawItem, SummaryData } from "@/lib/types";
+import type { AutomationData, Creator, Draft, Followup, Offer, Opportunity, RawItem, SummaryData, WorkflowRunDetail } from "@/lib/types";
 
 type SessionState = {
   token: string;
@@ -66,7 +66,7 @@ type DashboardData = {
   automation: AutomationData | null;
 };
 
-type View = "dashboard" | "conversations" | "map" | "creators" | "outreach" | "automations" | "analytics" | "settings";
+type View = "dashboard" | "conversations" | "map" | "creators" | "outreach" | "automations" | "runMonitor" | "analytics" | "settings";
 
 const emptyData: DashboardData = {
   summary: null,
@@ -85,6 +85,7 @@ const navigation: Array<{ id: View; label: string; icon: ReactNode }> = [
   { id: "creators", label: "Creators", icon: <Users size={17} /> },
   { id: "outreach", label: "Outreach", icon: <Send size={17} /> },
   { id: "automations", label: "Automations", icon: <Bot size={17} /> },
+  { id: "runMonitor", label: "Run Monitor", icon: <CircleDot size={17} /> },
   { id: "analytics", label: "Analytics", icon: <BarChart3 size={17} /> },
   { id: "settings", label: "Settings", icon: <Settings size={17} /> }
 ];
@@ -220,6 +221,41 @@ function followerCountLabel(count: number | null) {
   return `${count} followers`;
 }
 
+function isActiveRun(run?: WorkflowRunDetail | null) {
+  return run?.status === "queued" || run?.status === "in_progress" || run?.status === "waiting";
+}
+
+function runDurationLabel(start?: string | null, end?: string | null) {
+  if (!start) return "Not started";
+  const finish = end ? new Date(end).getTime() : Date.now();
+  const seconds = Math.max(0, Math.round((finish - new Date(start).getTime()) / 1000));
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  return remainingSeconds ? `${minutes}m ${remainingSeconds}s` : `${minutes}m`;
+}
+
+function estimateLabel(seconds: number) {
+  if (seconds < 60) return `~${seconds}s`;
+  return `~${Math.round(seconds / 60)}m`;
+}
+
+function stepDurationSeconds(start?: string | null, end?: string | null) {
+  if (!start || !end) return null;
+  return Math.max(0, Math.round((new Date(end).getTime() - new Date(start).getTime()) / 1000));
+}
+
+function workflowProgress(run?: WorkflowRunDetail | null) {
+  const steps = run?.jobs.flatMap((job) => job.steps) || [];
+  if (!steps.length) return 0;
+  const completed = steps.filter((step) => step.status === "completed").length;
+  return Math.round((completed / steps.length) * 100);
+}
+
+function workflowIssue(run?: WorkflowRunDetail | null) {
+  return run?.jobs.flatMap((job) => job.steps).find((step) => step.conclusion === "failure" || step.conclusion === "timed_out") || null;
+}
+
 function hasConversationContent(item: RawItem) {
   return Boolean(item.title?.trim() || item.body?.trim());
 }
@@ -322,6 +358,16 @@ export default function Page() {
       setLoading(false);
     });
   }, [hasSupabaseConfig, loadDashboard, supabase]);
+
+  useEffect(() => {
+    if (!session || activeView !== "runMonitor") return;
+    const hasActiveRun = Object.values(data.automation?.runDetails || {}).some(isActiveRun);
+    if (!hasActiveRun) return;
+    const interval = window.setInterval(() => {
+      void loadDashboard(session.token);
+    }, 7000);
+    return () => window.clearInterval(interval);
+  }, [activeView, data.automation?.runDetails, loadDashboard, session]);
 
   async function signIn(event: FormEvent) {
     event.preventDefault();
@@ -777,6 +823,10 @@ export default function Page() {
                   cleanStartRunning={cleanStartRunning}
                   dryRunSendEnabled={dryRunSendEnabled}
                 />
+              ) : null}
+
+              {activeView === "runMonitor" ? (
+                <RunMonitorView automation={data.automation} refresh={() => session && loadDashboard(session.token)} />
               ) : null}
 
               {activeView === "analytics" ? (
@@ -1717,6 +1767,135 @@ function AutomationsView({
           );
         })}
       </section>
+    </div>
+  );
+}
+
+function RunMonitorView({ automation, refresh }: { automation: AutomationData | null; refresh: () => void }) {
+  const runDetails = automation?.runDetails;
+  const workflowOrder = ["cleanStart", "collection", "drafts", "manualDraft", "send", "report"] as const;
+  const runs = workflowOrder.map((workflow) => runDetails?.[workflow] || null);
+  const activeRuns = runs.filter(isActiveRun).length;
+  const failedRuns = runs.filter((run) => run?.conclusion === "failure" || run?.conclusion === "timed_out").length;
+  const latestRun = runs.find((run): run is WorkflowRunDetail => Boolean(run));
+
+  return (
+    <div className="grid gap-5">
+      <section className="grid gap-4 xl:grid-cols-4">
+        <Card className="p-4"><MiniStat label="Active Runs" value={activeRuns} /></Card>
+        <Card className="p-4"><MiniStat label="Failed Latest Runs" value={failedRuns} /></Card>
+        <Card className="p-4"><MiniStat label="Latest Progress" value={`${workflowProgress(latestRun)}%`} /></Card>
+        <Card className="p-4"><MiniStat label="Last Update" value={shortDate(latestRun?.updated_at)} /></Card>
+      </section>
+
+      <Card className="p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="font-semibold text-white">Live Workflow Monitor</h3>
+            <p className="mt-1 text-sm text-zinc-500">Tracks GitHub Actions jobs, step timing, failed steps, and likely operator fixes.</p>
+          </div>
+          <Button variant="secondary" onClick={refresh}>
+            <RefreshCw size={15} /> Refresh
+          </Button>
+        </div>
+      </Card>
+
+      <div className="grid gap-4">
+        {workflowOrder.map((workflow) => {
+          const run = runDetails?.[workflow] || null;
+          const issue = workflowIssue(run);
+          const status = run?.conclusion || run?.status || "unknown";
+          const progress = workflowProgress(run);
+          return (
+            <Card key={workflow} className="overflow-hidden p-0">
+              <div className="border-b border-white/10 p-5">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-semibold text-white">{workflow === "cleanStart" ? "Clean Start" : labelFor(workflow)}</h3>
+                      <SoftBadge tone={toneFor(status)}>{labelFor(status)}</SoftBadge>
+                      {run?.run_id ? <SoftBadge>Run #{run.run_id}</SoftBadge> : null}
+                    </div>
+                    <p className="mt-2 text-sm text-zinc-500">
+                      Started {shortDate(run?.run_started_at || run?.created_at)} · Duration {runDurationLabel(run?.run_started_at || run?.created_at, run?.conclusion ? run?.updated_at : null)}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {run?.html_url ? (
+                      <a className="inline-flex min-h-9 items-center gap-2 rounded-md border border-white/10 bg-white/[0.06] px-3 text-sm text-zinc-100" href={run.html_url} target="_blank" rel="noreferrer">
+                        Open run <ExternalLink size={14} />
+                      </a>
+                    ) : null}
+                  </div>
+                </div>
+                <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/[0.06]">
+                  <div
+                    className={cn(
+                      "h-full rounded-full transition-all",
+                      status === "success" ? "bg-emerald-300" : status === "failure" || status === "timed_out" ? "bg-red-300" : "bg-cyan-300"
+                    )}
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+                {issue ? (
+                  <div className="mt-4 rounded-lg border border-red-300/20 bg-red-300/8 p-4">
+                    <div className="flex items-start gap-3">
+                      <ShieldAlert className="mt-0.5 text-red-200" size={17} />
+                      <div>
+                        <p className="text-sm font-medium text-red-100">Failed at: {issue.name}</p>
+                        <p className="mt-1 text-sm leading-6 text-red-100/75">{issue.likely_fix}</p>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="grid gap-4 p-5">
+                {run?.jobs.length ? (
+                  run.jobs.map((job) => (
+                    <div key={job.id} className="rounded-lg border border-white/10 bg-white/[0.025] p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="font-medium text-white">{job.name}</p>
+                          <p className="mt-1 text-xs text-zinc-500">
+                            {job.started_at ? `Started ${shortDate(job.started_at)}` : "Waiting for runner"} · {runDurationLabel(job.started_at, job.completed_at)}
+                          </p>
+                        </div>
+                        <SoftBadge tone={toneFor(job.conclusion || job.status || "unknown")}>{labelFor(job.conclusion || job.status || "unknown")}</SoftBadge>
+                      </div>
+                      <div className="mt-4 grid gap-2">
+                        {job.steps.map((step) => {
+                          const duration = stepDurationSeconds(step.started_at, step.completed_at);
+                          const stepStatus = step.conclusion || step.status || "pending";
+                          return (
+                            <div key={`${job.id}-${step.number}`} className="grid gap-3 rounded-md border border-white/10 bg-black/20 p-3 md:grid-cols-[28px_minmax(0,1fr)_120px_120px] md:items-center">
+                              <div className="text-zinc-400">
+                                {step.conclusion === "success" ? <CheckCircle2 className="text-emerald-200" size={17} /> : step.conclusion === "failure" || step.conclusion === "timed_out" ? <XCircle className="text-red-200" size={17} /> : <CircleDot className="text-cyan-200" size={17} />}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-medium text-zinc-100">{step.name}</p>
+                                {step.conclusion === "failure" || step.conclusion === "timed_out" ? <p className="mt-1 text-xs leading-5 text-red-100/75">{step.likely_fix}</p> : null}
+                              </div>
+                              <SoftBadge tone={toneFor(stepStatus)}>{labelFor(stepStatus)}</SoftBadge>
+                              <div className="text-xs text-zinc-500">
+                                <span>{duration === null ? "Actual pending" : `Actual ${estimateLabel(duration).replace("~", "")}`}</span>
+                                <span className="mx-1">·</span>
+                                <span>{estimateLabel(step.estimate_seconds)}</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <EmptyState title="No job details yet" detail="GitHub has not reported step-level data for this workflow run yet." />
+                )}
+              </div>
+            </Card>
+          );
+        })}
+      </div>
     </div>
   );
 }
