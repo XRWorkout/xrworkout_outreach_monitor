@@ -4,7 +4,7 @@ This file tracks concrete setup, validation, and launch tasks for the outreach s
 
 ## Latest Validation Notes
 
-Updated on 2026-05-26.
+Updated on 2026-06-06.
 
 - [x] Verified `.env` exists at `/home/yorgobekaii/xrworkout-outreach/.env`.
 - [x] Verified configured values are present for Supabase, YouTube, Twitch, Brevo, founder name, site URL, and `DRY_RUN_SEND`.
@@ -108,10 +108,12 @@ Updated on 2026-05-26.
 - [x] Verified the Outreach OS redesign locally: dashboard lint passed, typecheck passed, focused Vitest run passed, and production build passed.
 - [x] Ran Clean automatic start successfully on 2026-06-06 after fixing the Supabase reset delete filter; refreshed state was `raw_items: 142`, `opportunities: 75`, `creators: 33`, `drafts: 5`, and `6` high-priority opportunities.
 - [x] Added dashboard Run Monitor view on 2026-06-06 to show live GitHub Actions run status, per-step status, estimated timing, failed-step guidance, likely fixes, and GitHub run links.
+- [x] Added dashboard Export view on 2026-06-06 for dynamic contact-list requests, follower-range parsing, result previews, sample messages, and downloadable CSV/JSON/text files.
+- [x] Verified the dashboard export update on 2026-06-06: lint passed, typecheck passed, Vitest passed, and production build passed.
 
 ## Current Next Tasks
 
-- [ ] Deploy the latest dashboard update with follower filters, cleaned conversation review, and the Run Monitor interface.
+- [ ] Deploy the latest dashboard update with follower filters, cleaned conversation review, the Run Monitor interface, and the new Export tab.
 - [ ] Keep `SEND_AUTOMATION_ENABLED=false` so scheduled approved sends remain disabled.
 - [ ] Keep `DRY_RUN_SEND=true` so dashboard send workflow dispatches remain dry-run only.
 - [ ] Review the current 33 creator rows for contact validity and mark valid prospects `contact_ready`; all 33 currently lack public contact.

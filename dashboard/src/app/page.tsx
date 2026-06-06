@@ -9,6 +9,7 @@ import {
   ChevronRight,
   CircleDot,
   ExternalLink,
+  FileDown,
   Filter,
   LayoutDashboard,
   LogOut,
@@ -66,7 +67,8 @@ type DashboardData = {
   automation: AutomationData | null;
 };
 
-type View = "dashboard" | "conversations" | "map" | "creators" | "outreach" | "automations" | "runMonitor" | "analytics" | "settings";
+type View = "dashboard" | "conversations" | "map" | "creators" | "outreach" | "export" | "automations" | "runMonitor" | "analytics" | "settings";
+type ExportFormat = "csv" | "json" | "txt";
 
 const emptyData: DashboardData = {
   summary: null,
@@ -84,6 +86,7 @@ const navigation: Array<{ id: View; label: string; icon: ReactNode }> = [
   { id: "map", label: "Conversation Map", icon: <Network size={17} /> },
   { id: "creators", label: "Creators", icon: <Users size={17} /> },
   { id: "outreach", label: "Outreach", icon: <Send size={17} /> },
+  { id: "export", label: "Export", icon: <FileDown size={17} /> },
   { id: "automations", label: "Automations", icon: <Bot size={17} /> },
   { id: "runMonitor", label: "Run Monitor", icon: <CircleDot size={17} /> },
   { id: "analytics", label: "Analytics", icon: <BarChart3 size={17} /> },
@@ -221,6 +224,124 @@ function followerCountLabel(count: number | null) {
   return `${count} followers`;
 }
 
+function exportSafeFilename(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 42) || "contacts";
+}
+
+function firstName(name: string) {
+  return name.trim().split(/\s+/)[0] || "there";
+}
+
+function sampleMessageForCreator(creator: Creator, draft?: Draft) {
+  if (draft?.body?.trim()) return draft.body.trim();
+  const focus = creator.niche || creator.recent_relevant_content || creator.fit_reason || "VR fitness content";
+  const offer = creator.offer_angle || "a 3-month XRWorkout creator pass";
+  return `Hi ${firstName(creator.name)}, I liked your ${platformLabel(creator.platform)} work around ${focus}. XRWorkout is looking for creators who can give practical feedback on VR fitness experiences. Would you be open to trying ${offer} and sharing what feels useful for your audience?`;
+}
+
+type ContactExportRequest = {
+  limit: number;
+  minFollowers: number | null;
+  maxFollowers: number | null;
+  format: ExportFormat;
+  query: string;
+};
+
+type ContactExportRow = {
+  name: string;
+  platform: string;
+  profile: string;
+  contact: string;
+  followers: string;
+  followerCount: number | null;
+  priority: string;
+  status: string;
+  fit: string;
+  sampleMessage: string;
+};
+
+function parseContactExportRequest(query: string, format: ExportFormat): ContactExportRequest {
+  const normalized = query.toLowerCase();
+  const limitMatch = normalized.match(/\b(?:first|top|limit|export|need)\s+(\d{1,4})\b/) || normalized.match(/\b(\d{1,4})\s+(?:people|contacts|creators)\b/);
+  const rangeMatch = normalized.match(/(\d+(?:\.\d+)?\s*[kmb]?)\s*(?:-|to|through|and)\s*(\d+(?:\.\d+)?\s*[kmb]?)\s*(?:followers|subs|subscribers)?/);
+  const explicitFormat = normalized.includes("json") ? "json" : normalized.includes("text") || normalized.includes("txt") ? "txt" : normalized.includes("csv") || normalized.includes("excel") ? "csv" : format;
+  return {
+    limit: Math.min(500, Math.max(1, limitMatch ? Number(limitMatch[1]) : 50)),
+    minFollowers: rangeMatch ? parseFollowerCount(rangeMatch[1]) : null,
+    maxFollowers: rangeMatch ? parseFollowerCount(rangeMatch[2]) : null,
+    format: explicitFormat,
+    query
+  };
+}
+
+function creatorExportScore(creator: Creator) {
+  const priorityScore = creator.priority === "high" ? 30 : creator.priority === "medium" ? 18 : 8;
+  const statusScore = creator.status === "contact_ready" ? 30 : creator.status === "reviewed" ? 18 : creator.status === "new" ? 10 : 0;
+  const contactScore = creator.public_contact ? 14 : 0;
+  const followerScore = creator.follower_count ? Math.max(0, 12 - Math.floor(creator.follower_count / 10000)) : 4;
+  return priorityScore + statusScore + contactScore + followerScore;
+}
+
+function buildContactExportRows(creators: Creator[], drafts: Draft[], request: ContactExportRequest): ContactExportRow[] {
+  return creators
+    .filter((creator) => {
+      const count = creatorFollowerCount(creator);
+      if (request.minFollowers !== null && (count === null || count < request.minFollowers)) return false;
+      if (request.maxFollowers !== null && (count === null || count > request.maxFollowers)) return false;
+      return creator.status !== "rejected";
+    })
+    .sort((a, b) => creatorExportScore(b) - creatorExportScore(a) || (a.follower_count || 0) - (b.follower_count || 0))
+    .slice(0, request.limit)
+    .map((creator) => {
+      const draft = drafts.find((item) => item.creator_id === creator.id);
+      return {
+        name: creator.name,
+        platform: platformLabel(creator.platform),
+        profile: creator.profile_url,
+        contact: creator.public_contact || "No public contact captured",
+        followers: followerCountLabel(creatorFollowerCount(creator)),
+        followerCount: creatorFollowerCount(creator),
+        priority: labelFor(creator.priority),
+        status: labelFor(creator.status),
+        fit: creator.fit_reason || creator.niche || creator.audience_quality || "Needs operator review",
+        sampleMessage: sampleMessageForCreator(creator, draft)
+      };
+    });
+}
+
+function csvCell(value: unknown) {
+  return `"${String(value ?? "").replace(/"/g, '""')}"`;
+}
+
+function contactExportContent(rows: ContactExportRow[], request: ContactExportRequest) {
+  if (request.format === "json") return JSON.stringify(rows, null, 2);
+  if (request.format === "txt") {
+    return rows
+      .map(
+        (row, index) =>
+          `${index + 1}. ${row.name}\nPlatform: ${row.platform}\nProfile: ${row.profile}\nContact: ${row.contact}\nFollowers: ${row.followers}\nPriority: ${row.priority}\nStatus: ${row.status}\nFit: ${row.fit}\nSample message:\n${row.sampleMessage}`
+      )
+      .join("\n\n---\n\n");
+  }
+  const headers = ["Name", "Platform", "Profile", "Contact", "Followers", "Priority", "Status", "Fit", "Sample Message"];
+  const lines = rows.map((row) => [row.name, row.platform, row.profile, row.contact, row.followers, row.priority, row.status, row.fit, row.sampleMessage].map(csvCell).join(","));
+  return [headers.map(csvCell).join(","), ...lines].join("\n");
+}
+
+function downloadContactExport(rows: ContactExportRow[], request: ContactExportRequest) {
+  const content = contactExportContent(rows, request);
+  const type = request.format === "json" ? "application/json" : request.format === "txt" ? "text/plain" : "text/csv";
+  const blob = new Blob([content], { type: `${type};charset=utf-8` });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `xrworkout-${exportSafeFilename(request.query)}.${request.format}`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
 function isActiveRun(run?: WorkflowRunDetail | null) {
   return run?.status === "queued" || run?.status === "in_progress" || run?.status === "waiting";
 }
@@ -313,6 +434,8 @@ export default function Page() {
   const [conversationFollowers, setConversationFollowers] = useState("all");
   const [creatorFollowers, setCreatorFollowers] = useState("all");
   const [outreachTab, setOutreachTab] = useState<"drafts" | "followups" | "history">("drafts");
+  const [exportQuery, setExportQuery] = useState("First 50 people to contact with sample messages, 100-1000 followers");
+  const [exportFormat, setExportFormat] = useState<ExportFormat>("csv");
   const [cleanStartRunning, setCleanStartRunning] = useState(false);
   const [nowMs] = useState(() => Date.now());
   const [todayIso] = useState(() => new Date().toISOString().slice(0, 10));
@@ -615,7 +738,9 @@ export default function Page() {
     return matchesSearch && matchesPlatform && matchesRelevance && matchesDate && matchesFollowers;
   });
   const filteredCreators = data.creators.filter((creator) => followerRangeMatches(creatorFollowerCount(creator), creatorFollowers));
-  const showAssistant = activeView !== "creators";
+  const exportRequest = useMemo(() => parseContactExportRequest(exportQuery, exportFormat), [exportFormat, exportQuery]);
+  const exportRows = useMemo(() => buildContactExportRows(data.creators, data.drafts, exportRequest), [data.creators, data.drafts, exportRequest]);
+  const showAssistant = activeView !== "creators" && activeView !== "export";
 
   if (loading && !session) {
     return <main className="grid min-h-screen place-items-center bg-zinc-950 text-zinc-100">Loading XRWorkout Outreach OS...</main>;
@@ -810,6 +935,22 @@ export default function Page() {
                   followupDraftBody={followupDraftBody}
                   setFollowupDraftBody={setFollowupDraftBody}
                   updateFollowup={updateFollowup}
+                />
+              ) : null}
+
+              {activeView === "export" ? (
+                <ExportView
+                  query={exportQuery}
+                  setQuery={setExportQuery}
+                  format={exportFormat}
+                  setFormat={setExportFormat}
+                  request={exportRequest}
+                  rows={exportRows}
+                  totalCreators={data.creators.length}
+                  download={() => {
+                    downloadContactExport(exportRows, exportRequest);
+                    setNotice(`Exported ${exportRows.length} contacts.`);
+                  }}
                 />
               ) : null}
 
@@ -1654,6 +1795,129 @@ function OutreachView(props: {
           </div>
         ) : (
           <EmptyState title="Select a message" detail="Review generated text, safety context, recipient, and workflow actions." />
+        )}
+      </Card>
+    </div>
+  );
+}
+
+function ExportView({
+  query,
+  setQuery,
+  format,
+  setFormat,
+  request,
+  rows,
+  totalCreators,
+  download
+}: {
+  query: string;
+  setQuery: (value: string) => void;
+  format: ExportFormat;
+  setFormat: (value: ExportFormat) => void;
+  request: ContactExportRequest;
+  rows: ContactExportRow[];
+  totalCreators: number;
+  download: () => void;
+}) {
+  const followerFilter =
+    request.minFollowers !== null && request.maxFollowers !== null
+      ? `${followerCountLabel(request.minFollowers)} to ${followerCountLabel(request.maxFollowers)}`
+      : "Any follower count";
+
+  return (
+    <div className="grid gap-5">
+      <Card className="p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h3 className="font-semibold text-white">Contact Export Builder</h3>
+            <p className="mt-1 text-sm text-zinc-500">Build a downloadable contact list from creator records, filters, and existing draft context.</p>
+          </div>
+          <Button variant="primary" onClick={download} disabled={!rows.length}>
+            <FileDown size={15} /> Download {request.format.toUpperCase()}
+          </Button>
+        </div>
+        <div className="mt-5 grid gap-3 xl:grid-cols-[minmax(0,1fr)_180px]">
+          <Field label="Request">
+            <TextArea
+              className="min-h-24"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="First 50 people to contact with sample messages, 100-1000 followers"
+            />
+          </Field>
+          <Field label="File format">
+            <Select value={format} onChange={(event) => setFormat(event.target.value as ExportFormat)}>
+              <option value="csv">CSV</option>
+              <option value="json">JSON</option>
+              <option value="txt">Readable text</option>
+            </Select>
+          </Field>
+        </div>
+      </Card>
+
+      <section className="grid gap-4 xl:grid-cols-4">
+        <Card className="p-4"><MiniStat label="Matched Contacts" value={rows.length} /></Card>
+        <Card className="p-4"><MiniStat label="Available Creators" value={totalCreators} /></Card>
+        <Card className="p-4"><MiniStat label="Limit" value={request.limit} /></Card>
+        <Card className="p-4"><MiniStat label="Follower Filter" value={followerFilter} /></Card>
+      </section>
+
+      <Card className="overflow-hidden p-0">
+        <div className="border-b border-white/10 p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="font-semibold text-white">Export Preview</h3>
+              <p className="mt-1 text-sm text-zinc-500">Sorted by contact readiness, priority, contact availability, and smaller audience fit.</p>
+            </div>
+            <SoftBadge tone={rows.length ? "good" : "warn"}>{rows.length ? "Ready" : "No matches"}</SoftBadge>
+          </div>
+        </div>
+        {rows.length ? (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[980px] text-left text-sm">
+              <thead className="border-b border-white/10 bg-white/[0.03] text-xs uppercase tracking-[0.12em] text-zinc-500">
+                <tr>
+                  <th className="px-4 py-3 font-medium">Person</th>
+                  <th className="px-4 py-3 font-medium">Contact</th>
+                  <th className="px-4 py-3 font-medium">Followers</th>
+                  <th className="px-4 py-3 font-medium">Priority</th>
+                  <th className="px-4 py-3 font-medium">Fit</th>
+                  <th className="px-4 py-3 font-medium">Sample Message</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/10">
+                {rows.slice(0, 50).map((row) => (
+                  <tr key={`${row.platform}-${row.profile}`} className="align-top">
+                    <td className="px-4 py-4">
+                      <p className="font-medium text-white">{row.name}</p>
+                      <a className="mt-1 inline-flex items-center gap-1 text-xs text-cyan-200" href={row.profile} target="_blank" rel="noreferrer">
+                        {row.platform} <ExternalLink size={12} />
+                      </a>
+                    </td>
+                    <td className="px-4 py-4 text-zinc-400">{row.contact}</td>
+                    <td className="px-4 py-4 text-zinc-400">{row.followers}</td>
+                    <td className="px-4 py-4">
+                      <div className="flex flex-wrap gap-2">
+                        <SoftBadge tone={toneFor(row.priority)}>{row.priority}</SoftBadge>
+                        <SoftBadge>{row.status}</SoftBadge>
+                      </div>
+                    </td>
+                    <td className="max-w-[260px] px-4 py-4 text-zinc-400">
+                      <p className="line-clamp-3 leading-6">{row.fit}</p>
+                    </td>
+                    <td className="max-w-[360px] px-4 py-4 text-zinc-400">
+                      <p className="line-clamp-4 leading-6">{row.sampleMessage}</p>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="p-5">
+            <EmptyState title="No contacts match this request" detail="Try a wider follower range or run creator discovery to bring in more prospects." />
+          </div>
         )}
       </Card>
     </div>

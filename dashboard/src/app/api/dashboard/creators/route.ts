@@ -9,7 +9,7 @@ export async function GET(request: Request) {
       .from("creators")
       .select("*")
       .order("created_at", { ascending: false })
-      .limit(200);
+      .limit(1000);
 
     if (error) {
       throw error;

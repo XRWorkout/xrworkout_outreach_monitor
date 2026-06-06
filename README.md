@@ -75,8 +75,8 @@ Dashboard presents conversations, opportunity feeds, creator pipeline, outreach 
 - GitHub Actions schedules for collection, drafts, approved sends, and weekly reporting.
 - Manual clean automatic start workflow that resets outreach data, runs collection/classification/creator discovery/draft generation, then reports counts.
 - Scheduled collection, draft, and report jobs are gated by `AUTOMATION_ENABLED`; scheduled approved sends are gated by `SEND_AUTOMATION_ENABLED`; manual runs still work for validation.
-- Next.js dashboard under `dashboard/` with Supabase login, operator allowlist, dark-mode Outreach OS navigation, Dashboard, Conversations, Conversation Map, Creators, Outreach, Automations, Analytics, and Settings views.
-- Dashboard product surfaces include presentation-layer labels, KPI cards, live opportunity feed, AI-style recommendations, social listening filters, interactive source radar, creator kanban, outreach review drawers, automation agent cards, workflow controls, and source attribution charts.
+- Next.js dashboard under `dashboard/` with Supabase login, operator allowlist, dark-mode Outreach OS navigation, Dashboard, Conversations, Conversation Map, Creators, Outreach, Export, Automations, Run Monitor, Analytics, and Settings views.
+- Dashboard product surfaces include presentation-layer labels, KPI cards, live opportunity feed, AI-style recommendations, social listening filters, interactive source radar, creator kanban, outreach review drawers, contact export builder, automation agent cards, workflow controls, live run monitoring, and source attribution charts.
 - Deployed dashboard for day-to-day review and automation controls.
 - Audited dashboard editing for opportunity status, creator review fields, follow-up outcomes, and offer outcomes.
 - Manual dashboard dispatch from selected opportunities into the LLM draft generator.
@@ -236,11 +236,13 @@ Keep `DRY_RUN_SEND=true` during setup. The send script can also be run with `--d
 4. Use Conversation Map to see which platforms are live, inactive, or producing useful opportunities.
 5. Use Creators to validate contact details, fit, offer angle, and pipeline status.
 6. Use Outreach to review `needs_review` drafts, scheduled follow-ups, and outreach history.
-7. When an opportunity is worth outreach, use `Generate LLM draft` from the opportunity review pane.
-8. Mark only safe, useful email drafts as `approved`; comments and DMs remain manual.
-9. Run approved-send only as a dry-run while `DRY_RUN_SEND=true`.
-10. Use Automations for Clean start, workflow dispatches, and safety variables.
-11. Use Analytics to identify which source is producing the best opportunities before adding more sources.
+7. Use Export to create downloadable contact lists from creator data, follower ranges, and sample message context.
+8. When an opportunity is worth outreach, use `Generate LLM draft` from the opportunity review pane.
+9. Mark only safe, useful email drafts as `approved`; comments and DMs remain manual.
+10. Run approved-send only as a dry-run while `DRY_RUN_SEND=true`.
+11. Use Automations for Clean start, workflow dispatches, and safety variables.
+12. Use Run Monitor to inspect workflow progress, step status, and failed-step guidance.
+13. Use Analytics to identify which source is producing the best opportunities before adding more sources.
 
 Public comments and DMs remain manual in v1.
 
@@ -281,9 +283,11 @@ Current views:
 - Draft review view with editable subject/body, recipient contact, creator profile, linked opportunity, original source link, and approve/reject/edit-needed actions.
 - Creator pipeline with contact availability, profile URL, recent relevant content, niche, fit reason, offer angle, status, and priority.
 - Follow-up queue for due and overdue follow-ups with original draft, creator contact, creator profile, linked opportunity, and source link.
+- Export builder for dynamic contact-list requests, follower-range parsing, result previews, sample outreach messages, and downloadable CSV, JSON, or readable text files.
 - Offer tracking for the 3-month-free creator offer and content outcomes.
 - Automation status showing schedule state, last workflow runs, failures, `AUTOMATION_ENABLED`, `SEND_AUTOMATION_ENABLED`, and `DRY_RUN_SEND`.
 - Automation controls for toggling automation variables, starting a clean automatic pipeline, and manually dispatching collection, draft, approved-send dry runs, and reports.
+- Run Monitor showing live GitHub Actions run status, step timing, failed-step guidance, and run links.
 
 ## Safety Rules
 
