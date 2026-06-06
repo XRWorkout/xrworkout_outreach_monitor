@@ -106,6 +106,7 @@ const followerRanges = [
   { value: "100000+", label: "100K+" },
   { value: "unknown", label: "Unknown" }
 ] as const;
+const creatorBoardColumns = ["Discovered", "Qualified", "Contacted", "Responded", "Partnered"] as const;
 
 async function fetchJson<T>(path: string, token: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
@@ -1413,13 +1414,34 @@ function CreatorsView(props: {
   reviewCreator: (creator: Creator) => void;
   updateCreator: () => void;
 }) {
-  const columns = ["Discovered", "Qualified", "Contacted", "Responded", "Partnered"];
+  const [collapsedColumns, setCollapsedColumns] = useState<Set<string>>(new Set());
+  const creatorsByColumn = useMemo(
+    () =>
+      creatorBoardColumns.map((column) => ({
+        name: column,
+        creators: props.creators.filter((creator) => creatorStage(creator) === column)
+      })),
+    [props.creators]
+  );
   const stats = [
     ["Total Creators", props.creators.length],
     ["High Priority", props.creators.filter((creator) => creator.priority === "high").length],
     ["Contacted", props.creators.filter((creator) => creator.status === "contacted").length],
     ["Converted", props.creators.filter((creator) => ["partnered", "converted"].includes(creator.status)).length]
   ];
+
+  function toggleColumn(column: string) {
+    setCollapsedColumns((current) => {
+      const next = new Set(current);
+      if (next.has(column)) {
+        next.delete(column);
+      } else {
+        next.add(column);
+      }
+      return next;
+    });
+  }
+
   return (
     <div className="grid gap-5">
       <Card className="p-4">
@@ -1445,42 +1467,74 @@ function CreatorsView(props: {
           </Card>
         ))}
       </section>
-      <section className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-3">
-        {columns.map((column) => (
-          <Card key={column} className="min-h-[520px] p-3">
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-sm font-medium text-zinc-200">{column}</h3>
-              <SoftBadge>{props.creators.filter((creator) => creatorStage(creator) === column).length}</SoftBadge>
-            </div>
-            <div className="grid gap-3">
-              {props.creators
-                .filter((creator) => creatorStage(creator) === column)
-                .map((creator) => (
-                  <button
-                    key={creator.id}
-                    className="rounded-lg border border-white/10 bg-white/[0.035] p-3 text-left transition hover:border-cyan-300/30"
-                    onClick={() => props.reviewCreator(creator)}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="grid size-10 place-items-center rounded-md border border-white/10 bg-white/[0.06] text-sm font-semibold text-white">
-                        {initials(creator.name)}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-white">{creator.name}</p>
-                        <p className="text-xs text-zinc-500">{platformLabel(creator.platform)}</p>
-                      </div>
+      <section className="flex max-w-full gap-3 overflow-x-auto pb-2">
+        {creatorsByColumn.map((column) => {
+          const isCollapsed = collapsedColumns.has(column.name);
+          return (
+            <Card
+              key={column.name}
+              className={cn(
+                "min-h-[520px] flex-none overflow-hidden transition-[width] duration-200",
+                isCollapsed ? "w-14 p-2" : "w-[min(360px,calc(100vw-3rem))] p-3"
+              )}
+            >
+              {isCollapsed ? (
+                <button
+                  className="flex h-full w-full items-start justify-center rounded-md border border-white/10 bg-white/[0.035] py-3 text-zinc-300 transition hover:border-cyan-300/30 hover:text-white"
+                  onClick={() => toggleColumn(column.name)}
+                  title={`Open ${column.name}`}
+                >
+                  <span className="flex items-center gap-2 [writing-mode:vertical-rl]">
+                    <ChevronRight size={15} />
+                    <span className="text-sm font-medium">{column.name}</span>
+                    <span className="rounded-md border border-white/10 bg-white/[0.06] px-1.5 py-1 text-xs">{column.creators.length}</span>
+                  </span>
+                </button>
+              ) : (
+                <>
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <h3 className="min-w-0 truncate text-sm font-medium text-zinc-200">{column.name}</h3>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <SoftBadge>{column.creators.length}</SoftBadge>
+                      <button
+                        className="grid size-8 place-items-center rounded-md border border-white/10 bg-white/[0.04] text-zinc-400 transition hover:border-cyan-300/30 hover:text-white"
+                        onClick={() => toggleColumn(column.name)}
+                        title={`Collapse ${column.name}`}
+                      >
+                        <ChevronRight className="rotate-180" size={15} />
+                      </button>
                     </div>
-                    <p className="mt-3 line-clamp-2 text-xs leading-5 text-zinc-500">{creator.niche || creator.fit_reason || "No niche captured yet."}</p>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <SoftBadge tone={toneFor(creator.priority)}>{labelFor(creator.priority)}</SoftBadge>
-                      <SoftBadge>{creator.public_contact ? "Contact Found" : "No Contact"}</SoftBadge>
-                      <SoftBadge>{followerCountLabel(creatorFollowerCount(creator))}</SoftBadge>
-                    </div>
-                  </button>
-                ))}
-            </div>
-          </Card>
-        ))}
+                  </div>
+                  <div className="grid min-w-0 gap-3">
+                    {column.creators.map((creator) => (
+                      <button
+                        key={creator.id}
+                        className="block w-full min-w-0 overflow-hidden rounded-lg border border-white/10 bg-white/[0.035] p-3 text-left transition hover:border-cyan-300/30"
+                        onClick={() => props.reviewCreator(creator)}
+                      >
+                        <div className="flex min-w-0 items-center gap-3">
+                          <div className="grid size-10 shrink-0 place-items-center rounded-md border border-white/10 bg-white/[0.06] text-sm font-semibold text-white">
+                            {initials(creator.name)}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-medium text-white">{creator.name}</p>
+                            <p className="text-xs text-zinc-500">{platformLabel(creator.platform)}</p>
+                          </div>
+                        </div>
+                        <p className="mt-3 line-clamp-2 text-xs leading-5 text-zinc-500">{creator.niche || creator.fit_reason || "No niche captured yet."}</p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <SoftBadge tone={toneFor(creator.priority)}>{labelFor(creator.priority)}</SoftBadge>
+                          <SoftBadge>{creator.public_contact ? "Contact Found" : "No Contact"}</SoftBadge>
+                          <SoftBadge>{followerCountLabel(creatorFollowerCount(creator))}</SoftBadge>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </Card>
+          );
+        })}
       </section>
     </div>
   );
