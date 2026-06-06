@@ -114,6 +114,7 @@ class LLM:
                 "author_url": item.get("author_url"),
                 "title": item.get("title"),
                 "body": item.get("body"),
+                "follower_count": item.get("follower_count"),
                 "keyword": item.get("raw_json", {}).get("keyword")
                 if isinstance(item.get("raw_json"), dict)
                 else "",
@@ -127,7 +128,8 @@ class LLM:
                 "Evaluate YouTube and Twitch items inclusively, but prioritize quality. "
                 "For each plausible creator, return: raw_item_id, name, platform, "
                 "profile_url, public_contact if visible in the input otherwise null, "
-                "niche, audience_estimate, audience_quality, why they fit XRWorkout, "
+                "niche, audience_estimate using the real follower_count when present, "
+                "audience_quality, why they fit XRWorkout, "
                 "whether they already talk about VR, fitness, gaming, or wellness, "
                 "suggested offer angle, and priority high/medium/low. Include creators "
                 "who are credible VR, MR, Quest, gaming, fitness, wellness, dance, "

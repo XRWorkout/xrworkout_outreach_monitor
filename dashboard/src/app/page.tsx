@@ -93,6 +93,15 @@ const opportunityStatuses = ["new", "reviewed", "monitor", "contacted", "rejecte
 const creatorStatuses = ["new", "reviewed", "contact_ready", "contacted", "rejected"] as const;
 const priorities = ["high", "medium", "low"] as const;
 const followupStatuses = ["pending", "completed", "skipped"] as const;
+const followerRanges = [
+  { value: "all", label: "Any Followers" },
+  { value: "0-1000", label: "Under 1K" },
+  { value: "1000-10000", label: "1K - 10K" },
+  { value: "10000-50000", label: "10K - 50K" },
+  { value: "50000-100000", label: "50K - 100K" },
+  { value: "100000+", label: "100K+" },
+  { value: "unknown", label: "Unknown" }
+] as const;
 
 async function fetchJson<T>(path: string, token: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
@@ -147,6 +156,82 @@ function conversionRate(creators: Creator[]) {
   return percentage(converted, creators.length);
 }
 
+function parseFollowerCount(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return Math.max(0, Math.round(value));
+  if (typeof value !== "string") return null;
+  const normalized = value.toLowerCase().replace(/,/g, "").trim();
+  const match = normalized.match(/(\d+(?:\.\d+)?)\s*([kmb])?/);
+  if (!match) return null;
+  const amount = Number(match[1]);
+  if (!Number.isFinite(amount)) return null;
+  const multiplier = match[2] === "b" ? 1_000_000_000 : match[2] === "m" ? 1_000_000 : match[2] === "k" ? 1_000 : 1;
+  return Math.round(amount * multiplier);
+}
+
+function firstFollowerCountFromObject(value: unknown): number | null {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  const followerKeys = [
+    "followers",
+    "follower_count",
+    "followers_count",
+    "followerCount",
+    "subscriber_count",
+    "subscriberCount",
+    "subscribers",
+    "audience_estimate",
+    "audienceEstimate"
+  ];
+
+  for (const key of followerKeys) {
+    const count = parseFollowerCount(record[key]);
+    if (count !== null) return count;
+  }
+
+  for (const nested of Object.values(record)) {
+    const count = firstFollowerCountFromObject(nested);
+    if (count !== null) return count;
+  }
+
+  return null;
+}
+
+function creatorFollowerCount(creator: Creator) {
+  return creator.follower_count ?? null;
+}
+
+function conversationFollowerCount(item: RawItem, linkedOpportunity?: Opportunity) {
+  return item.follower_count ?? linkedOpportunity?.raw_items?.follower_count ?? firstFollowerCountFromObject(item.raw_json) ?? firstFollowerCountFromObject(linkedOpportunity?.raw_items?.raw_json);
+}
+
+function followerRangeMatches(count: number | null, range: string) {
+  if (range === "all") return true;
+  if (range === "unknown") return count === null;
+  if (count === null) return false;
+  if (range.endsWith("+")) return count >= Number(range.slice(0, -1));
+  const [min, max] = range.split("-").map(Number);
+  return count >= min && count < max;
+}
+
+function followerCountLabel(count: number | null) {
+  if (count === null) return "Followers unknown";
+  if (count >= 1_000_000) return `${(count / 1_000_000).toFixed(count >= 10_000_000 ? 0 : 1).replace(/\.0$/, "")}M followers`;
+  if (count >= 1_000) return `${(count / 1_000).toFixed(count >= 10_000 ? 0 : 1).replace(/\.0$/, "")}K followers`;
+  return `${count} followers`;
+}
+
+function hasConversationContent(item: RawItem) {
+  return Boolean(item.title?.trim() || item.body?.trim());
+}
+
+function conversationTitle(item: RawItem, opportunity?: Opportunity) {
+  return item.title?.trim() || opportunity?.summary || `${platformLabel(item.source)} signal from ${item.author_name || "unknown creator"}`;
+}
+
+function conversationBody(item: RawItem, opportunity?: Opportunity) {
+  return item.body?.trim() || opportunity?.summary || opportunity?.pain_point || "No conversation details captured.";
+}
+
 function defaultCreatorPanelPosition() {
   if (typeof window === "undefined") {
     return { x: 920, y: 96 };
@@ -189,6 +274,8 @@ export default function Page() {
   const [conversationPlatform, setConversationPlatform] = useState("all");
   const [conversationRelevance, setConversationRelevance] = useState("all");
   const [conversationDate, setConversationDate] = useState("all");
+  const [conversationFollowers, setConversationFollowers] = useState("all");
+  const [creatorFollowers, setCreatorFollowers] = useState("all");
   const [outreachTab, setOutreachTab] = useState<"drafts" | "followups" | "history">("drafts");
   const [cleanStartRunning, setCleanStartRunning] = useState(false);
   const [nowMs] = useState(() => Date.now());
@@ -359,11 +446,11 @@ export default function Page() {
     setNotice("Opportunity status saved.");
   }
 
-  async function generateLlmDraftFromOpportunity() {
-    if (!session || !selectedOpportunity) return;
+  async function generateLlmDraftFromOpportunity(targetOpportunity = selectedOpportunity) {
+    if (!session || !targetOpportunity) return;
     await fetchJson(`/api/dashboard/automation/workflows/manualDraft/dispatch`, session.token, {
       method: "POST",
-      body: JSON.stringify({ inputs: { opportunity_id: selectedOpportunity.id } })
+      body: JSON.stringify({ inputs: { opportunity_id: targetOpportunity.id } })
     });
     setNotice("LLM draft workflow started for this opportunity.");
     void loadDashboard(session.token);
@@ -454,17 +541,20 @@ export default function Page() {
   const nodes = platformNodes(summary, data.creators);
   const selectedNode = nodes.find((node) => node.id === selectedMapNode) || nodes[0];
   const agents = workflowAgents(summary, data.automation);
-  const platforms = ["all", ...Array.from(new Set(rawItems.map((item) => item.source))).sort()];
+  const opportunityByRawItemId = new Map(data.opportunities.flatMap((opportunity) => (opportunity.raw_items?.id ? [[opportunity.raw_items.id, opportunity] as const] : [])));
+  const conversationRows = rawItems.filter((item) => opportunityByRawItemId.has(item.id) || hasConversationContent(item));
+  const platforms = ["all", ...Array.from(new Set(conversationRows.map((item) => item.source))).sort()];
   const totalOpportunities = data.opportunities.length || 1;
-  const filteredConversations = rawItems.filter((item) => {
+  const filteredConversations = conversationRows.filter((item) => {
+    const linkedOpportunity = opportunityByRawItemId.get(item.id);
     const query = conversationSearch.trim().toLowerCase();
     const matchesSearch =
       !query ||
-      [item.title, item.body, item.author_name, item.source]
+      [conversationTitle(item, linkedOpportunity), conversationBody(item, linkedOpportunity), item.author_name, item.source]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(query));
     const matchesPlatform = conversationPlatform === "all" || item.source === conversationPlatform;
-    const linkedOpportunity = data.opportunities.find((opportunity) => opportunity.raw_items?.id === item.id);
+    const matchesFollowers = followerRangeMatches(conversationFollowerCount(item, linkedOpportunity), conversationFollowers);
     const matchesRelevance =
       conversationRelevance === "all" ||
       (conversationRelevance === "high" && (linkedOpportunity?.score || 0) >= 70) ||
@@ -476,8 +566,9 @@ export default function Page() {
       (conversationDate === "week" &&
         item.collected_at &&
         nowMs - new Date(item.collected_at).getTime() <= 7 * 24 * 60 * 60 * 1000);
-    return matchesSearch && matchesPlatform && matchesRelevance && matchesDate;
+    return matchesSearch && matchesPlatform && matchesRelevance && matchesDate && matchesFollowers;
   });
+  const filteredCreators = data.creators.filter((creator) => followerRangeMatches(creatorFollowerCount(creator), creatorFollowers));
   const showAssistant = activeView !== "creators";
 
   if (loading && !session) {
@@ -604,7 +695,7 @@ export default function Page() {
               {activeView === "conversations" ? (
                 <ConversationsView
                   rawItems={filteredConversations}
-                  allRawItems={rawItems}
+                  allRawItems={conversationRows}
                   opportunities={data.opportunities}
                   platforms={platforms}
                   search={conversationSearch}
@@ -615,10 +706,12 @@ export default function Page() {
                   setRelevance={setConversationRelevance}
                   date={conversationDate}
                   setDate={setConversationDate}
+                  followers={conversationFollowers}
+                  setFollowers={setConversationFollowers}
                   onReviewOpportunity={reviewOpportunity}
                   onDraftOpportunity={(opportunity) => {
                     reviewOpportunity(opportunity);
-                    void generateLlmDraftFromOpportunity();
+                    void generateLlmDraftFromOpportunity(opportunity);
                   }}
                 />
               ) : null}
@@ -629,8 +722,11 @@ export default function Page() {
 
               {activeView === "creators" ? (
                 <CreatorsView
-                  creators={data.creators}
+                  creators={filteredCreators}
+                  allCreatorsCount={data.creators.length}
                   drafts={data.drafts}
+                  followerRange={creatorFollowers}
+                  setFollowerRange={setCreatorFollowers}
                   creatorStatus={creatorStatus}
                   setCreatorStatus={setCreatorStatus}
                   creatorPriority={creatorPriority}
@@ -914,7 +1010,10 @@ function ConversationsView({
   setRelevance,
   date,
   setDate,
-  onReviewOpportunity
+  followers,
+  setFollowers,
+  onReviewOpportunity,
+  onDraftOpportunity
 }: {
   rawItems: RawItem[];
   allRawItems: RawItem[];
@@ -928,13 +1027,15 @@ function ConversationsView({
   setRelevance: (value: string) => void;
   date: string;
   setDate: (value: string) => void;
+  followers: string;
+  setFollowers: (value: string) => void;
   onReviewOpportunity: (opportunity: Opportunity) => void;
   onDraftOpportunity: (opportunity: Opportunity) => void;
 }) {
   return (
     <div className="grid gap-5">
       <Card className="p-4">
-        <div className="grid gap-3 md:grid-cols-[minmax(0,1.6fr)_repeat(3,minmax(150px,1fr))]">
+        <div className="grid gap-3 md:grid-cols-[minmax(0,1.6fr)_repeat(4,minmax(140px,1fr))]">
           <label className="relative">
             <Search className="pointer-events-none absolute left-3 top-3 text-zinc-500" size={16} />
             <TextInput className="pl-9" placeholder="Search conversations, authors, communities" value={search} onChange={(event) => setSearch(event.target.value)} />
@@ -957,6 +1058,13 @@ function ConversationsView({
             <option value="today">Today</option>
             <option value="week">Last 7 Days</option>
           </Select>
+          <Select value={followers} onChange={(event) => setFollowers(event.target.value)}>
+            {followerRanges.map((range) => (
+              <option key={range.value} value={range.value}>
+                {range.label}
+              </option>
+            ))}
+          </Select>
         </div>
       </Card>
       <div className="flex items-center gap-2 text-sm text-zinc-500">
@@ -967,6 +1075,7 @@ function ConversationsView({
         {rawItems.length ? (
           rawItems.slice(0, 80).map((item) => {
             const opportunity = opportunities.find((row) => row.raw_items?.id === item.id);
+            const followerCount = conversationFollowerCount(item, opportunity);
             return (
               <Card key={item.id} className="p-4 transition hover:border-white/20 hover:bg-white/[0.035]">
                 <div className="flex flex-wrap items-start justify-between gap-4">
@@ -978,10 +1087,11 @@ function ConversationsView({
                       </SoftBadge>
                       <SoftBadge>{opportunity?.outreach_safety ? labelFor(opportunity.outreach_safety) : "Review pending"}</SoftBadge>
                     </div>
-                    <h3 className="text-base font-medium text-white">{item.title || "Untitled conversation"}</h3>
-                    <p className="mt-2 line-clamp-2 text-sm leading-6 text-zinc-500">{item.body || opportunity?.summary || "No body captured."}</p>
+                    <h3 className="text-base font-medium text-white">{conversationTitle(item, opportunity)}</h3>
+                    <p className="mt-2 line-clamp-2 text-sm leading-6 text-zinc-500">{conversationBody(item, opportunity)}</p>
                     <div className="mt-3 flex flex-wrap gap-3 text-xs text-zinc-500">
                       <span>{item.author_name || "Unknown author"}</span>
+                      <span>{followerCountLabel(followerCount)}</span>
                       <span>{shortDate(item.collected_at || item.published_at)}</span>
                       <span>Engagement: {opportunity ? labelFor(opportunity.priority) : "Unknown"}</span>
                       <span>Sentiment: Not scored yet</span>
@@ -996,7 +1106,7 @@ function ConversationsView({
                     <Button variant="secondary" disabled={!opportunity} onClick={() => opportunity && onReviewOpportunity(opportunity)}>
                       Save Opportunity
                     </Button>
-                    <Button variant="primary" disabled={!opportunity} onClick={() => opportunity && onReviewOpportunity(opportunity)}>
+                    <Button variant="primary" disabled={!opportunity} onClick={() => opportunity && onDraftOpportunity(opportunity)}>
                       Draft Reply
                     </Button>
                   </div>
@@ -1095,7 +1205,10 @@ function ConversationMapView({
 
 function CreatorsView(props: {
   creators: Creator[];
+  allCreatorsCount: number;
   drafts: Draft[];
+  followerRange: string;
+  setFollowerRange: (value: string) => void;
   creatorStatus: string;
   setCreatorStatus: (value: string) => void;
   creatorPriority: string;
@@ -1118,6 +1231,21 @@ function CreatorsView(props: {
   ];
   return (
     <div className="grid gap-5">
+      <Card className="p-4">
+        <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_220px]">
+          <div className="flex items-center gap-2 text-sm text-zinc-500">
+            <Filter size={15} />
+            Showing {props.creators.length} of {props.allCreatorsCount} creators
+          </div>
+          <Select value={props.followerRange} onChange={(event) => props.setFollowerRange(event.target.value)}>
+            {followerRanges.map((range) => (
+              <option key={range.value} value={range.value}>
+                {range.label}
+              </option>
+            ))}
+          </Select>
+        </div>
+      </Card>
       <section className="grid gap-3 md:grid-cols-4">
         {stats.map(([label, value]) => (
           <Card key={label} className="p-4">
@@ -1155,6 +1283,7 @@ function CreatorsView(props: {
                     <div className="mt-3 flex flex-wrap gap-2">
                       <SoftBadge tone={toneFor(creator.priority)}>{labelFor(creator.priority)}</SoftBadge>
                       <SoftBadge>{creator.public_contact ? "Contact Found" : "No Contact"}</SoftBadge>
+                      <SoftBadge>{followerCountLabel(creatorFollowerCount(creator))}</SoftBadge>
                     </div>
                   </button>
                 ))}

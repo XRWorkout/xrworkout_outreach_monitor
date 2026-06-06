@@ -10,6 +10,8 @@ export type RawItem = {
   published_at?: string | null;
   collected_at?: string | null;
   processed_at?: string | null;
+  follower_count?: number | null;
+  raw_json?: Record<string, unknown> | null;
 };
 
 export type Opportunity = {
@@ -36,6 +38,7 @@ export type Creator = {
   profile_url: string;
   public_contact?: string | null;
   niche?: string | null;
+  follower_count?: number | null;
   audience_estimate?: string | null;
   audience_quality?: string | null;
   recent_relevant_content?: string | null;

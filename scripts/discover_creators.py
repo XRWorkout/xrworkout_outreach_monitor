@@ -61,6 +61,15 @@ def public_contact_from_item(item: dict[str, Any]) -> str | None:
     return match.group(1) if match else None
 
 
+def follower_count_from_item(item: dict[str, Any]) -> int | None:
+    count = item.get("follower_count")
+    if isinstance(count, int) and count >= 0:
+        return count
+    raw_json = item.get("raw_json") if isinstance(item.get("raw_json"), dict) else {}
+    raw_count = raw_json.get("follower_count")
+    return raw_count if isinstance(raw_count, int) and raw_count >= 0 else None
+
+
 def has_term(text: str, term: str) -> bool:
     if " " in term:
         return term in text
@@ -100,6 +109,7 @@ def fallback_creator_fit(item: dict[str, Any]) -> dict[str, Any] | None:
         "profile_url": profile_url,
         "public_contact": public_contact_from_item(item),
         "niche": "Potential VR fitness creator",
+        "follower_count": follower_count_from_item(item),
         "audience_estimate": "Unknown",
         "audience_quality": "Needs human review",
         "fit_reason": "Matched XRWorkout creator discovery keywords; review manually.",
@@ -121,6 +131,7 @@ def creator_row(item: dict[str, Any], fit: dict[str, Any]) -> dict[str, Any]:
         "profile_url": fit.get("profile_url") or item.get("author_url") or item.get("source_url"),
         "public_contact": fit.get("public_contact") or public_contact_from_item(item),
         "niche": fit.get("niche", ""),
+        "follower_count": follower_count_from_item(item),
         "audience_estimate": fit.get("audience_estimate", ""),
         "audience_quality": fit.get("audience_quality", ""),
         "recent_relevant_content": item.get("source_url"),

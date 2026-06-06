@@ -26,6 +26,21 @@ def twitch_token(client_id: str, client_secret: str) -> str:
     return response.json()["access_token"]
 
 
+def twitch_follower_count(headers: dict[str, str], broadcaster_id: str | None) -> int | None:
+    if not broadcaster_id:
+        return None
+    response = requests.get(
+        "https://api.twitch.tv/helix/channels/followers",
+        headers=headers,
+        params={"broadcaster_id": broadcaster_id, "first": 1},
+        timeout=20,
+    )
+    if not response.ok:
+        return None
+    total = response.json().get("total")
+    return total if isinstance(total, int) else None
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--limit", type=int, default=20)
@@ -58,6 +73,7 @@ def main() -> None:
             broadcaster_login = item.get("broadcaster_login") or item.get("display_name")
             external_id = f"twitch_channel_{item.get('id')}"
             url = f"https://www.twitch.tv/{broadcaster_login}"
+            follower_count = twitch_follower_count(headers, item.get("id"))
             rows.append(
                 {
                     "source": "twitch",
@@ -67,8 +83,9 @@ def main() -> None:
                     "author_url": url,
                     "title": item.get("title"),
                     "body": item.get("game_name") or "",
+                    "follower_count": follower_count,
                     "published_at": datetime.now(timezone.utc).isoformat(),
-                    "raw_json": {"keyword": keyword, "channel": item},
+                    "raw_json": {"keyword": keyword, "channel": item, "follower_count": follower_count},
                     "dedupe_hash": dedupe_hash("twitch", external_id, url),
                 }
             )

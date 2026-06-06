@@ -22,6 +22,28 @@ def public_email_from_text(*values: str | None) -> str | None:
     return match.group(1) if match else None
 
 
+def int_or_none(value: Any) -> int | None:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def fetch_channel_statistics(youtube: Any, channel_ids: set[str]) -> dict[str, dict[str, Any]]:
+    stats: dict[str, dict[str, Any]] = {}
+    ordered_ids = sorted(channel_ids)
+    for index in range(0, len(ordered_ids), 50):
+        batch = ordered_ids[index : index + 50]
+        if not batch:
+            continue
+        response = youtube.channels().list(part="statistics", id=",".join(batch), maxResults=len(batch)).execute()
+        for item in response.get("items", []):
+            channel_id = item.get("id")
+            if channel_id:
+                stats[channel_id] = item.get("statistics", {})
+    return stats
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--limit", type=int, default=10)
@@ -32,6 +54,7 @@ def main() -> None:
     youtube = build("youtube", "v3", developerKey=cfg.youtube_api_key)
     db = OutreachDB(cfg)
     rows: list[dict[str, Any]] = []
+    channel_ids: set[str] = set()
 
     for keyword in KEYWORDS:
         request = youtube.search().list(
@@ -45,6 +68,9 @@ def main() -> None:
         for item in response.get("items", []):
             video_id = item["id"]["videoId"]
             snippet = item["snippet"]
+            channel_id = snippet.get("channelId")
+            if channel_id:
+                channel_ids.add(channel_id)
             url = f"https://www.youtube.com/watch?v={video_id}"
             published_at = snippet.get("publishedAt") or datetime.now(timezone.utc).isoformat()
             public_contact = public_email_from_text(snippet.get("description"), snippet.get("channelTitle"))
@@ -54,7 +80,7 @@ def main() -> None:
                     "source_url": url,
                     "external_id": f"youtube_video_{video_id}",
                     "author_name": snippet.get("channelTitle"),
-                    "author_url": f"https://www.youtube.com/channel/{snippet.get('channelId')}",
+                    "author_url": f"https://www.youtube.com/channel/{channel_id}",
                     "title": snippet.get("title"),
                     "body": snippet.get("description", ""),
                     "published_at": published_at,
@@ -62,6 +88,13 @@ def main() -> None:
                     "dedupe_hash": dedupe_hash("youtube", video_id, url),
                 }
             )
+
+    channel_stats = fetch_channel_statistics(youtube, channel_ids)
+    for row in rows:
+        channel_id = ((row.get("raw_json") or {}).get("snippet") or {}).get("channelId")
+        statistics = channel_stats.get(channel_id, {})
+        row["follower_count"] = int_or_none(statistics.get("subscriberCount"))
+        row["raw_json"]["channel_statistics"] = statistics
 
     unique_rows = db.deduped_raw_payload(rows)
     db.upsert_raw_items(unique_rows)

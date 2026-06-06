@@ -110,7 +110,7 @@ export async function GET(request: Request) {
       await Promise.all([
         db
           .from("raw_items")
-          .select("id, source, source_url, external_id, author_name, author_url, title, body, published_at, collected_at, processed_at")
+          .select("id, source, source_url, external_id, author_name, author_url, title, body, follower_count, published_at, collected_at, processed_at, raw_json")
           .order("collected_at", { ascending: false })
           .limit(1000),
         db.from("opportunities").select("priority, status, platform, score").order("created_at", { ascending: false }).limit(1000),

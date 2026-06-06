@@ -9,6 +9,7 @@ create table if not exists raw_items (
   author_url text,
   title text,
   body text,
+  follower_count integer check (follower_count is null or follower_count >= 0),
   published_at timestamptz,
   collected_at timestamptz not null default now(),
   raw_json jsonb not null default '{}'::jsonb,
@@ -18,6 +19,11 @@ create table if not exists raw_items (
 
 create index if not exists raw_items_source_idx on raw_items(source);
 create index if not exists raw_items_processed_idx on raw_items(processed_at);
+
+alter table if exists raw_items
+  add column if not exists follower_count integer check (follower_count is null or follower_count >= 0);
+
+create index if not exists raw_items_follower_count_idx on raw_items(follower_count);
 
 create table if not exists opportunities (
   id uuid primary key default gen_random_uuid(),
@@ -47,6 +53,7 @@ create table if not exists creators (
   profile_url text not null,
   public_contact text,
   niche text,
+  follower_count integer check (follower_count is null or follower_count >= 0),
   audience_estimate text,
   audience_quality text,
   recent_relevant_content text,
@@ -58,6 +65,11 @@ create table if not exists creators (
   updated_at timestamptz not null default now(),
   unique(platform, profile_url)
 );
+
+alter table if exists creators
+  add column if not exists follower_count integer check (follower_count is null or follower_count >= 0);
+
+create index if not exists creators_follower_count_idx on creators(follower_count);
 
 create table if not exists drafts (
   id uuid primary key default gen_random_uuid(),
