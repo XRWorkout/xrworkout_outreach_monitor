@@ -202,8 +202,8 @@ export function workflowAgents(summary: SummaryData | null, automation: Automati
     {
       name: "Discovery Agent",
       description: "Finds conversations",
-      status: automation?.workflows.collection?.conclusion || automation?.workflows.collection?.status || "idle",
-      lastRun: automation?.workflows.collection?.created_at,
+      status: automation?.workflows.sourceCollection?.conclusion || automation?.workflows.collection?.conclusion || automation?.workflows.sourceCollection?.status || automation?.workflows.collection?.status || "idle",
+      lastRun: automation?.workflows.sourceCollection?.created_at || automation?.workflows.collection?.created_at,
       completed: summary?.counts.rawItems || 0,
       found: summary?.counts.opportunities || 0
     },

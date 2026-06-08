@@ -11,6 +11,7 @@ export async function GET(request: Request) {
       dryRunSend,
       apifyEnabled,
       collection,
+      sourceCollection,
       drafts,
       manualDraft,
       send,
@@ -22,6 +23,7 @@ export async function GET(request: Request) {
       getAutomationVariable("DRY_RUN_SEND"),
       getAutomationVariable("APIFY_ENABLED"),
       getWorkflowStatus("collection"),
+      getWorkflowStatus("sourceCollection"),
       getWorkflowStatus("drafts"),
       getWorkflowStatus("manualDraft"),
       getWorkflowStatus("send"),
@@ -29,7 +31,7 @@ export async function GET(request: Request) {
       getWorkflowStatus("cleanStart")
     ]);
 
-    const workflows = { collection, drafts, manualDraft, send, report, cleanStart };
+    const workflows = { collection, sourceCollection, drafts, manualDraft, send, report, cleanStart };
     const runDetailEntries = await Promise.all(
       Object.entries(workflows).map(async ([workflow, run]) => {
         if (!run?.id) return [workflow, null] as const;

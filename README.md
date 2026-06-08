@@ -75,7 +75,8 @@ Dashboard presents conversations, opportunity feeds, creator pipeline, outreach 
 - Weekly report script with action queues, creator-quality evidence counts, and source-quality ranking.
 - Clean reset script for deleting operational outreach rows before a fresh run.
 - GitHub Actions schedules for collection, drafts, approved sends, and weekly reporting.
-- Manual clean automatic start workflow that resets outreach data, runs collection/classification/creator discovery/draft generation, then reports counts.
+- Manual clean automatic start workflow that resets outreach data, runs Reddit, YouTube, Twitch, Apify conversations when enabled, public forums, blogs, classification, creator discovery, draft generation, then reports counts.
+- Manual source collection workflow for rerunning one missing source from the Automation tab without wiping the whole dataset.
 - Scheduled collection, draft, and report jobs are gated by `AUTOMATION_ENABLED`; scheduled approved sends are gated by `SEND_AUTOMATION_ENABLED`; manual runs still work for validation.
 - Next.js dashboard under `dashboard/` with Supabase login, operator allowlist, dark-mode Outreach OS navigation, Dashboard, Conversations, Conversation Map, Creators, Outreach, Export, Automations, Run Monitor, Analytics, and Settings views.
 - Dashboard product surfaces include presentation-layer labels, KPI cards, live opportunity feed, AI-style recommendations, social listening filters, interactive source radar, creator-quality filters/evidence panels, creator kanban, outreach review drawers, contact export builder, automation agent cards, workflow controls, live run monitoring, and source attribution charts.
@@ -263,7 +264,7 @@ Keep `DRY_RUN_SEND=true` during setup. The send script can also be run with `--d
 8. When an opportunity is worth outreach, use `Generate LLM draft` from the opportunity review pane.
 9. Mark only safe, useful email drafts as `approved`; comments and DMs remain manual.
 10. Run approved-send only as a dry-run while `DRY_RUN_SEND=true`.
-11. Use Automations for Clean start, workflow dispatches, and safety variables.
+11. Use Automations for Clean start, source-specific collection runs, workflow dispatches, and safety variables.
 12. Use Run Monitor to inspect workflow progress, step status, and failed-step guidance.
 13. Use Analytics to identify which source is producing the best opportunities before adding more sources.
 
@@ -271,13 +272,14 @@ Public comments and DMs remain manual in v1.
 
 ## GitHub Actions
 
-The repo includes four scheduled workflows plus manual workflows for selected-opportunity drafts and clean automatic starts:
+The repo includes four scheduled workflows plus manual workflows for selected-opportunity drafts, source-specific collection, and clean automatic starts:
 
 | Workflow | Schedule | Purpose |
 |---|---:|---|
 | `daily-collection.yml` | Daily 14:00 UTC | Collects source items, classifies opportunities, and discovers creators. |
 | `daily-drafts.yml` | Daily 16:00 UTC | Generates outreach drafts for high-priority opportunities. |
 | `manual-opportunity-draft.yml` | Manual only | Generates one LLM draft for an operator-selected opportunity. |
+| `manual-source-collection.yml` | Manual only | Runs one selected collector or all collectors, then classifies new rows by default. |
 | `clean-automatic-start.yml` | Manual only | Deletes operational outreach rows, runs collection/classification/creator discovery/draft generation, and reports counts. |
 | `daily-send.yml` | Daily 17:00 UTC | Processes approved email drafts; scheduled runs require `SEND_AUTOMATION_ENABLED=true`. |
 | `weekly-report.yml` | Friday 18:00 UTC | Prints operational counts, action queues, and source-quality ranking. |
@@ -294,6 +296,7 @@ Launch control:
 - Keep `APIFY_ENABLED=false` until low-limit Apify actor validation is reviewed.
 - Keep `DRY_RUN_SEND=true` as the separate email safety switch; dashboard send dispatch is dry-run only.
 - The dashboard `Clean start` action sets `AUTOMATION_ENABLED=true`, `SEND_AUTOMATION_ENABLED=false`, and `DRY_RUN_SEND=true` before dispatching `clean-automatic-start.yml`.
+- The dashboard `Run Missing Source` controls dispatch `manual-source-collection.yml` for all sources, Apify conversations, forums, blogs, Reddit, YouTube, or Twitch.
 
 ## Dashboard
 
@@ -310,8 +313,8 @@ Current views:
 - Follow-up queue for due and overdue follow-ups with original draft, creator contact, creator profile, linked opportunity, and source link.
 - Export builder for dynamic contact-list requests, follower-range parsing, result previews, sample outreach messages, and downloadable CSV, JSON, or readable text files.
 - Offer tracking for the 3-month-free creator offer and content outcomes.
-- Automation status showing schedule state, last workflow runs, failures, `AUTOMATION_ENABLED`, `SEND_AUTOMATION_ENABLED`, and `DRY_RUN_SEND`.
-- Automation controls for toggling automation variables, starting a clean automatic pipeline, and manually dispatching collection, draft, approved-send dry runs, and reports.
+- Automation status showing schedule state, last workflow runs, failures, `AUTOMATION_ENABLED`, `APIFY_ENABLED`, `SEND_AUTOMATION_ENABLED`, and `DRY_RUN_SEND`.
+- Automation controls for toggling automation variables, starting a clean automatic pipeline, rerunning a specific missing source, and manually dispatching collection, draft, approved-send dry runs, and reports.
 - Run Monitor showing live GitHub Actions run status, step timing, failed-step guidance, and run links.
 
 Discord handling is intentionally limited to public server discovery metadata. Message ingestion requires an explicit future authorized bot path for servers XRWorkout owns or has permission to monitor.

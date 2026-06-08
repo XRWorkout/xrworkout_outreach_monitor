@@ -144,10 +144,10 @@ export type AutomationData = {
     AUTOMATION_ENABLED: string;
     SEND_AUTOMATION_ENABLED: string;
     DRY_RUN_SEND: string;
-    APIFY_ENABLED?: string;
+    APIFY_ENABLED: string;
   };
   workflows: Record<
-    "collection" | "drafts" | "manualDraft" | "send" | "report" | "cleanStart",
+    "collection" | "sourceCollection" | "drafts" | "manualDraft" | "send" | "report" | "cleanStart",
     | {
         id: number;
         name: string | null;
@@ -158,7 +158,7 @@ export type AutomationData = {
       }
     | null
   >;
-  runDetails?: Record<"collection" | "drafts" | "manualDraft" | "send" | "report" | "cleanStart", WorkflowRunDetail | null>;
+  runDetails?: Record<"collection" | "sourceCollection" | "drafts" | "manualDraft" | "send" | "report" | "cleanStart", WorkflowRunDetail | null>;
 };
 
 export type WorkflowRunStep = {
@@ -184,7 +184,7 @@ export type WorkflowRunJob = {
 };
 
 export type WorkflowRunDetail = {
-  workflow: "collection" | "drafts" | "manualDraft" | "send" | "report" | "cleanStart";
+  workflow: "collection" | "sourceCollection" | "drafts" | "manualDraft" | "send" | "report" | "cleanStart";
   run_id: number;
   name: string | null;
   status: string | null;

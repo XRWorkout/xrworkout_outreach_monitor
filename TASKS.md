@@ -125,12 +125,14 @@ Updated on 2026-06-06.
 - [x] User reviewed Apify validation on 2026-06-08: returned opportunities looked useful, no public contact was found, creator history was weak, and activity/VR-post filters were unreliable because the tested TikTok output did not scrape real profile history.
 - [x] Updated Apify creator handling so post-only Apify rows can remain useful social/opportunity signals but are not treated as reliable creator-history rows for creator scoring.
 - [x] Implemented Conversation Map expansion on 2026-06-08 with Apify-backed public conversation normalization, X/Facebook/Discord source support, public forum collection, VR blog/RSS collection, source-type and intent filters, and source-quality rollups.
+- [x] Added source-specific automation controls on 2026-06-08: Clean Start runs expanded collection automatically, and the Automation tab can run all sources, Apify conversations, forums, blogs, Reddit, YouTube, or Twitch individually.
 
 ## Current Next Tasks
 
 - [ ] Keep `APIFY_ENABLED=false` until the expanded Apify conversation actors are configured and low-limit validation is reviewed in the dashboard.
 - [ ] Configure low-limit `APIFY_CONVERSATION_ACTORS_JSON` for X/Twitter, Facebook groups, Discord server discovery, and TikTok conversation discovery before enabling Apify.
-- [ ] Run dry-run validation for `collect_apify_conversations.py --limit 3`, `collect_forums.py --limit 3`, and `collect_blogs.py --limit 3`.
+- [ ] Configure `FORUM_SOURCES_JSON` and `BLOG_FEEDS_JSON` with the first small public source list.
+- [ ] Use Automation > Run Missing Source to validate Apify conversations, forums, and blogs individually before relying on Clean Start for full refreshes.
 - [ ] Decide whether to use the tested TikTok actor only as a supplemental social-listening/opportunity source.
 - [ ] Test a better profile-history actor or actor input before using Apify for creator scoring, activity filters, or recent VR-post counts.
 - [ ] Deploy the latest dashboard update with follower filters, cleaned conversation review, the Run Monitor interface, and the new Export tab.

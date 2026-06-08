@@ -1,9 +1,10 @@
 import { optionalEnv, requiredEnv } from "@/lib/env";
 
-export type WorkflowKey = "collection" | "drafts" | "manualDraft" | "send" | "report" | "cleanStart";
+export type WorkflowKey = "collection" | "sourceCollection" | "drafts" | "manualDraft" | "send" | "report" | "cleanStart";
 
 export const workflowFiles: Record<WorkflowKey, string> = {
   collection: "daily-collection.yml",
+  sourceCollection: "manual-source-collection.yml",
   drafts: "daily-drafts.yml",
   manualDraft: "manual-opportunity-draft.yml",
   send: "daily-send.yml",
@@ -126,6 +127,9 @@ function stepEstimateSeconds(stepName: string) {
   if (name.includes("collect_reddit")) return 180;
   if (name.includes("collect_youtube")) return 60;
   if (name.includes("collect_twitch")) return 90;
+  if (name.includes("collect_apify_conversations")) return 180;
+  if (name.includes("collect_forums")) return 120;
+  if (name.includes("collect_blogs")) return 60;
   if (name.includes("classify_opportunities")) return 720;
   if (name.includes("discover_creators")) return 300;
   if (name.includes("generate_drafts")) return 360;
@@ -145,6 +149,8 @@ function likelyFixForStep(stepName: string, conclusion?: string | null) {
   if (name.includes("collect_youtube")) return "Check YouTube API key, quota, and whether the follower_count schema column exists.";
   if (name.includes("collect_twitch")) return "Check Twitch client credentials and API access for channel follower totals.";
   if (name.includes("collect_apify")) return "Check APIFY_TOKEN, actor JSON variables, Starter-plan usage, and actor input shape.";
+  if (name.includes("collect_forums")) return "Check FORUM_SOURCES_JSON and whether the target forum exposes public Discourse JSON endpoints.";
+  if (name.includes("collect_blogs")) return "Check BLOG_FEEDS_JSON and whether the feed URL returns valid RSS or Atom XML.";
   if (name.includes("classify_opportunities")) return "Check Codex CLI availability, model timeout, and raw item volume. Rerun with a lower limit if needed.";
   if (name.includes("discover_creators")) return "Check Codex CLI output and creator schema fields, especially follower_count and public contact fields.";
   if (name.includes("generate_drafts")) return "Check draft eligibility, Codex CLI output, and safety-rule validation errors.";

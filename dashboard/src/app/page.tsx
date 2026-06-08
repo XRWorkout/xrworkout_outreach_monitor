@@ -756,7 +756,7 @@ export default function Page() {
     void loadDashboard(session.token);
   }
 
-  async function updateVariable(name: "AUTOMATION_ENABLED" | "SEND_AUTOMATION_ENABLED" | "DRY_RUN_SEND", value: string) {
+  async function updateVariable(name: "AUTOMATION_ENABLED" | "SEND_AUTOMATION_ENABLED" | "DRY_RUN_SEND" | "APIFY_ENABLED", value: string) {
     if (!session) return;
     await fetchJson(`/api/dashboard/automation/variables`, session.token, {
       method: "PATCH",
@@ -773,6 +773,16 @@ export default function Page() {
       body: JSON.stringify({})
     });
     setNotice(`${labelFor(workflow)} workflow started.`);
+    void loadDashboard(session.token);
+  }
+
+  async function dispatchSourceCollection(source: string, classify = true) {
+    if (!session) return;
+    await fetchJson(`/api/dashboard/automation/workflows/sourceCollection/dispatch`, session.token, {
+      method: "POST",
+      body: JSON.stringify({ inputs: { source, classify: classify ? "true" : "false" } })
+    });
+    setNotice(`${labelFor(source)} source collection started.`);
     void loadDashboard(session.token);
   }
 
@@ -1075,6 +1085,7 @@ export default function Page() {
                   agents={agents}
                   updateVariable={updateVariable}
                   dispatch={dispatch}
+                  dispatchSourceCollection={dispatchSourceCollection}
                   cleanAutomaticStart={cleanAutomaticStart}
                   cleanStartRunning={cleanStartRunning}
                   dryRunSendEnabled={dryRunSendEnabled}
@@ -2194,19 +2205,30 @@ function AutomationsView({
   agents,
   updateVariable,
   dispatch,
+  dispatchSourceCollection,
   cleanAutomaticStart,
   cleanStartRunning,
   dryRunSendEnabled
 }: {
   automation: AutomationData | null;
   agents: ReturnType<typeof workflowAgents>;
-  updateVariable: (name: "AUTOMATION_ENABLED" | "SEND_AUTOMATION_ENABLED" | "DRY_RUN_SEND", value: string) => void;
+  updateVariable: (name: "AUTOMATION_ENABLED" | "SEND_AUTOMATION_ENABLED" | "DRY_RUN_SEND" | "APIFY_ENABLED", value: string) => void;
   dispatch: (workflow: string) => void;
+  dispatchSourceCollection: (source: string, classify?: boolean) => void;
   cleanAutomaticStart: () => void;
   cleanStartRunning: boolean;
   dryRunSendEnabled: boolean;
 }) {
   const workflowSteps = ["Discovery", "Filtering", "Scoring", "Creator Detection", "Draft Generation", "Human Approval", "Outreach", "Analytics"];
+  const sourceCollectors = [
+    { source: "all", title: "All Sources", detail: "Runs Reddit, YouTube, Twitch, Apify conversations, forums, blogs, then classification." },
+    { source: "apify_conversations", title: "Apify Conversations", detail: "Runs configured X, Facebook, Discord discovery, TikTok, or other Apify public conversation actors." },
+    { source: "forums", title: "VR Forums", detail: "Runs public Discourse/forum sources from FORUM_SOURCES_JSON." },
+    { source: "blogs", title: "VR Blogs", detail: "Runs RSS/Atom feeds from BLOG_FEEDS_JSON." },
+    { source: "reddit", title: "Reddit", detail: "Runs low-volume Reddit RSS collection." },
+    { source: "youtube", title: "YouTube", detail: "Runs YouTube keyword collection." },
+    { source: "twitch", title: "Twitch", detail: "Runs Twitch channel collection." }
+  ];
   return (
     <div className="grid gap-5">
       <section className="grid gap-4 xl:grid-cols-4">
@@ -2247,15 +2269,35 @@ function AutomationsView({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 className="font-semibold text-white">Clean Automatic Start</h3>
-            <p className="mt-1 text-sm text-zinc-500">Refreshes outreach data, enables collection/drafts, keeps scheduled sending disabled, and keeps send dispatch dry-run only.</p>
+            <p className="mt-1 text-sm text-zinc-500">Refreshes outreach data, runs Reddit, YouTube, Twitch, Apify conversations when enabled, public forums, blogs, classification, creator discovery, and draft generation. Scheduled sending stays disabled and send dispatch stays dry-run only.</p>
           </div>
           <Button variant="primary" onClick={cleanAutomaticStart} disabled={cleanStartRunning}>
             <RefreshCw size={15} /> {cleanStartRunning ? "Starting..." : "Clean start"}
           </Button>
         </div>
       </Card>
+      <Card className="p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 className="font-semibold text-white">Run Missing Source</h3>
+            <p className="mt-1 text-sm text-zinc-500">Run a specific collector when the Conversation Map is missing data. Each run classifies new rows by default.</p>
+          </div>
+          <SoftBadge tone="info">Manual collection</SoftBadge>
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {sourceCollectors.map((collector) => (
+            <div key={collector.source} className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
+              <h4 className="text-sm font-semibold text-white">{collector.title}</h4>
+              <p className="mt-2 min-h-12 text-xs leading-5 text-zinc-500">{collector.detail}</p>
+              <Button className="mt-3 w-full" variant={collector.source === "all" ? "primary" : "secondary"} onClick={() => dispatchSourceCollection(collector.source)}>
+                <Play size={14} /> Run
+              </Button>
+            </div>
+          ))}
+        </div>
+      </Card>
       <section className="grid gap-4 xl:grid-cols-3">
-        {(["AUTOMATION_ENABLED", "SEND_AUTOMATION_ENABLED", "DRY_RUN_SEND"] as const).map((name) => {
+        {(["AUTOMATION_ENABLED", "APIFY_ENABLED", "SEND_AUTOMATION_ENABLED", "DRY_RUN_SEND"] as const).map((name) => {
           const value = automation?.variables[name] || (name === "DRY_RUN_SEND" ? "true" : "false");
           return (
             <Card key={name} className="p-4">
@@ -2271,13 +2313,13 @@ function AutomationsView({
           );
         })}
       </section>
-      <section className="grid gap-4 xl:grid-cols-5">
-        {(["collection", "drafts", "manualDraft", "send", "report"] as const).map((workflow) => {
+      <section className="grid gap-4 xl:grid-cols-6">
+        {(["collection", "sourceCollection", "drafts", "manualDraft", "send", "report"] as const).map((workflow) => {
           const run = automation?.workflows[workflow];
           const isManualDraftWorkflow = workflow === "manualDraft";
           return (
             <Card key={workflow} className="p-4">
-              <h3 className="font-semibold text-white">{isManualDraftWorkflow ? "Selected Draft" : labelFor(workflow)}</h3>
+              <h3 className="font-semibold text-white">{isManualDraftWorkflow ? "Selected Draft" : workflow === "sourceCollection" ? "Source Collection" : labelFor(workflow)}</h3>
               <p className="mt-2 text-sm text-zinc-500">Last run: {shortDate(run?.created_at)}</p>
               <div className="mt-3">
                 <SoftBadge tone={toneFor(run?.conclusion || run?.status || "unknown")}>{labelFor(run?.conclusion || run?.status || "unknown")}</SoftBadge>
@@ -2288,7 +2330,7 @@ function AutomationsView({
                     Open <ExternalLink size={14} />
                   </a>
                 ) : null}
-                <Button variant="primary" onClick={() => dispatch(workflow)} disabled={isManualDraftWorkflow || (workflow === "send" && !dryRunSendEnabled)}>
+                <Button variant="primary" onClick={() => dispatch(workflow)} disabled={isManualDraftWorkflow || workflow === "sourceCollection" || (workflow === "send" && !dryRunSendEnabled)}>
                   <Play size={15} /> Run
                 </Button>
               </div>
@@ -2302,7 +2344,7 @@ function AutomationsView({
 
 function RunMonitorView({ automation, refresh }: { automation: AutomationData | null; refresh: () => void }) {
   const runDetails = automation?.runDetails;
-  const workflowOrder = ["cleanStart", "collection", "drafts", "manualDraft", "send", "report"] as const;
+  const workflowOrder = ["cleanStart", "collection", "sourceCollection", "drafts", "manualDraft", "send", "report"] as const;
   const runs = workflowOrder.map((workflow) => runDetails?.[workflow] || null);
   const activeRuns = runs.filter(isActiveRun).length;
   const failedRuns = runs.filter((run) => run?.conclusion === "failure" || run?.conclusion === "timed_out").length;
@@ -2341,7 +2383,7 @@ function RunMonitorView({ automation, refresh }: { automation: AutomationData | 
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="font-semibold text-white">{workflow === "cleanStart" ? "Clean Start" : labelFor(workflow)}</h3>
+                      <h3 className="font-semibold text-white">{workflow === "cleanStart" ? "Clean Start" : workflow === "sourceCollection" ? "Source Collection" : labelFor(workflow)}</h3>
                       <SoftBadge tone={toneFor(status)}>{labelFor(status)}</SoftBadge>
                       {run?.run_id ? <SoftBadge>Run #{run.run_id}</SoftBadge> : null}
                     </div>
@@ -2464,7 +2506,7 @@ function AnalyticsView({ summary, opportunities, creators, drafts, rawItems }: {
   );
 }
 
-function SettingsView({ session, automation, nodes, updateVariable }: { session: SessionState; automation: AutomationData | null; nodes: ReturnType<typeof platformNodes>; updateVariable: (name: "AUTOMATION_ENABLED" | "SEND_AUTOMATION_ENABLED" | "DRY_RUN_SEND", value: string) => void }) {
+function SettingsView({ session, automation, nodes, updateVariable }: { session: SessionState; automation: AutomationData | null; nodes: ReturnType<typeof platformNodes>; updateVariable: (name: "AUTOMATION_ENABLED" | "SEND_AUTOMATION_ENABLED" | "DRY_RUN_SEND" | "APIFY_ENABLED", value: string) => void }) {
   return (
     <div className="grid gap-5 xl:grid-cols-2">
       <Card className="p-5">

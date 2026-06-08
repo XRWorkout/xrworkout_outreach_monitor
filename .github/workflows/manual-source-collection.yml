@@ -1,0 +1,93 @@
+name: Manual source collection
+
+on:
+  workflow_dispatch:
+    inputs:
+      source:
+        description: "Source collector to run"
+        required: true
+        default: "all"
+        type: choice
+        options:
+          - all
+          - apify_conversations
+          - forums
+          - blogs
+          - reddit
+          - youtube
+          - twitch
+      classify:
+        description: "Classify collected rows after collection"
+        required: true
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+
+jobs:
+  collect-source:
+    runs-on: self-hosted
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e .
+      - run: python scripts/check_codex_cli.py
+        if: ${{ inputs.classify == 'true' }}
+        env:
+          CODEX_BIN: ${{ vars.CODEX_BIN || 'codex' }}
+          CODEX_MODEL: ${{ vars.CODEX_MODEL }}
+          CODEX_TIMEOUT_SECONDS: ${{ vars.CODEX_TIMEOUT_SECONDS || '300' }}
+      - name: Collect Reddit
+        if: ${{ inputs.source == 'all' || inputs.source == 'reddit' }}
+        run: python scripts/collect_reddit_rss.py --limit 5 --max-total 25 --sleep-seconds 2
+        env: &env
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          CODEX_BIN: ${{ vars.CODEX_BIN || 'codex' }}
+          CODEX_MODEL: ${{ vars.CODEX_MODEL }}
+          CODEX_TIMEOUT_SECONDS: ${{ vars.CODEX_TIMEOUT_SECONDS || '300' }}
+          REDDIT_USER_AGENT: "${{ vars.REDDIT_USER_AGENT || 'XRWorkoutOutreachMonitor/0.1 contact: https://xrworkout.ai' }}"
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          TWITCH_CLIENT_ID: ${{ secrets.TWITCH_CLIENT_ID }}
+          TWITCH_CLIENT_SECRET: ${{ secrets.TWITCH_CLIENT_SECRET }}
+          APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
+          APIFY_CREATOR_ACTORS_JSON: ${{ vars.APIFY_CREATOR_ACTORS_JSON || '[]' }}
+          APIFY_SOCIAL_ACTORS_JSON: ${{ vars.APIFY_SOCIAL_ACTORS_JSON || '[]' }}
+          APIFY_CONVERSATION_ACTORS_JSON: ${{ vars.APIFY_CONVERSATION_ACTORS_JSON || '[]' }}
+          APIFY_MAX_ITEMS_PER_RUN: ${{ vars.APIFY_MAX_ITEMS_PER_RUN || '100' }}
+          APIFY_MAX_RUNS_PER_DAY: ${{ vars.APIFY_MAX_RUNS_PER_DAY || '4' }}
+          APIFY_ENABLED: ${{ vars.APIFY_ENABLED || 'false' }}
+          FORUM_SOURCES_JSON: ${{ vars.FORUM_SOURCES_JSON || '[]' }}
+          BLOG_FEEDS_JSON: ${{ vars.BLOG_FEEDS_JSON || '[]' }}
+      - name: Collect YouTube
+        if: ${{ inputs.source == 'all' || inputs.source == 'youtube' }}
+        run: python scripts/collect_youtube.py --limit 5
+        env: *env
+      - name: Collect Twitch
+        if: ${{ inputs.source == 'all' || inputs.source == 'twitch' }}
+        run: python scripts/collect_twitch.py --limit 10
+        env: *env
+      - name: Collect Apify conversations
+        if: ${{ inputs.source == 'all' || inputs.source == 'apify_conversations' }}
+        run: python scripts/collect_apify_conversations.py --limit 10
+        env: *env
+      - name: Collect forums
+        if: ${{ inputs.source == 'all' || inputs.source == 'forums' }}
+        run: python scripts/collect_forums.py --limit 10
+        env: *env
+      - name: Collect blogs
+        if: ${{ inputs.source == 'all' || inputs.source == 'blogs' }}
+        run: python scripts/collect_blogs.py --limit 10
+        env: *env
+      - name: Classify collected rows
+        if: ${{ inputs.classify == 'true' }}
+        run: python scripts/classify_opportunities.py --limit 50
+        env: *env
+      - name: Weekly source report
+        run: python scripts/weekly_report.py
+        env: *env
