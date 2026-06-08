@@ -14,6 +14,7 @@ Doing that manually is slow and inconsistent. This repo builds the operating lay
 - Deduplicate source items before they enter the pipeline.
 - Use Codex CLI to classify, score, and summarize opportunities.
 - Promote promising creators into a reviewable prospect table.
+- Apply a documented candidate scoring rubric for creator quality, recency, VR/headset proof, activity, contactability, safety, and review priority.
 - Generate outreach drafts for high-fit opportunities.
 - Require human approval before any email is sent.
 - Track sent drafts, follow-ups, and creator offers in Supabase.
@@ -27,7 +28,7 @@ Agents collect, classify, score, draft, log, and report. Humans approve. Automat
 
 That rule is enforced in code: the sender only processes drafts with `status = approved`. Drafts marked `needs_review`, `edit_needed`, `rejected`, or `sent` are not eligible for sending.
 
-For the detailed intake, filtering, prioritization, channel decision, tracker, anti-spam, and follow-up design, see [docs/outreach-design.md](docs/outreach-design.md).
+For the detailed intake, filtering, prioritization, channel decision, tracker, anti-spam, and follow-up design, see [docs/outreach-design.md](docs/outreach-design.md). For the dedicated outreach candidate scoring rubric, see [docs/candidate-scoring.md](docs/candidate-scoring.md).
 
 ## System Overview
 
