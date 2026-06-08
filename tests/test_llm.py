@@ -54,6 +54,12 @@ def test_llm_creator_fits_uses_one_batch_codex_call(monkeypatch):
             '"public_contact":null,"niche":"VR fitness","audience_estimate":"Small",'
             '"audience_quality":"Relevant","fit_reason":"Makes Quest workout videos",'
             '"talks_about":"VR and fitness","offer_angle":"Try XRWorkout",'
+            '"creator_quality_score":92,"recent_vr_posts_count":3,'
+            '"recent_total_posts_count":9,"last_post_at":"2026-06-01T00:00:00+00:00",'
+            '"activity_level":"high","vr_involvement_evidence":"Recent Quest workout posts",'
+            '"movement_fit_evidence":"Workout videos","headset_evidence":"Uses Quest 3",'
+            '"headset_confidence":"high","engagement_evidence":"Real comments",'
+            '"contactability_evidence":"Manual DM path","safety_notes":"No safety issues",'
             '"priority":"high"}]}',
             encoding="utf-8",
         )
@@ -133,6 +139,12 @@ def _settings() -> Settings:
         youtube_api_key="",
         twitch_client_id="",
         twitch_client_secret="",
+        apify_token="",
+        apify_creator_actors_json="[]",
+        apify_social_actors_json="[]",
+        apify_max_items_per_run=100,
+        apify_max_runs_per_day=4,
+        apify_enabled=False,
         email_provider="brevo",
         brevo_api_key="",
         brevo_from_email="",

@@ -6,6 +6,7 @@ import re
 from typing import Any
 
 from xroutreach.config import settings
+from xroutreach.creator_scoring import creator_evidence_from_item, priority_for_creator_score
 from xroutreach.db import OutreachDB
 from xroutreach.llm import LLM
 
@@ -102,6 +103,7 @@ def fallback_creator_fit(item: dict[str, Any]) -> dict[str, Any] | None:
     if not has_creator_signal(haystack):
         return None
 
+    evidence = creator_evidence_from_item(item)
     return {
         "raw_item_id": item.get("id"),
         "name": name,
@@ -115,7 +117,19 @@ def fallback_creator_fit(item: dict[str, Any]) -> dict[str, Any] | None:
         "fit_reason": "Matched XRWorkout creator discovery keywords; review manually.",
         "talks_about": "VR, fitness, gaming, or wellness keyword match",
         "offer_angle": "Evaluate fit for a low-pressure XRWorkout creator offer.",
-        "priority": "low",
+        "creator_quality_score": evidence["creator_quality_score"],
+        "recent_vr_posts_count": evidence["recent_vr_posts_count"],
+        "recent_total_posts_count": evidence["recent_total_posts_count"],
+        "last_post_at": evidence["last_post_at"],
+        "activity_level": evidence["activity_level"],
+        "vr_involvement_evidence": evidence["vr_involvement_evidence"],
+        "movement_fit_evidence": evidence["movement_fit_evidence"],
+        "headset_evidence": evidence["headset_evidence"],
+        "headset_confidence": evidence["headset_confidence"],
+        "engagement_evidence": evidence["engagement_evidence"],
+        "contactability_evidence": evidence["contactability_evidence"],
+        "safety_notes": evidence["safety_notes"],
+        "priority": priority_for_creator_score(evidence["creator_quality_score"]),
     }
 
 
@@ -124,6 +138,11 @@ def creator_row(item: dict[str, Any], fit: dict[str, Any]) -> dict[str, Any]:
     talks_about = fit.get("talks_about")
     if talks_about:
         fit_reason = f"Talks about: {talks_about}. Fit: {fit_reason}"
+
+    evidence = creator_evidence_from_item(item, fit)
+    priority = fit.get("priority") or priority_for_creator_score(evidence["creator_quality_score"])
+    if evidence["creator_quality_score"] < 85 and priority == "high":
+        priority = priority_for_creator_score(evidence["creator_quality_score"])
 
     return {
         "name": fit.get("name") or item.get("author_name") or "Unknown",
@@ -137,8 +156,21 @@ def creator_row(item: dict[str, Any], fit: dict[str, Any]) -> dict[str, Any]:
         "recent_relevant_content": item.get("source_url"),
         "fit_reason": fit_reason,
         "offer_angle": fit.get("offer_angle", ""),
-        "priority": fit.get("priority", "medium"),
+        "priority": priority,
         "status": "new",
+        "creator_quality_score": evidence["creator_quality_score"],
+        "recent_vr_posts_count": evidence["recent_vr_posts_count"],
+        "recent_total_posts_count": evidence["recent_total_posts_count"],
+        "last_post_at": evidence["last_post_at"],
+        "activity_level": evidence["activity_level"],
+        "vr_involvement_evidence": evidence["vr_involvement_evidence"],
+        "movement_fit_evidence": evidence["movement_fit_evidence"],
+        "headset_evidence": evidence["headset_evidence"],
+        "headset_confidence": evidence["headset_confidence"],
+        "engagement_evidence": evidence["engagement_evidence"],
+        "contactability_evidence": evidence["contactability_evidence"],
+        "safety_notes": evidence["safety_notes"],
+        "evidence_json": evidence["evidence_json"],
     }
 
 

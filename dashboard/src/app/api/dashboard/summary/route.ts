@@ -116,7 +116,7 @@ export async function GET(request: Request) {
         db.from("opportunities").select("priority, status, platform, score").order("created_at", { ascending: false }).limit(1000),
         db.from("drafts").select("status, channel, opportunities(platform, raw_items(source))").order("created_at", { ascending: false }).limit(1000),
         db.from("followups").select("status, due_date").order("due_date", { ascending: true }).limit(1000),
-        db.from("creators").select("status, public_contact").order("created_at", { ascending: false }).limit(1000)
+        db.from("creators").select("status, public_contact, creator_quality_score, headset_confidence, activity_level").order("created_at", { ascending: false }).limit(1000)
       ]);
     const safeRawRows = rawRows || [];
     const safeOpportunityRows = opportunityRows || [];

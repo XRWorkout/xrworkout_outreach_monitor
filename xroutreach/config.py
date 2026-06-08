@@ -54,6 +54,12 @@ class Settings:
     youtube_api_key: str
     twitch_client_id: str
     twitch_client_secret: str
+    apify_token: str
+    apify_creator_actors_json: str
+    apify_social_actors_json: str
+    apify_max_items_per_run: int
+    apify_max_runs_per_day: int
+    apify_enabled: bool
     email_provider: str
     brevo_api_key: str
     brevo_from_email: str
@@ -91,6 +97,12 @@ def settings() -> Settings:
         youtube_api_key=env("YOUTUBE_API_KEY"),
         twitch_client_id=env("TWITCH_CLIENT_ID"),
         twitch_client_secret=env("TWITCH_CLIENT_SECRET"),
+        apify_token=env("APIFY_TOKEN"),
+        apify_creator_actors_json=env("APIFY_CREATOR_ACTORS_JSON", "[]"),
+        apify_social_actors_json=env("APIFY_SOCIAL_ACTORS_JSON", "[]"),
+        apify_max_items_per_run=env_int("APIFY_MAX_ITEMS_PER_RUN", 100),
+        apify_max_runs_per_day=env_int("APIFY_MAX_RUNS_PER_DAY", 4),
+        apify_enabled=env("APIFY_ENABLED", "false").lower() in {"1", "true", "yes"},
         email_provider=env("EMAIL_PROVIDER", "brevo").lower(),
         brevo_api_key=env("BREVO_API_KEY"),
         brevo_from_email=env("BREVO_FROM_EMAIL"),

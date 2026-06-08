@@ -11,12 +11,13 @@ export const workflowFiles: Record<WorkflowKey, string> = {
   cleanStart: "clean-automatic-start.yml"
 };
 
-export type AutomationVariableName = "AUTOMATION_ENABLED" | "SEND_AUTOMATION_ENABLED" | "DRY_RUN_SEND";
+export type AutomationVariableName = "AUTOMATION_ENABLED" | "SEND_AUTOMATION_ENABLED" | "DRY_RUN_SEND" | "APIFY_ENABLED";
 
 const automationVariables = new Set<AutomationVariableName>([
   "AUTOMATION_ENABLED",
   "SEND_AUTOMATION_ENABLED",
-  "DRY_RUN_SEND"
+  "DRY_RUN_SEND",
+  "APIFY_ENABLED"
 ]);
 
 type GitHubRequestOptions = {
@@ -143,6 +144,7 @@ function likelyFixForStep(stepName: string, conclusion?: string | null) {
   if (name.includes("collect_reddit")) return "Reddit RSS may be rate-limited or unavailable. Rerun later or reduce feed volume.";
   if (name.includes("collect_youtube")) return "Check YouTube API key, quota, and whether the follower_count schema column exists.";
   if (name.includes("collect_twitch")) return "Check Twitch client credentials and API access for channel follower totals.";
+  if (name.includes("collect_apify")) return "Check APIFY_TOKEN, actor JSON variables, Starter-plan usage, and actor input shape.";
   if (name.includes("classify_opportunities")) return "Check Codex CLI availability, model timeout, and raw item volume. Rerun with a lower limit if needed.";
   if (name.includes("discover_creators")) return "Check Codex CLI output and creator schema fields, especially follower_count and public contact fields.";
   if (name.includes("generate_drafts")) return "Check draft eligibility, Codex CLI output, and safety-rule validation errors.";

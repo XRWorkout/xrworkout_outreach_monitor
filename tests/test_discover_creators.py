@@ -100,6 +100,8 @@ def test_creator_row_prefers_llm_fields_but_keeps_review_status():
     assert row["recent_relevant_content"] == "https://www.twitch.tv/vrcreator"
     assert row["fit_reason"] == "Talks about: VR fitness and Quest games. Fit: Streams Quest workouts"
     assert row["status"] == "new"
+    assert row["creator_quality_score"] < 85
+    assert row["headset_confidence"] == "unknown"
 
 
 def test_creator_row_falls_back_to_public_metadata_contact():
@@ -123,6 +125,47 @@ def test_creator_row_falls_back_to_public_metadata_contact():
     }
 
     assert creator_row(item, fit)["public_contact"] == "creator@example.com"
+
+
+def test_creator_row_uses_quality_score_and_headset_evidence():
+    item = {
+        "source": "apify_instagram",
+        "source_url": "https://instagram.com/questcoach",
+        "author_name": "Quest Coach",
+        "author_url": "https://instagram.com/questcoach",
+    }
+    fit = {
+        "name": "Quest Coach",
+        "platform": "apify_instagram",
+        "profile_url": "https://instagram.com/questcoach",
+        "public_contact": "coach@example.com",
+        "niche": "Quest workouts",
+        "audience_estimate": "Small",
+        "audience_quality": "Topic-aligned comments",
+        "fit_reason": "Posts Quest workouts",
+        "talks_about": "VR fitness",
+        "offer_angle": "Try XRWorkout",
+        "creator_quality_score": 92,
+        "recent_vr_posts_count": 3,
+        "recent_total_posts_count": 8,
+        "last_post_at": "2026-06-01T00:00:00+00:00",
+        "activity_level": "high",
+        "vr_involvement_evidence": "Three Quest workout posts",
+        "movement_fit_evidence": "Workout and cardio posts",
+        "headset_evidence": "Uses Quest 3",
+        "headset_confidence": "high",
+        "engagement_evidence": "Real comments",
+        "contactability_evidence": "Public email",
+        "safety_notes": "",
+        "priority": "high",
+    }
+
+    row = creator_row(item, fit)
+
+    assert row["priority"] == "high"
+    assert row["creator_quality_score"] == 92
+    assert row["recent_vr_posts_count"] == 3
+    assert row["headset_confidence"] == "high"
 
 
 def test_fit_source_item_matches_by_raw_item_id_first():

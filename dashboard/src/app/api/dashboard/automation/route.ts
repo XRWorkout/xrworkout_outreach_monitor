@@ -9,6 +9,7 @@ export async function GET(request: Request) {
       automationEnabled,
       sendAutomationEnabled,
       dryRunSend,
+      apifyEnabled,
       collection,
       drafts,
       manualDraft,
@@ -19,6 +20,7 @@ export async function GET(request: Request) {
       getAutomationVariable("AUTOMATION_ENABLED"),
       getAutomationVariable("SEND_AUTOMATION_ENABLED"),
       getAutomationVariable("DRY_RUN_SEND"),
+      getAutomationVariable("APIFY_ENABLED"),
       getWorkflowStatus("collection"),
       getWorkflowStatus("drafts"),
       getWorkflowStatus("manualDraft"),
@@ -39,7 +41,8 @@ export async function GET(request: Request) {
       variables: {
         AUTOMATION_ENABLED: automationEnabled || "false",
         SEND_AUTOMATION_ENABLED: sendAutomationEnabled || "false",
-        DRY_RUN_SEND: dryRunSend || "true"
+        DRY_RUN_SEND: dryRunSend || "true",
+        APIFY_ENABLED: apifyEnabled || "false"
       },
       workflows,
       runDetails: Object.fromEntries(runDetailEntries)

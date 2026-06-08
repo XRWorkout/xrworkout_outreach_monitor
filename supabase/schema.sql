@@ -71,6 +71,25 @@ alter table if exists creators
 
 create index if not exists creators_follower_count_idx on creators(follower_count);
 
+alter table if exists creators
+  add column if not exists creator_quality_score integer check (creator_quality_score is null or creator_quality_score between 0 and 100),
+  add column if not exists recent_vr_posts_count integer check (recent_vr_posts_count is null or recent_vr_posts_count >= 0),
+  add column if not exists recent_total_posts_count integer check (recent_total_posts_count is null or recent_total_posts_count >= 0),
+  add column if not exists last_post_at timestamptz,
+  add column if not exists activity_level text,
+  add column if not exists vr_involvement_evidence text,
+  add column if not exists movement_fit_evidence text,
+  add column if not exists headset_evidence text,
+  add column if not exists headset_confidence text,
+  add column if not exists engagement_evidence text,
+  add column if not exists contactability_evidence text,
+  add column if not exists safety_notes text,
+  add column if not exists evidence_json jsonb not null default '{}'::jsonb;
+
+create index if not exists creators_quality_score_idx on creators(creator_quality_score);
+create index if not exists creators_activity_level_idx on creators(activity_level);
+create index if not exists creators_headset_confidence_idx on creators(headset_confidence);
+
 create table if not exists drafts (
   id uuid primary key default gen_random_uuid(),
   opportunity_id uuid references opportunities(id) on delete set null,

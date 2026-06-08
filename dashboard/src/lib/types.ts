@@ -44,6 +44,19 @@ export type Creator = {
   recent_relevant_content?: string | null;
   fit_reason?: string | null;
   offer_angle?: string | null;
+  creator_quality_score?: number | null;
+  recent_vr_posts_count?: number | null;
+  recent_total_posts_count?: number | null;
+  last_post_at?: string | null;
+  activity_level?: string | null;
+  vr_involvement_evidence?: string | null;
+  movement_fit_evidence?: string | null;
+  headset_evidence?: string | null;
+  headset_confidence?: string | null;
+  engagement_evidence?: string | null;
+  contactability_evidence?: string | null;
+  safety_notes?: string | null;
+  evidence_json?: Record<string, unknown> | null;
   priority: string;
   status: string;
   created_at: string;
@@ -131,6 +144,7 @@ export type AutomationData = {
     AUTOMATION_ENABLED: string;
     SEND_AUTOMATION_ENABLED: string;
     DRY_RUN_SEND: string;
+    APIFY_ENABLED?: string;
   };
   workflows: Record<
     "collection" | "drafts" | "manualDraft" | "send" | "report" | "cleanStart",

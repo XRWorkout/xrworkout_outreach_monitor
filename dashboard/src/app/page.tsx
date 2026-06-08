@@ -106,6 +106,34 @@ const followerRanges = [
   { value: "100000+", label: "100K+" },
   { value: "unknown", label: "Unknown" }
 ] as const;
+const scoreBands = [
+  { value: "all", label: "Any Score" },
+  { value: "a", label: "A / 85+" },
+  { value: "b", label: "B / 70-84" },
+  { value: "c", label: "C / 50-69" },
+  { value: "reject", label: "Under 50" },
+  { value: "unknown", label: "Unknown" }
+] as const;
+const activityLevels = [
+  { value: "all", label: "Any Activity" },
+  { value: "high", label: "High Activity" },
+  { value: "medium", label: "Medium Activity" },
+  { value: "low", label: "Low Activity" },
+  { value: "unknown", label: "Unknown Activity" }
+] as const;
+const headsetConfidenceLevels = [
+  { value: "all", label: "Any Headset Signal" },
+  { value: "high", label: "High Headset Confidence" },
+  { value: "medium", label: "Medium Headset Confidence" },
+  { value: "low", label: "Low Headset Confidence" },
+  { value: "unknown", label: "Unknown Headset" }
+] as const;
+const contactabilityFilters = [
+  { value: "all", label: "Any Contact" },
+  { value: "email", label: "Public Email" },
+  { value: "manual", label: "Manual Path" },
+  { value: "missing", label: "Missing Contact" }
+] as const;
 const creatorBoardColumns = ["Discovered", "Qualified", "Contacted", "Responded", "Partnered"] as const;
 
 async function fetchJson<T>(path: string, token: string, init?: RequestInit): Promise<T> {
@@ -223,6 +251,26 @@ function followerCountLabel(count: number | null) {
   if (count >= 1_000_000) return `${(count / 1_000_000).toFixed(count >= 10_000_000 ? 0 : 1).replace(/\.0$/, "")}M followers`;
   if (count >= 1_000) return `${(count / 1_000).toFixed(count >= 10_000 ? 0 : 1).replace(/\.0$/, "")}K followers`;
   return `${count} followers`;
+}
+
+function scoreBandMatches(score: number | null | undefined, band: string) {
+  if (band === "all") return true;
+  if (band === "unknown") return score === null || score === undefined;
+  if (score === null || score === undefined) return false;
+  if (band === "a") return score >= 85;
+  if (band === "b") return score >= 70 && score < 85;
+  if (band === "c") return score >= 50 && score < 70;
+  if (band === "reject") return score < 50;
+  return true;
+}
+
+function contactabilityMatches(creator: Creator, filter: string) {
+  if (filter === "all") return true;
+  const contact = `${creator.public_contact || ""} ${creator.contactability_evidence || ""}`.toLowerCase();
+  if (filter === "email") return contact.includes("@");
+  if (filter === "manual") return !contact.includes("@") && Boolean(contact.trim());
+  if (filter === "missing") return !contact.trim();
+  return true;
 }
 
 function exportSafeFilename(value: string) {
@@ -434,6 +482,10 @@ export default function Page() {
   const [conversationDate, setConversationDate] = useState("all");
   const [conversationFollowers, setConversationFollowers] = useState("all");
   const [creatorFollowers, setCreatorFollowers] = useState("all");
+  const [creatorScoreBand, setCreatorScoreBand] = useState("all");
+  const [creatorActivity, setCreatorActivity] = useState("all");
+  const [creatorHeadset, setCreatorHeadset] = useState("all");
+  const [creatorContactability, setCreatorContactability] = useState("all");
   const [outreachTab, setOutreachTab] = useState<"drafts" | "followups" | "history">("drafts");
   const [exportQuery, setExportQuery] = useState("First 50 people to contact with sample messages, 100-1000 followers");
   const [exportFormat, setExportFormat] = useState<ExportFormat>("csv");
@@ -738,7 +790,14 @@ export default function Page() {
         nowMs - new Date(item.collected_at).getTime() <= 7 * 24 * 60 * 60 * 1000);
     return matchesSearch && matchesPlatform && matchesRelevance && matchesDate && matchesFollowers;
   });
-  const filteredCreators = data.creators.filter((creator) => followerRangeMatches(creatorFollowerCount(creator), creatorFollowers));
+  const filteredCreators = data.creators.filter((creator) => {
+    const matchesFollowers = followerRangeMatches(creatorFollowerCount(creator), creatorFollowers);
+    const matchesScore = scoreBandMatches(creator.creator_quality_score, creatorScoreBand);
+    const matchesActivity = creatorActivity === "all" || (creator.activity_level || "unknown") === creatorActivity;
+    const matchesHeadset = creatorHeadset === "all" || (creator.headset_confidence || "unknown") === creatorHeadset;
+    const matchesContactability = contactabilityMatches(creator, creatorContactability);
+    return matchesFollowers && matchesScore && matchesActivity && matchesHeadset && matchesContactability;
+  });
   const exportRequest = useMemo(() => parseContactExportRequest(exportQuery, exportFormat), [exportFormat, exportQuery]);
   const exportRows = useMemo(() => buildContactExportRows(data.creators, data.drafts, exportRequest), [data.creators, data.drafts, exportRequest]);
   const showAssistant = activeView !== "creators" && activeView !== "export";
@@ -899,6 +958,14 @@ export default function Page() {
                   drafts={data.drafts}
                   followerRange={creatorFollowers}
                   setFollowerRange={setCreatorFollowers}
+                  scoreBand={creatorScoreBand}
+                  setScoreBand={setCreatorScoreBand}
+                  activityFilter={creatorActivity}
+                  setActivityFilter={setCreatorActivity}
+                  headsetFilter={creatorHeadset}
+                  setHeadsetFilter={setCreatorHeadset}
+                  contactabilityFilter={creatorContactability}
+                  setContactabilityFilter={setCreatorContactability}
                   creatorStatus={creatorStatus}
                   setCreatorStatus={setCreatorStatus}
                   creatorPriority={creatorPriority}
@@ -1401,6 +1468,14 @@ function CreatorsView(props: {
   drafts: Draft[];
   followerRange: string;
   setFollowerRange: (value: string) => void;
+  scoreBand: string;
+  setScoreBand: (value: string) => void;
+  activityFilter: string;
+  setActivityFilter: (value: string) => void;
+  headsetFilter: string;
+  setHeadsetFilter: (value: string) => void;
+  contactabilityFilter: string;
+  setContactabilityFilter: (value: string) => void;
   creatorStatus: string;
   setCreatorStatus: (value: string) => void;
   creatorPriority: string;
@@ -1426,8 +1501,8 @@ function CreatorsView(props: {
   const stats = [
     ["Total Creators", props.creators.length],
     ["High Priority", props.creators.filter((creator) => creator.priority === "high").length],
+    ["A-Score", props.creators.filter((creator) => (creator.creator_quality_score || 0) >= 85).length],
     ["Contacted", props.creators.filter((creator) => creator.status === "contacted").length],
-    ["Converted", props.creators.filter((creator) => ["partnered", "converted"].includes(creator.status)).length]
   ];
 
   function toggleColumn(column: string) {
@@ -1445,7 +1520,7 @@ function CreatorsView(props: {
   return (
     <div className="grid gap-5">
       <Card className="p-4">
-        <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_220px]">
+        <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_repeat(5,180px)]">
           <div className="flex items-center gap-2 text-sm text-zinc-500">
             <Filter size={15} />
             Showing {props.creators.length} of {props.allCreatorsCount} creators
@@ -1454,6 +1529,34 @@ function CreatorsView(props: {
             {followerRanges.map((range) => (
               <option key={range.value} value={range.value}>
                 {range.label}
+              </option>
+            ))}
+          </Select>
+          <Select value={props.scoreBand} onChange={(event) => props.setScoreBand(event.target.value)}>
+            {scoreBands.map((band) => (
+              <option key={band.value} value={band.value}>
+                {band.label}
+              </option>
+            ))}
+          </Select>
+          <Select value={props.activityFilter} onChange={(event) => props.setActivityFilter(event.target.value)}>
+            {activityLevels.map((level) => (
+              <option key={level.value} value={level.value}>
+                {level.label}
+              </option>
+            ))}
+          </Select>
+          <Select value={props.headsetFilter} onChange={(event) => props.setHeadsetFilter(event.target.value)}>
+            {headsetConfidenceLevels.map((level) => (
+              <option key={level.value} value={level.value}>
+                {level.label}
+              </option>
+            ))}
+          </Select>
+          <Select value={props.contactabilityFilter} onChange={(event) => props.setContactabilityFilter(event.target.value)}>
+            {contactabilityFilters.map((filter) => (
+              <option key={filter.value} value={filter.value}>
+                {filter.label}
               </option>
             ))}
           </Select>
@@ -1524,6 +1627,10 @@ function CreatorsView(props: {
                         <p className="mt-3 line-clamp-2 text-xs leading-5 text-zinc-500">{creator.niche || creator.fit_reason || "No niche captured yet."}</p>
                         <div className="mt-3 flex flex-wrap gap-2">
                           <SoftBadge tone={toneFor(creator.priority)}>{labelFor(creator.priority)}</SoftBadge>
+                          <SoftBadge>{creator.creator_quality_score ?? "No"} score</SoftBadge>
+                          <SoftBadge>{creator.recent_vr_posts_count ?? 0} VR posts / 90d</SoftBadge>
+                          <SoftBadge>{labelFor(creator.activity_level || "unknown")}</SoftBadge>
+                          <SoftBadge>{labelFor(creator.headset_confidence || "unknown")} headset</SoftBadge>
                           <SoftBadge>{creator.public_contact ? "Contact Found" : "No Contact"}</SoftBadge>
                           <SoftBadge>{followerCountLabel(creatorFollowerCount(creator))}</SoftBadge>
                         </div>
@@ -1658,11 +1765,33 @@ function CreatorFloatingTab({
           </Field>
           <ContextBlock
             rows={[
+              ["Quality score", selectedCreator.creator_quality_score === null || selectedCreator.creator_quality_score === undefined ? "No score captured." : `${selectedCreator.creator_quality_score}/100`],
               ["Audience", selectedCreator.audience_quality || selectedCreator.audience_estimate || "No audience estimate."],
               ["Recent content", selectedCreator.recent_relevant_content || "No recent content captured."],
               ["Profile", selectedCreator.profile_url]
             ]}
           />
+          <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
+            <p className="text-sm font-medium text-zinc-200">Creator evidence</p>
+            <div className="mt-3 grid gap-3 text-sm">
+              <ContextBlock
+                rows={[
+                  ["Activity", `${labelFor(selectedCreator.activity_level || "unknown")} - ${selectedCreator.recent_total_posts_count ?? 0} posts in last 90 days`],
+                  ["VR/XR posts", `${selectedCreator.recent_vr_posts_count ?? 0} in last 90 days`],
+                  ["Last post", selectedCreator.last_post_at ? shortDate(selectedCreator.last_post_at) : "No recent post date captured."],
+                  ["Headset confidence", labelFor(selectedCreator.headset_confidence || "unknown")],
+                  ["Contactability", selectedCreator.contactability_evidence || selectedCreator.public_contact || "No contact path captured."]
+                ]}
+              />
+              <div className="grid gap-3">
+                <EvidenceNote label="VR/XR proof" value={selectedCreator.vr_involvement_evidence} />
+                <EvidenceNote label="Movement fit" value={selectedCreator.movement_fit_evidence} />
+                <EvidenceNote label="Headset evidence" value={selectedCreator.headset_evidence} />
+                <EvidenceNote label="Engagement" value={selectedCreator.engagement_evidence} />
+                <EvidenceNote label="Safety notes" value={selectedCreator.safety_notes} />
+              </div>
+            </div>
+          </div>
           <Field label="Notes / fit reason">
             <TextArea className="min-h-28" value={creatorFitReason} onChange={(event) => setCreatorFitReason(event.target.value)} />
           </Field>
@@ -1686,6 +1815,17 @@ function CreatorFloatingTab({
         </div>
       </div>
     </Card>
+  );
+}
+
+function EvidenceNote({ label, value }: { label: string; value?: string | null }) {
+  return (
+    <div>
+      <p className="text-xs font-medium uppercase tracking-[0.12em] text-zinc-500">{label}</p>
+      <p className="mt-1 rounded-md border border-white/10 bg-white/[0.035] p-3 text-sm leading-6 text-zinc-300">
+        {value?.trim() || "No evidence captured."}
+      </p>
+    </div>
   );
 }
 

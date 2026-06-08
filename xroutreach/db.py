@@ -117,7 +117,20 @@ class OutreachDB:
         result = (
             self.client.table("raw_items")
             .select("*")
-            .in_("source", ["youtube", "twitch"])
+            .in_(
+                "source",
+                [
+                    "youtube",
+                    "twitch",
+                    "apify",
+                    "apify_instagram",
+                    "apify_tiktok",
+                    "apify_youtube",
+                    "apify_youtube_enriched",
+                    "apify_twitch",
+                    "apify_social",
+                ],
+            )
             .order("collected_at", desc=True)
             .limit(limit)
             .execute()

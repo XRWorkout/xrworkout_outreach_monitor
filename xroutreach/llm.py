@@ -115,6 +115,9 @@ class LLM:
                 "title": item.get("title"),
                 "body": item.get("body"),
                 "follower_count": item.get("follower_count"),
+                "creator_evidence": item.get("raw_json", {}).get("creator_evidence")
+                if isinstance(item.get("raw_json"), dict)
+                else {},
                 "keyword": item.get("raw_json", {}).get("keyword")
                 if isinstance(item.get("raw_json"), dict)
                 else "",
@@ -125,13 +128,18 @@ class LLM:
             "raw_items": compact_items,
             "task": (
                 "Build a review list of creators who may be strong fits for XRWorkout. "
-                "Evaluate YouTube and Twitch items inclusively, but prioritize quality. "
+                "Evaluate YouTube, Twitch, and Apify-enriched creator items inclusively, "
+                "but prioritize quality using the candidate-scoring rubric. "
                 "For each plausible creator, return: raw_item_id, name, platform, "
                 "profile_url, public_contact if visible in the input otherwise null, "
                 "niche, audience_estimate using the real follower_count when present, "
                 "audience_quality, why they fit XRWorkout, "
                 "whether they already talk about VR, fitness, gaming, or wellness, "
-                "suggested offer angle, and priority high/medium/low. Include creators "
+                "suggested offer angle, creator_quality_score from 0-100, recent VR "
+                "post count, recent total post count, last post date, activity level, "
+                "VR involvement evidence, movement fit evidence, headset evidence, "
+                "headset confidence, engagement evidence, contactability evidence, "
+                "safety notes, and priority high/medium/low. Include creators "
                 "who are credible VR, MR, Quest, gaming, fitness, wellness, dance, "
                 "boxing, rhythm-game, or tech prospects. Exclude unrelated accounts, "
                 "official brand/company accounts, spam, kids content, unsafe medical "
@@ -292,7 +300,7 @@ CREATOR_BATCH_SCHEMA = {
                 "properties": {
                     "raw_item_id": {"type": ["string", "null"]},
                     "name": {"type": "string"},
-                    "platform": {"type": "string", "enum": ["youtube", "twitch"]},
+                    "platform": {"type": "string"},
                     "profile_url": {"type": "string"},
                     "public_contact": {"type": ["string", "null"]},
                     "niche": {"type": "string"},
@@ -301,6 +309,18 @@ CREATOR_BATCH_SCHEMA = {
                     "fit_reason": {"type": "string"},
                     "talks_about": {"type": "string"},
                     "offer_angle": {"type": "string"},
+                    "creator_quality_score": {"type": "integer", "minimum": 0, "maximum": 100},
+                    "recent_vr_posts_count": {"type": "integer", "minimum": 0},
+                    "recent_total_posts_count": {"type": "integer", "minimum": 0},
+                    "last_post_at": {"type": ["string", "null"]},
+                    "activity_level": {"type": "string", "enum": ["high", "medium", "low", "unknown"]},
+                    "vr_involvement_evidence": {"type": "string"},
+                    "movement_fit_evidence": {"type": "string"},
+                    "headset_evidence": {"type": "string"},
+                    "headset_confidence": {"type": "string", "enum": ["high", "medium", "low", "unknown"]},
+                    "engagement_evidence": {"type": "string"},
+                    "contactability_evidence": {"type": "string"},
+                    "safety_notes": {"type": "string"},
                     "priority": {"type": "string", "enum": ["high", "medium", "low"]},
                 },
                 "required": [
@@ -315,6 +335,18 @@ CREATOR_BATCH_SCHEMA = {
                     "fit_reason",
                     "talks_about",
                     "offer_angle",
+                    "creator_quality_score",
+                    "recent_vr_posts_count",
+                    "recent_total_posts_count",
+                    "last_post_at",
+                    "activity_level",
+                    "vr_involvement_evidence",
+                    "movement_fit_evidence",
+                    "headset_evidence",
+                    "headset_confidence",
+                    "engagement_evidence",
+                    "contactability_evidence",
+                    "safety_notes",
                     "priority",
                 ],
                 "additionalProperties": False,

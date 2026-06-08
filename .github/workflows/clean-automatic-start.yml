@@ -30,6 +30,12 @@ jobs:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
           TWITCH_CLIENT_ID: ${{ secrets.TWITCH_CLIENT_ID }}
           TWITCH_CLIENT_SECRET: ${{ secrets.TWITCH_CLIENT_SECRET }}
+          APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
+          APIFY_CREATOR_ACTORS_JSON: ${{ vars.APIFY_CREATOR_ACTORS_JSON || '[]' }}
+          APIFY_SOCIAL_ACTORS_JSON: ${{ vars.APIFY_SOCIAL_ACTORS_JSON || '[]' }}
+          APIFY_MAX_ITEMS_PER_RUN: ${{ vars.APIFY_MAX_ITEMS_PER_RUN || '100' }}
+          APIFY_MAX_RUNS_PER_DAY: ${{ vars.APIFY_MAX_RUNS_PER_DAY || '4' }}
+          APIFY_ENABLED: ${{ vars.APIFY_ENABLED || 'false' }}
           XRWORKOUT_FOUNDER_NAME: ${{ vars.XRWORKOUT_FOUNDER_NAME }}
           XRWORKOUT_SITE: https://xrworkout.ai
       - run: python scripts/collect_reddit_rss.py --limit 10 --max-total 75 --sleep-seconds 10
@@ -37,6 +43,10 @@ jobs:
       - run: python scripts/collect_youtube.py --limit 2
         env: *env
       - run: python scripts/collect_twitch.py --limit 20
+        env: *env
+      - run: python scripts/collect_apify_creators.py
+        env: *env
+      - run: python scripts/collect_apify_social.py
         env: *env
       - run: python scripts/classify_opportunities.py --limit 75
         env: *env

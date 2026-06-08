@@ -110,9 +110,24 @@ Updated on 2026-06-06.
 - [x] Added dashboard Run Monitor view on 2026-06-06 to show live GitHub Actions run status, per-step status, estimated timing, failed-step guidance, likely fixes, and GitHub run links.
 - [x] Added dashboard Export view on 2026-06-06 for dynamic contact-list requests, follower-range parsing, result previews, sample messages, and downloadable CSV/JSON/text files.
 - [x] Verified the dashboard export update on 2026-06-06: lint passed, typecheck passed, Vitest passed, and production build passed.
+- [x] Implemented disabled-by-default Apify creator and social collectors on 2026-06-08.
+- [x] Added Apify config fields, workflow env wiring, and Starter-plan caps with `APIFY_ENABLED=false` as the safety gate.
+- [x] Added creator-quality scoring evidence fields to Supabase schema for score, 90-day VR/activity counts, activity level, headset confidence/evidence, movement evidence, engagement, contactability, safety notes, and raw evidence JSON.
+- [x] Updated creator discovery to include Apify sources and store candidate-scoring evidence.
+- [x] Updated dashboard creator review with score/activity/headset/contactability filters and a creator evidence panel.
+- [x] Updated weekly report with creator A-score, headset evidence, and active creator counts.
+- [x] Verified Apify/scoring implementation locally: backend tests passed, dashboard lint passed, dashboard typecheck passed, and dashboard Vitest passed.
+- [x] Verified Supabase creator evidence columns exist on 2026-06-08.
+- [x] Added `APIFY_TOKEN` to the XRWorkout GitHub Actions secrets on 2026-06-08.
+- [x] Replaced placeholder Apify GitHub variables with tested low-limit TikTok actor configs and kept `APIFY_ENABLED=false`.
+- [x] Ran low-limit Apify validation on 2026-06-08 using `clockworks/tiktok-scraper`: creator collection wrote `6` unique raw items, social collection wrote `6` unique raw items, classification processed `12` Apify rows with `1 high`, `2 medium`, and `9 low`, and source quality reported `apify_tiktok: raw=12 opportunities=12 high=1 avg_score=33.3 drafts=0`.
+- [x] Apify validation found useful TikTok social signals, including a high-priority Thrill of the Fight / Quest 3 fitness post, but creator-level enrichment needs review because low-limit TikTok profile/search data did not provide enough recent-post history for strong activity scoring.
 
 ## Current Next Tasks
 
+- [ ] Review the 12 Apify TikTok raw/opportunity rows and decide whether the tested TikTok configs are good enough for scheduled supplemental collection.
+- [ ] Keep `APIFY_ENABLED=false` until the Apify TikTok validation rows are reviewed in the dashboard.
+- [ ] Consider adding a better profile-history actor or actor input for creator-level Apify enrichment if recent-post counts/headset evidence remain weak.
 - [ ] Deploy the latest dashboard update with follower filters, cleaned conversation review, the Run Monitor interface, and the new Export tab.
 - [ ] Keep `SEND_AUTOMATION_ENABLED=false` so scheduled approved sends remain disabled.
 - [ ] Keep `DRY_RUN_SEND=true` so dashboard send workflow dispatches remain dry-run only.
@@ -140,4 +155,4 @@ Updated on 2026-06-06.
 - [ ] Scheduled collection/draft/report automation should be enabled only through the dashboard `Clean start` flow or an explicit operator decision.
 - [ ] Scheduled approved sending is intentionally disabled with `SEND_AUTOMATION_ENABLED=false`.
 - [ ] Follow-up sending is intentionally operator-handled in v1; one pending follow-up is due on 2026-06-01.
-- [ ] New source additions are intentionally paused until the Reddit/YouTube/Twitch review loop is trusted.
+- [ ] Apify is intentionally disabled until actor choice, low-limit validation, schema deployment, and Starter-plan usage are reviewed.

@@ -73,7 +73,7 @@ def main() -> None:
     raw_items = rows(db, "raw_items", "source")
     opportunities = rows(db, "opportunities", "platform, priority, score, status")
     drafts = rows(db, "drafts", "status, channel, opportunities(platform, raw_items(source))")
-    creators = rows(db, "creators", "status, public_contact")
+    creators = rows(db, "creators", "status, public_contact, creator_quality_score, headset_confidence, activity_level")
     followups = rows(db, "followups", "status, due_date")
     quality = source_quality(raw_items, opportunities, drafts)
 
@@ -91,6 +91,9 @@ def main() -> None:
     print(f"rejected drafts: {sum(1 for row in drafts if row.get('status') == 'rejected')}")
     print(f"creators missing contact: {sum(1 for row in creators if not row.get('public_contact'))}")
     print(f"creators contact-ready: {sum(1 for row in creators if row.get('status') == 'contact_ready')}")
+    print(f"creators A-score: {sum(1 for row in creators if int(row.get('creator_quality_score') or 0) >= 85)}")
+    print(f"creators with headset evidence: {sum(1 for row in creators if row.get('headset_confidence') in {'high', 'medium'})}")
+    print(f"active creators: {sum(1 for row in creators if row.get('activity_level') in {'high', 'medium'})}")
     print(f"due or overdue follow-ups: {due_followup_count(followups, today)}")
     print("")
     print("Source quality")

@@ -10,7 +10,7 @@ XRWorkout needs to stay close to the people already talking about VR fitness, mi
 
 Doing that manually is slow and inconsistent. This repo builds the operating layer:
 
-- Collect relevant signals from Reddit RSS, YouTube, and Twitch.
+- Collect relevant signals from Reddit RSS, YouTube, Twitch, and disabled-by-default Apify creator/social actors.
 - Deduplicate source items before they enter the pipeline.
 - Use Codex CLI to classify, score, and summarize opportunities.
 - Promote promising creators into a reviewable prospect table.
@@ -33,7 +33,7 @@ For the detailed intake, filtering, prioritization, channel decision, tracker, a
 ## System Overview
 
 ```text
-Reddit / YouTube / Twitch
+Reddit / YouTube / Twitch / Apify
         |
         v
 Collectors write deduped raw_items
@@ -67,28 +67,29 @@ Dashboard presents conversations, opportunity feeds, creator pipeline, outreach 
 - Reddit RSS collector for low-volume public Reddit monitoring, with the PRAW collector retained as a future OAuth/API fallback.
 - YouTube collector using the YouTube Data API.
 - Twitch collector using the Twitch Helix API.
+- Disabled-by-default Apify creator and social collectors with Starter-plan item/run caps.
 - Codex CLI wrapper for classification, creator discovery, and draft generation.
 - Brevo email sender with dry-run support.
 - Approval-only sending logic.
 - Follow-up task creation after sent emails.
-- Weekly report script with action queues and source-quality ranking.
+- Weekly report script with action queues, creator-quality evidence counts, and source-quality ranking.
 - Clean reset script for deleting operational outreach rows before a fresh run.
 - GitHub Actions schedules for collection, drafts, approved sends, and weekly reporting.
 - Manual clean automatic start workflow that resets outreach data, runs collection/classification/creator discovery/draft generation, then reports counts.
 - Scheduled collection, draft, and report jobs are gated by `AUTOMATION_ENABLED`; scheduled approved sends are gated by `SEND_AUTOMATION_ENABLED`; manual runs still work for validation.
 - Next.js dashboard under `dashboard/` with Supabase login, operator allowlist, dark-mode Outreach OS navigation, Dashboard, Conversations, Conversation Map, Creators, Outreach, Export, Automations, Run Monitor, Analytics, and Settings views.
-- Dashboard product surfaces include presentation-layer labels, KPI cards, live opportunity feed, AI-style recommendations, social listening filters, interactive source radar, creator kanban, outreach review drawers, contact export builder, automation agent cards, workflow controls, live run monitoring, and source attribution charts.
+- Dashboard product surfaces include presentation-layer labels, KPI cards, live opportunity feed, AI-style recommendations, social listening filters, interactive source radar, creator-quality filters/evidence panels, creator kanban, outreach review drawers, contact export builder, automation agent cards, workflow controls, live run monitoring, and source attribution charts.
 - Deployed dashboard for day-to-day review and automation controls.
 - Audited dashboard editing for opportunity status, creator review fields, follow-up outcomes, and offer outcomes.
 - Manual dashboard dispatch from selected opportunities into the LLM draft generator.
 - Dashboard clean automatic start control for wiping outreach rows, launching the fresh pipeline, enabling scheduled collection/drafts, and keeping sends disabled in dry-run mode.
 - Dry-run-only dashboard send dispatch while `DRY_RUN_SEND=true`.
-- Unit tests for deduplication, scoring rules, follow-up timing/context, database batch dedupe, public contact extraction, source-quality reporting, and sender recipient extraction.
+- Unit tests for deduplication, scoring rules, Apify normalization, creator quality scoring, follow-up timing/context, database batch dedupe, public contact extraction, source-quality reporting, and sender recipient extraction.
 
 ## What Is Planned
 
 - Expand dashboard outcome tracking after the first controlled send loop is complete.
-- Add new sources only after the Reddit/YouTube/Twitch review loop is consistently producing high-quality opportunities.
+- Configure and validate Apify actors at low limits before enabling scheduled supplemental scraping.
 
 ## Tech Stack
 
@@ -102,6 +103,7 @@ Dashboard presents conversations, opportunity feeds, creator pipeline, outreach 
 | Reddit | Reddit RSS for v1, PRAW / Reddit Data API as a future fallback |
 | YouTube | YouTube Data API |
 | Twitch | Twitch Helix API |
+| Apify | Supplemental creator/social scraping, disabled until actor quality and budget are validated |
 | Email | Brevo |
 | Tests | Pytest |
 | Dashboard | Next.js on Vercel, Tailwind CSS, local shadcn-style primitives, Supabase Auth, GitHub API |
@@ -128,8 +130,10 @@ Dashboard presents conversations, opportunity feeds, creator pipeline, outreach 
 | `scripts/collect_reddit.py` | Legacy PRAW collector retained for a future Reddit API upgrade. |
 | `scripts/collect_youtube.py` | Collects relevant YouTube videos and channel context, preserving visible public contact emails from API metadata when present. |
 | `scripts/collect_twitch.py` | Collects relevant Twitch channel records. |
+| `scripts/collect_apify_creators.py` | Runs configured Apify creator actors when `APIFY_ENABLED=true`, normalizes profile/recent-post evidence, and stores rows in `raw_items`. |
+| `scripts/collect_apify_social.py` | Runs configured Apify social-listening actors when `APIFY_ENABLED=true` and stores post-level signals in `raw_items`. |
 | `scripts/classify_opportunities.py` | Scores raw items and creates outreach opportunities. |
-| `scripts/discover_creators.py` | Promotes strong creator prospects into `creators` and carries forward visible public contact metadata for human validation. |
+| `scripts/discover_creators.py` | Promotes strong creator prospects into `creators`, applies candidate scoring evidence, and carries forward visible public contact metadata for human validation. |
 | `scripts/generate_drafts.py` | Creates outreach drafts for high-priority safe opportunities. |
 | `scripts/generate_draft_for_opportunity.py` | Creates one LLM-generated `needs_review` draft for an operator-selected opportunity. |
 | `scripts/reset_outreach_data.py` | Deletes operational outreach rows from `followups`, `offers`, `drafts`, `opportunities`, `creators`, and `raw_items`; keeps schema and audit logs. |
@@ -197,6 +201,7 @@ Local `.env` values and GitHub repository secrets should include:
 - `BREVO_API_KEY`
 - `BREVO_FROM_EMAIL`
 - `BREVO_FROM_NAME`
+- `APIFY_TOKEN`, only required when Apify collection is enabled
 
 Optional settings:
 
@@ -210,6 +215,11 @@ Optional settings:
 - `EMAIL_PROVIDER`, defaults to `brevo`
 - `DRY_RUN_SEND`, keep `true` so dashboard send dispatches stay dry-run only
 - `REDDIT_USER_AGENT`, optional; defaults to a clear XRWorkout monitoring user agent
+- `APIFY_ENABLED`, keep `false` until actors and usage are validated
+- `APIFY_CREATOR_ACTORS_JSON`, JSON array of actor configs
+- `APIFY_SOCIAL_ACTORS_JSON`, JSON array of actor configs
+- `APIFY_MAX_ITEMS_PER_RUN`, defaults to `100`
+- `APIFY_MAX_RUNS_PER_DAY`, defaults to `4`
 
 ## Local Dry Run
 
@@ -219,6 +229,9 @@ Run the pipeline in small batches while validating credentials and data quality:
 python scripts/collect_reddit_rss.py --limit 5 --max-total 25 --sleep-seconds 2
 python scripts/collect_youtube.py --limit 10
 python scripts/collect_twitch.py --limit 10
+# after Apify actors are configured and APIFY_ENABLED=true:
+python scripts/collect_apify_creators.py --limit 25
+python scripts/collect_apify_social.py --limit 25
 python scripts/classify_opportunities.py --limit 10
 python scripts/discover_creators.py --limit 10
 python scripts/generate_drafts.py --limit 10
@@ -235,7 +248,7 @@ Keep `DRY_RUN_SEND=true` during setup. The send script can also be run with `--d
 2. Start on Dashboard for KPIs, priority opportunities, live feed items, and AI-style next-step recommendations.
 3. Use Conversations for social listening filters and source context.
 4. Use Conversation Map to see which platforms are live, inactive, or producing useful opportunities.
-5. Use Creators to validate contact details, fit, offer angle, and pipeline status.
+5. Use Creators to validate quality score, recent VR/activity evidence, headset evidence, contact details, fit, offer angle, and pipeline status.
 6. Use Outreach to review `needs_review` drafts, scheduled follow-ups, and outreach history.
 7. Use Export to create downloadable contact lists from creator data, follower ranges, and sample message context.
 8. When an opportunity is worth outreach, use `Generate LLM draft` from the opportunity review pane.
@@ -269,6 +282,7 @@ Launch control:
 - Approved-send schedules stop early unless `SEND_AUTOMATION_ENABLED` is explicitly `true`.
 - If either automation variable is missing, that schedule behaves as disabled.
 - Keep manual runs available for testing while scheduled automation is disabled.
+- Keep `APIFY_ENABLED=false` until low-limit Apify actor validation is reviewed.
 - Keep `DRY_RUN_SEND=true` as the separate email safety switch; dashboard send dispatch is dry-run only.
 - The dashboard `Clean start` action sets `AUTOMATION_ENABLED=true`, `SEND_AUTOMATION_ENABLED=false`, and `DRY_RUN_SEND=true` before dispatching `clean-automatic-start.yml`.
 
@@ -282,7 +296,7 @@ Current views:
 - Source charts and source-quality ranking showing platform volume, classified opportunities, high-priority count, average score, drafts, and approved/sent count.
 - Opportunity queue with filters for platform, priority, score, age, safety status, and recommended action.
 - Draft review view with editable subject/body, recipient contact, creator profile, linked opportunity, original source link, and approve/reject/edit-needed actions.
-- Creator pipeline with contact availability, profile URL, recent relevant content, niche, fit reason, offer angle, status, and priority.
+- Creator pipeline with contact availability, profile URL, quality score, recent VR/activity counts, headset confidence, movement evidence, engagement/contactability evidence, safety notes, recent relevant content, niche, fit reason, offer angle, status, and priority.
 - Follow-up queue for due and overdue follow-ups with original draft, creator contact, creator profile, linked opportunity, and source link.
 - Export builder for dynamic contact-list requests, follower-range parsing, result previews, sample outreach messages, and downloadable CSV, JSON, or readable text files.
 - Offer tracking for the 3-month-free creator offer and content outcomes.
@@ -321,7 +335,7 @@ Remaining launch blockers:
 - Deploy the latest dashboard update, then review real Supabase rows and generated drafts through the improved dashboard context.
 - Keep scheduled automation disabled until the project is ready for production operation.
 - Keep follow-up sending operator-handled in v1.
-- Keep new source additions paused until existing source quality and review operations are trusted.
+- Keep Apify disabled until schema deployment, actor choice, low-limit validation, and Starter-plan usage are reviewed.
 
 ## Maintenance
 
