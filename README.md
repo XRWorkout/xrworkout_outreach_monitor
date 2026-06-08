@@ -132,6 +132,9 @@ Dashboard presents conversations, opportunity feeds, creator pipeline, outreach 
 | `scripts/collect_twitch.py` | Collects relevant Twitch channel records. |
 | `scripts/collect_apify_creators.py` | Runs configured Apify creator actors when `APIFY_ENABLED=true`, normalizes profile/recent-post evidence, and stores rows in `raw_items`. |
 | `scripts/collect_apify_social.py` | Runs configured Apify social-listening actors when `APIFY_ENABLED=true` and stores post-level signals in `raw_items`. |
+| `scripts/collect_apify_conversations.py` | Runs configured public conversation actors for X/Twitter, Facebook groups/pages, TikTok, Discord server discovery, and other Apify-backed social sources. |
+| `scripts/collect_forums.py` | Collects public Discourse-style VR/forum threads through public JSON endpoints. |
+| `scripts/collect_blogs.py` | Collects VR/XR blog and news RSS/Atom feed articles. |
 | `scripts/classify_opportunities.py` | Scores raw items and creates outreach opportunities. |
 | `scripts/discover_creators.py` | Promotes strong creator prospects into `creators`, applies candidate scoring evidence, and carries forward visible public contact metadata for human validation. |
 | `scripts/generate_drafts.py` | Creates outreach drafts for high-priority safe opportunities. |
@@ -218,8 +221,11 @@ Optional settings:
 - `APIFY_ENABLED`, keep `false` until actors and usage are validated
 - `APIFY_CREATOR_ACTORS_JSON`, JSON array of actor configs
 - `APIFY_SOCIAL_ACTORS_JSON`, JSON array of actor configs
+- `APIFY_CONVERSATION_ACTORS_JSON`, JSON array of public conversation actor configs
 - `APIFY_MAX_ITEMS_PER_RUN`, defaults to `100`
 - `APIFY_MAX_RUNS_PER_DAY`, defaults to `4`
+- `FORUM_SOURCES_JSON`, JSON array of public Discourse/forum sources
+- `BLOG_FEEDS_JSON`, JSON array of RSS/Atom feed sources
 
 ## Local Dry Run
 
@@ -232,6 +238,9 @@ python scripts/collect_twitch.py --limit 10
 # after Apify actors are configured and APIFY_ENABLED=true:
 python scripts/collect_apify_creators.py --limit 25
 python scripts/collect_apify_social.py --limit 25
+python scripts/collect_apify_conversations.py --limit 25
+python scripts/collect_forums.py --limit 3
+python scripts/collect_blogs.py --limit 3
 python scripts/classify_opportunities.py --limit 10
 python scripts/discover_creators.py --limit 10
 python scripts/generate_drafts.py --limit 10
@@ -294,6 +303,7 @@ Current views:
 
 - Overview metrics for raw items, opportunities, creators, drafts, follow-ups, offers, action queues, and best-performing source.
 - Source charts and source-quality ranking showing platform volume, classified opportunities, high-priority count, average score, drafts, and approved/sent count.
+- Conversation Map and Conversations filters for platform, source type, intent, relevance, date, and follower range across X/Twitter, TikTok, YouTube, Reddit, Facebook, Discord discovery, VR forums, and VR blogs.
 - Opportunity queue with filters for platform, priority, score, age, safety status, and recommended action.
 - Draft review view with editable subject/body, recipient contact, creator profile, linked opportunity, original source link, and approve/reject/edit-needed actions.
 - Creator pipeline with contact availability, profile URL, quality score, recent VR/activity counts, headset confidence, movement evidence, engagement/contactability evidence, safety notes, recent relevant content, niche, fit reason, offer angle, status, and priority.
@@ -303,6 +313,8 @@ Current views:
 - Automation status showing schedule state, last workflow runs, failures, `AUTOMATION_ENABLED`, `SEND_AUTOMATION_ENABLED`, and `DRY_RUN_SEND`.
 - Automation controls for toggling automation variables, starting a clean automatic pipeline, and manually dispatching collection, draft, approved-send dry runs, and reports.
 - Run Monitor showing live GitHub Actions run status, step timing, failed-step guidance, and run links.
+
+Discord handling is intentionally limited to public server discovery metadata. Message ingestion requires an explicit future authorized bot path for servers XRWorkout owns or has permission to monitor.
 
 ## Safety Rules
 

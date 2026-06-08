@@ -14,24 +14,39 @@ def rows(db: OutreachDB, table: str, select: str) -> list[dict]:
     return result.data or []
 
 
+def source_cluster(source: str | None) -> str:
+    normalized = (source or "unknown").lower()
+    if normalized in {"apify_x", "apify_twitter", "twitter"}:
+        return "x"
+    if normalized in {"apify_facebook", "apify_facebook_group", "apify_facebook_groups", "facebook", "facebook_groups"}:
+        return "facebook_group"
+    if normalized in {"apify_discord", "discord_server"}:
+        return "discord"
+    if normalized == "vr_forums":
+        return "vr_forum"
+    if normalized == "blogs":
+        return "vr_blog"
+    return normalized
+
+
 def source_quality(raw_items: list[dict], opportunities: list[dict], drafts: list[dict]) -> list[dict]:
     raw_counts: dict[str, int] = defaultdict(int)
     for item in raw_items:
-        raw_counts[item.get("source") or "unknown"] += 1
+        raw_counts[source_cluster(item.get("source"))] += 1
 
     draft_counts: dict[str, int] = defaultdict(int)
     approved_sent_counts: dict[str, int] = defaultdict(int)
     for draft in drafts:
         opportunity = draft.get("opportunities") or {}
         raw_item = opportunity.get("raw_items") or {}
-        source = raw_item.get("source") or opportunity.get("platform") or "unknown"
+        source = source_cluster(raw_item.get("source") or opportunity.get("platform"))
         draft_counts[source] += 1
         if draft.get("status") in {"approved", "sent"}:
             approved_sent_counts[source] += 1
 
     grouped: dict[str, list[dict]] = defaultdict(list)
     for opportunity in opportunities:
-        grouped[opportunity.get("platform") or "unknown"].append(opportunity)
+        grouped[source_cluster(opportunity.get("platform"))].append(opportunity)
 
     all_sources = set(raw_counts) | set(grouped) | set(draft_counts)
     quality = []

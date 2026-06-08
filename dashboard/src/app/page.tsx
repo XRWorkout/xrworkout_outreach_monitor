@@ -134,6 +134,23 @@ const contactabilityFilters = [
   { value: "manual", label: "Manual Path" },
   { value: "missing", label: "Missing Contact" }
 ] as const;
+const sourceTypeFilters = [
+  { value: "all", label: "Any Source Type" },
+  { value: "social_post", label: "Posts" },
+  { value: "forum_thread", label: "Threads" },
+  { value: "blog_article", label: "Articles" },
+  { value: "group_post", label: "Group Posts" },
+  { value: "profile_lead", label: "Profile Leads" },
+  { value: "server_discovery", label: "Servers" }
+] as const;
+const intentFilters = [
+  { value: "all", label: "Any Intent" },
+  { value: "recommendation_request", label: "Recommendation" },
+  { value: "complaint", label: "Pain Point" },
+  { value: "creator_opportunity", label: "Creator Prospect" },
+  { value: "trend_news", label: "Trend / News" },
+  { value: "partnership_lead", label: "Contact Lead" }
+] as const;
 const creatorBoardColumns = ["Discovered", "Qualified", "Contacted", "Responded", "Partnered"] as const;
 
 async function fetchJson<T>(path: string, token: string, init?: RequestInit): Promise<T> {
@@ -271,6 +288,15 @@ function contactabilityMatches(creator: Creator, filter: string) {
   if (filter === "manual") return !contact.includes("@") && Boolean(contact.trim());
   if (filter === "missing") return !contact.trim();
   return true;
+}
+
+function activityEvidenceLabel(creator: Creator) {
+  const level = creator.activity_level || "unknown";
+  const total = creator.recent_total_posts_count ?? 0;
+  if (level === "unknown" || total <= 1) {
+    return "Activity history not captured.";
+  }
+  return `${labelFor(level)} - ${total} posts in last 90 days`;
 }
 
 function exportSafeFilename(value: string) {
@@ -430,6 +456,19 @@ function hasConversationContent(item: RawItem) {
   return Boolean(item.title?.trim() || item.body?.trim());
 }
 
+function rawString(item: RawItem, key: string) {
+  const value = item.raw_json?.[key];
+  return typeof value === "string" ? value : "";
+}
+
+function sourceType(item: RawItem) {
+  return rawString(item, "source_type") || "social_post";
+}
+
+function conversationManualAction(item: RawItem) {
+  return rawString(item, "manual_action") || (sourceType(item) === "server_discovery" ? "review_source" : "join_manually");
+}
+
 function conversationTitle(item: RawItem, opportunity?: Opportunity) {
   return item.title?.trim() || opportunity?.summary || `${platformLabel(item.source)} signal from ${item.author_name || "unknown creator"}`;
 }
@@ -481,6 +520,8 @@ export default function Page() {
   const [conversationRelevance, setConversationRelevance] = useState("all");
   const [conversationDate, setConversationDate] = useState("all");
   const [conversationFollowers, setConversationFollowers] = useState("all");
+  const [conversationSourceType, setConversationSourceType] = useState("all");
+  const [conversationIntent, setConversationIntent] = useState("all");
   const [creatorFollowers, setCreatorFollowers] = useState("all");
   const [creatorScoreBand, setCreatorScoreBand] = useState("all");
   const [creatorActivity, setCreatorActivity] = useState("all");
@@ -776,6 +817,8 @@ export default function Page() {
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(query));
     const matchesPlatform = conversationPlatform === "all" || item.source === conversationPlatform;
+    const matchesSourceType = conversationSourceType === "all" || sourceType(item) === conversationSourceType;
+    const matchesIntent = conversationIntent === "all" || linkedOpportunity?.opportunity_type === conversationIntent;
     const matchesFollowers = followerRangeMatches(conversationFollowerCount(item, linkedOpportunity), conversationFollowers);
     const matchesRelevance =
       conversationRelevance === "all" ||
@@ -788,7 +831,7 @@ export default function Page() {
       (conversationDate === "week" &&
         item.collected_at &&
         nowMs - new Date(item.collected_at).getTime() <= 7 * 24 * 60 * 60 * 1000);
-    return matchesSearch && matchesPlatform && matchesRelevance && matchesDate && matchesFollowers;
+    return matchesSearch && matchesPlatform && matchesSourceType && matchesIntent && matchesRelevance && matchesDate && matchesFollowers;
   });
   const filteredCreators = data.creators.filter((creator) => {
     const matchesFollowers = followerRangeMatches(creatorFollowerCount(creator), creatorFollowers);
@@ -939,6 +982,10 @@ export default function Page() {
                   setDate={setConversationDate}
                   followers={conversationFollowers}
                   setFollowers={setConversationFollowers}
+                  sourceTypeFilter={conversationSourceType}
+                  setSourceTypeFilter={setConversationSourceType}
+                  intentFilter={conversationIntent}
+                  setIntentFilter={setConversationIntent}
                   onReviewOpportunity={reviewOpportunity}
                   onDraftOpportunity={(opportunity) => {
                     reviewOpportunity(opportunity);
@@ -1271,6 +1318,10 @@ function ConversationsView({
   setDate,
   followers,
   setFollowers,
+  sourceTypeFilter,
+  setSourceTypeFilter,
+  intentFilter,
+  setIntentFilter,
   onReviewOpportunity,
   onDraftOpportunity
 }: {
@@ -1288,13 +1339,17 @@ function ConversationsView({
   setDate: (value: string) => void;
   followers: string;
   setFollowers: (value: string) => void;
+  sourceTypeFilter: string;
+  setSourceTypeFilter: (value: string) => void;
+  intentFilter: string;
+  setIntentFilter: (value: string) => void;
   onReviewOpportunity: (opportunity: Opportunity) => void;
   onDraftOpportunity: (opportunity: Opportunity) => void;
 }) {
   return (
     <div className="grid gap-5">
       <Card className="p-4">
-        <div className="grid gap-3 md:grid-cols-[minmax(0,1.6fr)_repeat(4,minmax(140px,1fr))]">
+        <div className="grid gap-3 md:grid-cols-[minmax(0,1.6fr)_repeat(6,minmax(140px,1fr))]">
           <label className="relative">
             <Search className="pointer-events-none absolute left-3 top-3 text-zinc-500" size={16} />
             <TextInput className="pl-9" placeholder="Search conversations, authors, communities" value={search} onChange={(event) => setSearch(event.target.value)} />
@@ -1303,6 +1358,20 @@ function ConversationsView({
             {platforms.map((item) => (
               <option key={item} value={item}>
                 {item === "all" ? "All Platforms" : platformLabel(item)}
+              </option>
+            ))}
+          </Select>
+          <Select value={sourceTypeFilter} onChange={(event) => setSourceTypeFilter(event.target.value)}>
+            {sourceTypeFilters.map((item) => (
+              <option key={item.value} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </Select>
+          <Select value={intentFilter} onChange={(event) => setIntentFilter(event.target.value)}>
+            {intentFilters.map((item) => (
+              <option key={item.value} value={item.value}>
+                {item.label}
               </option>
             ))}
           </Select>
@@ -1341,9 +1410,11 @@ function ConversationsView({
                   <div className="min-w-0">
                     <div className="mb-2 flex flex-wrap gap-2">
                       <SoftBadge>{platformLabel(item.source)}</SoftBadge>
+                      <SoftBadge>{labelFor(sourceType(item))}</SoftBadge>
                       <SoftBadge tone={opportunity ? toneFor(opportunity.priority) : "neutral"}>
                         {opportunity ? scoreText(opportunity.score) : "Not scored yet"}
                       </SoftBadge>
+                      {opportunity?.opportunity_type ? <SoftBadge>{labelFor(opportunity.opportunity_type)}</SoftBadge> : null}
                       <SoftBadge>{opportunity?.outreach_safety ? labelFor(opportunity.outreach_safety) : "Review pending"}</SoftBadge>
                     </div>
                     <h3 className="text-base font-medium text-white">{conversationTitle(item, opportunity)}</h3>
@@ -1353,17 +1424,17 @@ function ConversationsView({
                       <span>{followerCountLabel(followerCount)}</span>
                       <span>{shortDate(item.collected_at || item.published_at)}</span>
                       <span>Engagement: {opportunity ? labelFor(opportunity.priority) : "Unknown"}</span>
-                      <span>Sentiment: Not scored yet</span>
+                      <span>{rawString(item, "automation_policy") || "Manual review only"}</span>
                     </div>
                   </div>
                   <div className="flex shrink-0 flex-wrap gap-2">
                     {item.source_url ? (
                       <a className="inline-flex min-h-9 items-center gap-2 rounded-md border border-white/10 bg-white/[0.06] px-3 text-sm text-zinc-100" href={item.source_url} target="_blank" rel="noreferrer">
-                        View Context <ExternalLink size={14} />
+                        {conversationManualAction(item) === "join_manually" ? "Join manually" : "Review source"} <ExternalLink size={14} />
                       </a>
                     ) : null}
                     <Button variant="secondary" disabled={!opportunity} onClick={() => opportunity && onReviewOpportunity(opportunity)}>
-                      Save Opportunity
+                      Review Opportunity
                     </Button>
                     <Button variant="primary" disabled={!opportunity} onClick={() => opportunity && onDraftOpportunity(opportunity)}>
                       Draft Reply
@@ -1776,7 +1847,7 @@ function CreatorFloatingTab({
             <div className="mt-3 grid gap-3 text-sm">
               <ContextBlock
                 rows={[
-                  ["Activity", `${labelFor(selectedCreator.activity_level || "unknown")} - ${selectedCreator.recent_total_posts_count ?? 0} posts in last 90 days`],
+                  ["Activity", activityEvidenceLabel(selectedCreator)],
                   ["VR/XR posts", `${selectedCreator.recent_vr_posts_count ?? 0} in last 90 days`],
                   ["Last post", selectedCreator.last_post_at ? shortDate(selectedCreator.last_post_at) : "No recent post date captured."],
                   ["Headset confidence", labelFor(selectedCreator.headset_confidence || "unknown")],

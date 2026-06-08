@@ -12,6 +12,10 @@ from xroutreach.rules import priority_for_score
 
 CLASSIFY_SYSTEM = """You classify outreach opportunities for XRWorkout.
 XRWorkout is a VR/MR fitness product. Prefer high-quality, low-volume outreach.
+Conversation Map rows may come from social posts, public forum threads, public group posts, server discovery, profile-history enrichment, contact enrichment, or blog/news articles.
+Score for product fit, intent, reach, and safety. Prefer manual comment or manual DM for public/social conversations; never imply the system should auto-post or auto-DM.
+For Discord server discovery, blogs, or broad news/trend rows, usually recommend monitor unless there is a clear creator, partnership, or public conversation to review.
+Hard-stop spam, unsafe medical claims, kids/minors-focused content, competitor-owned accounts, private-community content, or anything that would be intrusive.
 Never recommend spam. Return strict JSON only."""
 
 DRAFT_SYSTEM = """You write concise founder-led XRWorkout outreach message drafts.
@@ -40,6 +44,7 @@ class LLM:
             "body": raw_item.get("body"),
             "author_name": raw_item.get("author_name"),
             "source_url": raw_item.get("source_url"),
+            "raw_json": raw_item.get("raw_json") if isinstance(raw_item.get("raw_json"), dict) else {},
             "instructions": {
                 "score_fields": [
                     "relevance",
@@ -54,8 +59,10 @@ class LLM:
                     "complaint",
                     "does_vr_fitness_work",
                     "creator_opportunity",
+                    "partnership_lead",
                     "community_event",
                     "press_newsletter",
+                    "trend_news",
                     "product_feedback",
                     "support_issue",
                     "competitor_owned",
@@ -228,6 +235,8 @@ CLASSIFY_SCHEMA = {
                 "press_newsletter",
                 "product_feedback",
                 "support_issue",
+                "partnership_lead",
+                "trend_news",
                 "competitor_owned",
                 "do_not_engage",
             ],

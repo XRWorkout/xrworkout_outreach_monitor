@@ -171,11 +171,15 @@ export function funnelData(summary: SummaryData | null, opportunities: Opportuni
 }
 
 export function platformNodes(summary: SummaryData | null, creators: Creator[]) {
-  const configured = ["reddit", "discord", "twitter", "youtube", "tiktok", "instagram", "facebook_groups", "vr_forums", "blogs"];
+  const configured = ["reddit", "discord", "x", "youtube", "tiktok", "instagram", "facebook_group", "vr_forum", "vr_blog"];
   const sourceQuality = new Map((summary?.sourceQuality || []).map((row) => [row.source.toLowerCase(), row]));
   return configured.map((source, index) => {
     const quality = sourceQuality.get(source) || sourceQuality.get(source === "twitter" ? "x" : source);
-    const creatorDensity = creators.filter((creator) => creator.platform.toLowerCase() === source || creator.platform.toLowerCase() === "x").length;
+    const creatorDensity = creators.filter((creator) => {
+      const platform = creator.platform.toLowerCase();
+      if (source === "x") return platform === "x" || platform === "twitter" || platform === "apify_x";
+      return platform === source;
+    }).length;
     return {
       id: source,
       label: platformLabel(source),

@@ -129,6 +129,11 @@ class OutreachDB:
                     "apify_youtube_enriched",
                     "apify_twitch",
                     "apify_social",
+                    "apify_x",
+                    "apify_twitter",
+                    "apify_facebook",
+                    "apify_facebook_group",
+                    "apify_discord",
                 ],
             )
             .order("collected_at", desc=True)

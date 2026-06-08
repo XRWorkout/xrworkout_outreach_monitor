@@ -71,6 +71,15 @@ def follower_count_from_item(item: dict[str, Any]) -> int | None:
     return raw_count if isinstance(raw_count, int) and raw_count >= 0 else None
 
 
+def has_reliable_creator_history(item: dict[str, Any]) -> bool:
+    source = str(item.get("source") or "")
+    if not source.startswith("apify"):
+        return True
+    raw_json = item.get("raw_json") if isinstance(item.get("raw_json"), dict) else {}
+    evidence = raw_json.get("creator_evidence") if isinstance(raw_json.get("creator_evidence"), dict) else {}
+    return evidence.get("history_quality") == "profile_history"
+
+
 def has_term(text: str, term: str) -> bool:
     if " " in term:
         return term in text
@@ -198,7 +207,8 @@ def main() -> None:
     created = 0
     skipped = 0
     fallback_created = 0
-    items = db.fetch_creator_source_items(args.limit)
+    items = db.fetch_creator_source_items(args.limit * 3)
+    items = [item for item in items if has_reliable_creator_history(item)][: args.limit]
     if not items:
         print("Creator discovery: scanned=0 upserted=0 fallback=0 skipped=0")
         return

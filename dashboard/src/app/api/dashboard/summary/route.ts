@@ -25,7 +25,17 @@ function firstRelation<T>(value: T | T[] | null | undefined): T | null {
 function sourceForDraft(draft: { opportunities?: JoinedOpportunity }) {
   const opportunity = firstRelation(draft.opportunities);
   const rawItem = firstRelation(opportunity?.raw_items);
-  return rawItem?.source || opportunity?.platform || "unknown";
+  return sourceCluster(rawItem?.source || opportunity?.platform || "unknown");
+}
+
+function sourceCluster(source?: string | null) {
+  const normalized = (source || "unknown").toLowerCase();
+  if (["apify_x", "apify_twitter", "twitter"].includes(normalized)) return "x";
+  if (["apify_facebook", "apify_facebook_group", "apify_facebook_groups", "facebook", "facebook_groups"].includes(normalized)) return "facebook_group";
+  if (["apify_discord", "discord_server"].includes(normalized)) return "discord";
+  if (["vr_forums"].includes(normalized)) return "vr_forum";
+  if (["blogs"].includes(normalized)) return "vr_blog";
+  return normalized;
 }
 
 function buildSourceQuality(
@@ -58,10 +68,10 @@ function buildSourceQuality(
   }
 
   rawRows.forEach((raw) => {
-    row(raw.source || "unknown").rawItems += 1;
+    row(sourceCluster(raw.source)).rawItems += 1;
   });
   opportunityRows.forEach((opportunity) => {
-    const current = row(opportunity.platform || "unknown");
+    const current = row(sourceCluster(opportunity.platform));
     current.opportunities += 1;
     current.scoreTotal += Number(opportunity.score || 0);
     if (opportunity.priority === "high") current.highPriority += 1;

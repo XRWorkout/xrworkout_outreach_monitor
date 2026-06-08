@@ -36,9 +36,12 @@ jobs:
           APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
           APIFY_CREATOR_ACTORS_JSON: ${{ vars.APIFY_CREATOR_ACTORS_JSON || '[]' }}
           APIFY_SOCIAL_ACTORS_JSON: ${{ vars.APIFY_SOCIAL_ACTORS_JSON || '[]' }}
+          APIFY_CONVERSATION_ACTORS_JSON: ${{ vars.APIFY_CONVERSATION_ACTORS_JSON || '[]' }}
           APIFY_MAX_ITEMS_PER_RUN: ${{ vars.APIFY_MAX_ITEMS_PER_RUN || '100' }}
           APIFY_MAX_RUNS_PER_DAY: ${{ vars.APIFY_MAX_RUNS_PER_DAY || '4' }}
           APIFY_ENABLED: ${{ vars.APIFY_ENABLED || 'false' }}
+          FORUM_SOURCES_JSON: ${{ vars.FORUM_SOURCES_JSON || '[]' }}
+          BLOG_FEEDS_JSON: ${{ vars.BLOG_FEEDS_JSON || '[]' }}
       - run: python scripts/collect_youtube.py --limit 2
         env: *env
       - run: python scripts/collect_twitch.py --limit 20
@@ -46,6 +49,12 @@ jobs:
       - run: python scripts/collect_apify_creators.py
         env: *env
       - run: python scripts/collect_apify_social.py
+        env: *env
+      - run: python scripts/collect_apify_conversations.py
+        env: *env
+      - run: python scripts/collect_forums.py --limit 10
+        env: *env
+      - run: python scripts/collect_blogs.py --limit 10
         env: *env
       - run: python scripts/classify_opportunities.py --limit 75
         env: *env

@@ -1,6 +1,12 @@
 from __future__ import annotations
 
-from scripts.discover_creators import creator_row, fallback_creator_fit, fit_source_item, public_contact_from_item
+from scripts.discover_creators import (
+    creator_row,
+    fallback_creator_fit,
+    fit_source_item,
+    has_reliable_creator_history,
+    public_contact_from_item,
+)
 
 
 def test_fallback_creator_fit_promotes_keyword_matched_creator():
@@ -178,3 +184,31 @@ def test_fit_source_item_can_match_by_profile_url():
     item = {"id": "raw-1", "author_url": "https://example.com/a"}
 
     assert fit_source_item({"raw-1": item}, {"profile_url": "https://example.com/a"}) == item
+
+
+def test_apify_social_rows_are_not_reliable_creator_history():
+    item = {
+        "source": "apify_tiktok",
+        "raw_json": {
+            "dataset_item": {
+                "url": "https://www.tiktok.com/@creator/video/1",
+                "caption": "Quest workout",
+            }
+        },
+    }
+
+    assert has_reliable_creator_history(item) is False
+
+
+def test_apify_profile_history_rows_can_feed_creator_scoring():
+    item = {
+        "source": "apify_tiktok",
+        "raw_json": {
+            "creator_evidence": {
+                "history_quality": "profile_history",
+                "recent_total_posts_count": 8,
+            }
+        },
+    }
+
+    assert has_reliable_creator_history(item) is True

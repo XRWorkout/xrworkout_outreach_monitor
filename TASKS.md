@@ -122,12 +122,17 @@ Updated on 2026-06-06.
 - [x] Replaced placeholder Apify GitHub variables with tested low-limit TikTok actor configs and kept `APIFY_ENABLED=false`.
 - [x] Ran low-limit Apify validation on 2026-06-08 using `clockworks/tiktok-scraper`: creator collection wrote `6` unique raw items, social collection wrote `6` unique raw items, classification processed `12` Apify rows with `1 high`, `2 medium`, and `9 low`, and source quality reported `apify_tiktok: raw=12 opportunities=12 high=1 avg_score=33.3 drafts=0`.
 - [x] Apify validation found useful TikTok social signals, including a high-priority Thrill of the Fight / Quest 3 fitness post, but creator-level enrichment needs review because low-limit TikTok profile/search data did not provide enough recent-post history for strong activity scoring.
+- [x] User reviewed Apify validation on 2026-06-08: returned opportunities looked useful, no public contact was found, creator history was weak, and activity/VR-post filters were unreliable because the tested TikTok output did not scrape real profile history.
+- [x] Updated Apify creator handling so post-only Apify rows can remain useful social/opportunity signals but are not treated as reliable creator-history rows for creator scoring.
+- [x] Implemented Conversation Map expansion on 2026-06-08 with Apify-backed public conversation normalization, X/Facebook/Discord source support, public forum collection, VR blog/RSS collection, source-type and intent filters, and source-quality rollups.
 
 ## Current Next Tasks
 
-- [ ] Review the 12 Apify TikTok raw/opportunity rows and decide whether the tested TikTok configs are good enough for scheduled supplemental collection.
-- [ ] Keep `APIFY_ENABLED=false` until the Apify TikTok validation rows are reviewed in the dashboard.
-- [ ] Consider adding a better profile-history actor or actor input for creator-level Apify enrichment if recent-post counts/headset evidence remain weak.
+- [ ] Keep `APIFY_ENABLED=false` until the expanded Apify conversation actors are configured and low-limit validation is reviewed in the dashboard.
+- [ ] Configure low-limit `APIFY_CONVERSATION_ACTORS_JSON` for X/Twitter, Facebook groups, Discord server discovery, and TikTok conversation discovery before enabling Apify.
+- [ ] Run dry-run validation for `collect_apify_conversations.py --limit 3`, `collect_forums.py --limit 3`, and `collect_blogs.py --limit 3`.
+- [ ] Decide whether to use the tested TikTok actor only as a supplemental social-listening/opportunity source.
+- [ ] Test a better profile-history actor or actor input before using Apify for creator scoring, activity filters, or recent VR-post counts.
 - [ ] Deploy the latest dashboard update with follower filters, cleaned conversation review, the Run Monitor interface, and the new Export tab.
 - [ ] Keep `SEND_AUTOMATION_ENABLED=false` so scheduled approved sends remain disabled.
 - [ ] Keep `DRY_RUN_SEND=true` so dashboard send workflow dispatches remain dry-run only.

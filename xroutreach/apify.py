@@ -4,6 +4,7 @@ import json
 import re
 import time
 from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from typing import Any
 from urllib.parse import quote
 
@@ -33,6 +34,18 @@ def actor_configs(raw_json: str) -> list[dict[str, Any]]:
         else:
             raise RuntimeError("Each Apify actor config must be an actor_id string or object")
     return configs
+
+
+def source_type(config: dict[str, Any], fallback: str) -> str:
+    value = config.get("source_type") or config.get("purpose") or fallback
+    normalized = str(value).lower().replace("-", "_").replace(" ", "_")
+    purpose_map = {
+        "conversation_discovery": fallback,
+        "profile_discovery": "profile_lead",
+        "profile_history": "profile_history",
+        "contact_enrichment": "contact_enrichment",
+    }
+    return purpose_map.get(normalized, normalized)
 
 
 class ApifyClient:
@@ -89,7 +102,7 @@ def first_string(item: dict[str, Any], keys: list[str]) -> str | None:
         value = item.get(key)
         if isinstance(value, str) and value.strip():
             return value.strip()
-    for nested_key in ["authorMeta", "author", "user", "owner", "profile"]:
+    for nested_key in ["authorMeta", "author", "user", "owner", "profile", "group", "server"]:
         nested = item.get(nested_key)
         if isinstance(nested, dict):
             value = first_string(nested, keys)
@@ -109,7 +122,7 @@ def first_int(item: dict[str, Any], keys: list[str]) -> int | None:
             continue
         if parsed >= 0:
             return parsed
-    for nested_key in ["authorMeta", "author", "user", "owner", "profile", "stats"]:
+    for nested_key in ["authorMeta", "author", "user", "owner", "profile", "stats", "public_metrics", "group", "server"]:
         nested = item.get(nested_key)
         if isinstance(nested, dict):
             value = first_int(nested, keys)
@@ -131,12 +144,58 @@ def post_text(post: dict[str, Any]) -> str:
     return "\n".join(str(post.get(key) or "") for key in ["title", "caption", "text", "description", "hashtags"])
 
 
+def engagement_payload(item: dict[str, Any]) -> dict[str, int]:
+    fields = {
+        "likes": ["likesCount", "likeCount", "likes", "favorite_count", "favorites", "reactionCount", "reactionsCount"],
+        "comments": ["commentsCount", "commentCount", "comments", "reply_count", "replies", "comments_count"],
+        "shares": ["shareCount", "sharesCount", "shares", "retweet_count", "retweets"],
+        "views": ["viewsCount", "viewCount", "views", "views_count"],
+    }
+    return {
+        key: value
+        for key, keys in fields.items()
+        if (value := first_int(item, keys)) is not None
+    }
+
+
+def conversation_source_url(item: dict[str, Any]) -> str | None:
+    return first_string(
+        item,
+        [
+            "url",
+            "postUrl",
+            "post_url",
+            "tweetUrl",
+            "twitterUrl",
+            "facebookUrl",
+            "groupUrl",
+            "serverUrl",
+            "inviteUrl",
+            "profileUrl",
+            "channelUrl",
+            "webVideoUrl",
+        ],
+    )
+
+
+def conversation_author_url(item: dict[str, Any]) -> str | None:
+    return first_string(item, ["authorUrl", "author_url", "profileUrl", "userUrl", "twitterUrl", "channelUrl"])
+
+
 def post_date(post: dict[str, Any]) -> str | None:
     value = first_string(post, ["timestamp", "publishedAt", "published_at", "createdAt", "created_at", "createTimeISO", "date"])
     if value:
-        return value
+        try:
+            return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(timezone.utc).isoformat()
+        except ValueError:
+            try:
+                return parsedate_to_datetime(value).astimezone(timezone.utc).isoformat()
+            except (TypeError, ValueError):
+                return None
     timestamp = first_int(post, ["createTime", "timestamp"])
     if timestamp:
+        if timestamp > 10_000_000_000:
+            timestamp = timestamp // 1000
         return datetime.fromtimestamp(timestamp, timezone.utc).isoformat()
     return None
 
@@ -152,6 +211,7 @@ def recent_posts(item: dict[str, Any]) -> list[dict[str, Any]]:
 def creator_evidence(item: dict[str, Any], now: datetime | None = None) -> dict[str, Any]:
     current = now or datetime.now(timezone.utc)
     posts = recent_posts(item)
+    history_quality = "profile_history" if posts else "profile_only"
     recent = []
     newest: datetime | None = None
     for post in posts:
@@ -200,6 +260,7 @@ def creator_evidence(item: dict[str, Any], now: datetime | None = None) -> dict[
         "public_contact": contact,
         "recent_posts": recent[:10],
         "engagement": engagement,
+        "history_quality": history_quality,
     }
 
 
@@ -209,6 +270,47 @@ def profile_url(item: dict[str, Any]) -> str | None:
 
 def source_url(item: dict[str, Any]) -> str | None:
     return first_string(item, ["url", "postUrl", "post_url", "webVideoUrl", "videoUrl", "video_url", "profileUrl", "profile_url"])
+
+
+def normalize_conversation_item(item: dict[str, Any], config: dict[str, Any], run: dict[str, Any]) -> dict[str, Any] | None:
+    platform = platform_name(config, item, "conversation")
+    source = platform if platform.startswith("apify_") else f"apify_{platform}"
+    url = conversation_source_url(item)
+    if not url:
+        return None
+    item_type = source_type(config, "social_post")
+    external_id = first_string(item, ["id", "tweetId", "postId", "shortCode", "url", "serverId", "channelId"]) or url
+    title = first_string(item, ["title", "full_text", "text", "caption", "name", "serverName", "groupName"]) or "Public conversation signal"
+    body = first_string(item, ["full_text", "text", "caption", "description", "body", "summary", "about"]) or ""
+    author_name = first_string(item, ["authorName", "username", "screenName", "name", "ownerUsername", "channelName", "serverName", "groupName"])
+    author_url = conversation_author_url(item)
+    engagement = engagement_payload(item)
+    return {
+        "source": source,
+        "source_url": url,
+        "external_id": f"{source}_{external_id}",
+        "author_name": author_name,
+        "author_url": author_url,
+        "title": title[:500],
+        "body": body[:5000],
+        "follower_count": first_int(item, ["followersCount", "followers", "follower_count", "subscriberCount", "members", "memberCount", "userFollowers"]),
+        "published_at": post_date(item) or datetime.now(timezone.utc).isoformat(),
+        "raw_json": {
+            "collector": "apify_conversations",
+            "source_type": item_type,
+            "purpose": config.get("purpose") or "conversation_discovery",
+            "keyword": config.get("keyword") or config.get("search_query") or config.get("searchQuery") or ", ".join(KEYWORDS[:5]),
+            "actor_id": config.get("actor_id"),
+            "run_id": run.get("id"),
+            "dataset_id": run.get("defaultDatasetId"),
+            "platform": platform,
+            "engagement": engagement,
+            "manual_action": "review_source" if item_type == "server_discovery" else "join_manually",
+            "automation_policy": "no_auto_post_or_dm",
+            "dataset_item": item,
+        },
+        "dedupe_hash": dedupe_hash(source, str(external_id), url),
+    }
 
 
 def platform_name(config: dict[str, Any], item: dict[str, Any], fallback: str) -> str:
