@@ -48,6 +48,11 @@ class Settings:
     codex_bin: str
     codex_model: str
     codex_timeout_seconds: int
+    cheap_llm_enabled: bool
+    ollama_base_url: str
+    ollama_api_key: str
+    llm_policy_path: str
+    llm_notify_fallbacks: bool
     reddit_client_id: str
     reddit_client_secret: str
     reddit_user_agent: str
@@ -94,6 +99,12 @@ def settings() -> Settings:
         codex_bin=env("CODEX_BIN", "codex"),
         codex_model=env("CODEX_MODEL"),
         codex_timeout_seconds=env_int("CODEX_TIMEOUT_SECONDS", 300),
+        cheap_llm_enabled=env("CHEAP_LLM_ENABLED", "false").lower() in {"1", "true", "yes"},
+        ollama_base_url=env("OLLAMA_BASE_URL", "https://ollama.com/api"),
+        ollama_api_key=env("OLLAMA_API_KEY"),
+        llm_policy_path=env("LLM_POLICY_PATH", "llm_policy.json"),
+        llm_notify_fallbacks=env("LLM_NOTIFY_FALLBACKS", "true").lower()
+        in {"1", "true", "yes"},
         reddit_client_id=env("REDDIT_CLIENT_ID"),
         reddit_client_secret=env("REDDIT_CLIENT_SECRET"),
         reddit_user_agent=env("REDDIT_USER_AGENT", "XRWorkout outreach monitor"),

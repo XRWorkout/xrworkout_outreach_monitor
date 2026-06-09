@@ -18,7 +18,7 @@ Doing that manually is slow and inconsistent. This repo builds the operating lay
 - Generate outreach drafts for high-fit opportunities.
 - Require human approval before any email is sent.
 - Track sent drafts, follow-ups, and creator offers in Supabase.
-- Run on GitHub Actions, with LLM-dependent jobs on a self-hosted server runner that has Codex CLI installed and authenticated.
+- Run on GitHub Actions, with LLM-dependent jobs on a self-hosted server runner that has Codex CLI installed and Ollama Cloud credentials configured.
 - Use explicit automation switches before treating scheduled jobs as always-on production automation.
 - Provide a Next.js XRWorkout Outreach OS dashboard for review queues, social listening, contact validation, draft editing, approval, follow-ups, source-quality reporting, automation controls, and analytics.
 
@@ -97,10 +97,10 @@ Dashboard presents conversations, opportunity feeds, creator pipeline, outreach 
 | Layer | Choice |
 |---|---|
 | Runtime | Python 3.11+ |
-| Scheduler | GitHub Actions cron, with Codex jobs on a self-hosted runner and scheduled jobs disabled by repository variables until launch |
+| Scheduler | GitHub Actions cron, with LLM jobs on a self-hosted runner and scheduled jobs disabled by repository variables until launch |
 | Database | Supabase Postgres |
 | Review UI | Deployed dashboard, with Supabase Studio as fallback |
-| LLM | Codex CLI on the server |
+| LLM | Ollama Cloud for classification/creator scoring; Codex CLI for drafts and fallback |
 | Reddit | Reddit RSS for v1, PRAW / Reddit Data API as a future fallback |
 | YouTube | YouTube Data API |
 | Twitch | Twitch Helix API |
@@ -140,6 +140,7 @@ Dashboard presents conversations, opportunity feeds, creator pipeline, outreach 
 | `scripts/discover_creators.py` | Promotes strong creator prospects into `creators`, applies candidate scoring evidence, and carries forward visible public contact metadata for human validation. |
 | `scripts/generate_drafts.py` | Creates outreach drafts for high-priority safe opportunities. |
 | `scripts/generate_draft_for_opportunity.py` | Creates one LLM-generated `needs_review` draft for an operator-selected opportunity. |
+| `scripts/check_ollama_cloud.py` | Verifies Ollama Cloud auth, configured model tags, and a small JSON smoke response. |
 | `scripts/reset_outreach_data.py` | Deletes operational outreach rows from `followups`, `offers`, `drafts`, `opportunities`, `creators`, and `raw_items`; keeps schema and audit logs. |
 | `scripts/send_approved.py` | Sends only approved email drafts and creates follow-up tasks. |
 | `scripts/list_due_followups.py` | Lists pending follow-ups due on or before a selected date with contact, profile, opportunity, and source context for operator handling. |
@@ -151,8 +152,9 @@ Dashboard presents conversations, opportunity feeds, creator pipeline, outreach 
 2. Run `supabase/schema.sql` in the Supabase SQL editor.
 3. Copy `.env.example` to `.env`.
 4. Fill the required credentials in `.env`.
-5. Install and authenticate Codex CLI on the server account that will run the LLM-dependent jobs.
-6. Install the project locally:
+5. Install and authenticate Codex CLI on the server account that will run draft/fallback jobs.
+6. Add `OLLAMA_API_KEY` for the XRWorkout Ollama Pro account and verify it with `python scripts/check_ollama_cloud.py`.
+7. Install the project locally:
 
 ```bash
 python -m venv .venv
@@ -160,7 +162,7 @@ python -m venv .venv
 pip install -e ".[dev]"
 ```
 
-7. Run the tests:
+8. Run the tests:
 
 ```bash
 pytest
@@ -206,6 +208,7 @@ Local `.env` values and GitHub repository secrets should include:
 - `BREVO_FROM_EMAIL`
 - `BREVO_FROM_NAME`
 - `APIFY_TOKEN`, only required when Apify collection is enabled
+- `OLLAMA_API_KEY`, required when `CHEAP_LLM_ENABLED=true`
 
 Optional settings:
 
@@ -214,6 +217,10 @@ Optional settings:
 - `CODEX_BIN`, defaults to `codex`
 - `CODEX_MODEL`, optional; when empty, Codex CLI uses its configured default model
 - `CODEX_TIMEOUT_SECONDS`, defaults to `300`
+- `CHEAP_LLM_ENABLED`, enables Ollama Cloud for classification and creator scoring
+- `OLLAMA_BASE_URL`, defaults to `https://ollama.com/api`
+- `LLM_POLICY_PATH`, defaults to `llm_policy.json`
+- `LLM_NOTIFY_FALLBACKS`, prints and logs Codex fallback events
 - `XRWORKOUT_FOUNDER_NAME`
 - `XRWORKOUT_SITE`, defaults to `https://xrworkout.ai`
 - `EMAIL_PROVIDER`, defaults to `brevo`
@@ -242,6 +249,8 @@ python scripts/collect_apify_social.py --limit 25
 python scripts/collect_apify_conversations.py --limit 25
 python scripts/collect_forums.py --limit 3
 python scripts/collect_blogs.py --limit 3
+python scripts/check_ollama_cloud.py
+python scripts/check_codex_cli.py
 python scripts/classify_opportunities.py --limit 10
 python scripts/discover_creators.py --limit 10
 python scripts/generate_drafts.py --limit 10

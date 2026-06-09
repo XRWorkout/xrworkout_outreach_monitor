@@ -13,12 +13,17 @@ Configure these in GitHub repository secrets:
 - `BREVO_API_KEY`
 - `BREVO_FROM_EMAIL`
 - `BREVO_FROM_NAME`
+- `OLLAMA_API_KEY`: required when `CHEAP_LLM_ENABLED=true`.
 
 Optional repository variables:
 
 - `CODEX_BIN`: defaults to `codex`.
 - `CODEX_MODEL`: optional; when empty, Codex CLI uses its configured default model.
 - `CODEX_TIMEOUT_SECONDS`: defaults to `300`.
+- `CHEAP_LLM_ENABLED`: set `true` to route classification and creator scoring through Ollama Cloud.
+- `OLLAMA_BASE_URL`: defaults to `https://ollama.com/api`.
+- `LLM_POLICY_PATH`: defaults to `llm_policy.json`.
+- `LLM_NOTIFY_FALLBACKS`: defaults to `true`.
 - `XRWORKOUT_FOUNDER_NAME`: used in outreach drafts.
 - `EMAIL_PROVIDER`: defaults to `brevo`.
 - `AUTOMATION_ENABLED`: keep `false` until scheduled collection and drafting should run.

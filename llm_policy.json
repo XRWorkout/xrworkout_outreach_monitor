@@ -1,0 +1,23 @@
+{
+  "classify_opportunity": {
+    "provider": "ollama",
+    "model": "qwen3.5",
+    "timeout_seconds": 180,
+    "retries": 1,
+    "temperature": 0
+  },
+  "creator_discovery_batch": {
+    "provider": "ollama",
+    "model": "gpt-oss:120b",
+    "timeout_seconds": 300,
+    "retries": 1,
+    "temperature": 0
+  },
+  "draft_outreach": {
+    "provider": "codex",
+    "model": "",
+    "timeout_seconds": 300,
+    "retries": 0,
+    "temperature": 0
+  }
+}

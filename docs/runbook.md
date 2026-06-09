@@ -46,11 +46,11 @@ Follow-ups remain operator-handled in v1. The system does not auto-send follow-u
 3. Re-run after fixing the secret or data issue.
 4. If an email-send job fails mid-run, check `drafts.status` before retrying. Only `approved` drafts are eligible for sending.
 
-## Self-hosted runner Codex check
+## Self-hosted runner LLM checks
 
-The LLM-dependent workflows must run on a self-hosted runner whose service account can run Codex CLI non-interactively.
+The LLM-dependent workflows must run on a self-hosted runner whose service account can run Codex CLI non-interactively and can reach Ollama Cloud with `OLLAMA_API_KEY`.
 
-Use XRWorkout-owned accounts for production automation. The personal development account can commit and push code to `yorgobekaii/xr_workout_outreach_monitor`, but GitHub Actions should run from `XRWorkout/xrworkout_outreach_monitor`. The GitHub runner, Codex CLI auth, Reddit app, Supabase, and email provider credentials should belong to XRWorkout.
+Use XRWorkout-owned accounts for production automation. The personal development account can commit and push code to `yorgobekaii/xr_workout_outreach_monitor`, but GitHub Actions should run from `XRWorkout/xrworkout_outreach_monitor`. The GitHub runner, Codex CLI auth, Ollama Pro account, Reddit app, Supabase, and email provider credentials should belong to XRWorkout.
 
 ## GitHub remotes
 
@@ -76,9 +76,10 @@ On the server, install and configure the GitHub runner from `XRWorkout/xrworkout
 cd /home/yorgobekaii/xrworkout-outreach
 . .venv/bin/activate
 python scripts/check_codex_cli.py
+python scripts/check_ollama_cloud.py
 ```
 
-The daily collection and daily drafts workflows run this same check before any LLM-dependent pipeline step.
+The daily collection, clean start, manual source collection, and self-hosted smoke workflows run the Ollama check when `CHEAP_LLM_ENABLED=true`. Draft-only workflows still check Codex because final outreach copy stays on Codex.
 
 ## Weekly review
 

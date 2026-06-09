@@ -4,7 +4,7 @@ This file tracks concrete setup, validation, and launch tasks for the outreach s
 
 ## Latest Validation Notes
 
-Updated on 2026-06-06.
+Updated on 2026-06-09.
 
 - [x] Verified `.env` exists at `/home/yorgobekaii/xrworkout-outreach/.env`.
 - [x] Verified configured values are present for Supabase, YouTube, Twitch, Brevo, founder name, site URL, and `DRY_RUN_SEND`.
@@ -126,13 +126,21 @@ Updated on 2026-06-06.
 - [x] Updated Apify creator handling so post-only Apify rows can remain useful social/opportunity signals but are not treated as reliable creator-history rows for creator scoring.
 - [x] Implemented Conversation Map expansion on 2026-06-08 with Apify-backed public conversation normalization, X/Facebook/Discord source support, public forum collection, VR blog/RSS collection, source-type and intent filters, and source-quality rollups.
 - [x] Added source-specific automation controls on 2026-06-08: Clean Start runs expanded collection automatically, and the Automation tab can run all sources, Apify conversations, forums, blogs, Reddit, YouTube, or Twitch individually.
+- [x] User ran Automation > Run all on 2026-06-09; Apify remained disabled by the safety gate, blog collection produced reviewable rows, and classification hit a Codex rate limit before processing blog rows.
+- [x] Ran weekly report after the 2026-06-09 Run all attempt: `raw_items: 266`, `opportunities: 204`, `creators: 53`, `drafts: 12`, `followups: 0`, `offers: 0`; source quality showed `vr_blog: raw=30 opportunities=0`.
+- [x] Implemented the Ollama Cloud LLM router on 2026-06-09: `qwen3.5` for classification, `gpt-oss:120b` for creator discovery/scoring, Codex-only drafting, one Ollama retry, Codex fallback, policy-file routing, smoke check script, workflow env wiring, usage-event schema, weekly-report fallback counts, and tests.
 
 ## Current Next Tasks
 
+- [ ] Add the XRWorkout Ollama Pro `OLLAMA_API_KEY` to local `.env` and GitHub Actions secrets.
+- [ ] Set GitHub variables `CHEAP_LLM_ENABLED=true`, `OLLAMA_BASE_URL=https://ollama.com/api`, `LLM_POLICY_PATH=llm_policy.json`, and `LLM_NOTIFY_FALLBACKS=true`.
+- [ ] Run `python scripts/check_ollama_cloud.py` locally and through the self-hosted smoke workflow.
+- [ ] Deploy the updated Supabase schema so `llm_usage_events` exists.
+- [ ] Retry classification with Ollama Cloud enabled so the 30 collected blog rows can become scored opportunities where relevant.
 - [ ] Keep `APIFY_ENABLED=false` until the expanded Apify conversation actors are configured and low-limit validation is reviewed in the dashboard.
 - [ ] Configure low-limit `APIFY_CONVERSATION_ACTORS_JSON` for X/Twitter, Facebook groups, Discord server discovery, and TikTok conversation discovery before enabling Apify.
-- [ ] Configure `FORUM_SOURCES_JSON` and `BLOG_FEEDS_JSON` with the first small public source list.
-- [ ] Use Automation > Run Missing Source to validate Apify conversations, forums, and blogs individually before relying on Clean Start for full refreshes.
+- [ ] Configure `FORUM_SOURCES_JSON` with the first small public source list.
+- [ ] Use Automation > Run Missing Source to validate Apify conversations and forums individually before relying on Clean Start for full refreshes.
 - [ ] Decide whether to use the tested TikTok actor only as a supplemental social-listening/opportunity source.
 - [ ] Test a better profile-history actor or actor input before using Apify for creator scoring, activity filters, or recent VR-post counts.
 - [ ] Deploy the latest dashboard update with follower filters, cleaned conversation review, the Run Monitor interface, and the new Export tab.

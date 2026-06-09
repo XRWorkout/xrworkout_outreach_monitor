@@ -17,6 +17,13 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install -e .
+      - run: python scripts/check_ollama_cloud.py
+        if: ${{ vars.CHEAP_LLM_ENABLED == 'true' }}
+        env:
+          CHEAP_LLM_ENABLED: ${{ vars.CHEAP_LLM_ENABLED || 'false' }}
+          OLLAMA_BASE_URL: ${{ vars.OLLAMA_BASE_URL || 'https://ollama.com/api' }}
+          OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
+          LLM_POLICY_PATH: ${{ vars.LLM_POLICY_PATH || 'llm_policy.json' }}
       - run: python scripts/check_codex_cli.py
         env:
           CODEX_BIN: ${{ vars.CODEX_BIN || 'codex' }}
@@ -29,6 +36,11 @@ jobs:
           CODEX_BIN: ${{ vars.CODEX_BIN || 'codex' }}
           CODEX_MODEL: ${{ vars.CODEX_MODEL }}
           CODEX_TIMEOUT_SECONDS: ${{ vars.CODEX_TIMEOUT_SECONDS || '300' }}
+          CHEAP_LLM_ENABLED: ${{ vars.CHEAP_LLM_ENABLED || 'false' }}
+          OLLAMA_BASE_URL: ${{ vars.OLLAMA_BASE_URL || 'https://ollama.com/api' }}
+          OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
+          LLM_POLICY_PATH: ${{ vars.LLM_POLICY_PATH || 'llm_policy.json' }}
+          LLM_NOTIFY_FALLBACKS: ${{ vars.LLM_NOTIFY_FALLBACKS || 'true' }}
           REDDIT_USER_AGENT: "${{ vars.REDDIT_USER_AGENT || 'XRWorkoutOutreachMonitor/0.1 contact: https://xrworkout.ai' }}"
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
           TWITCH_CLIENT_ID: ${{ secrets.TWITCH_CLIENT_ID }}

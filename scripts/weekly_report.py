@@ -14,6 +14,13 @@ def rows(db: OutreachDB, table: str, select: str) -> list[dict]:
     return result.data or []
 
 
+def optional_rows(db: OutreachDB, table: str, select: str) -> list[dict]:
+    try:
+        return rows(db, table, select)
+    except Exception:
+        return []
+
+
 def source_cluster(source: str | None) -> str:
     normalized = (source or "unknown").lower()
     if normalized in {"apify_x", "apify_twitter", "twitter"}:
@@ -90,6 +97,7 @@ def main() -> None:
     drafts = rows(db, "drafts", "status, channel, opportunities(platform, raw_items(source))")
     creators = rows(db, "creators", "status, public_contact, creator_quality_score, headset_confidence, activity_level")
     followups = rows(db, "followups", "status, due_date")
+    llm_events = optional_rows(db, "llm_usage_events", "task, provider, model, status, fallback_used")
     quality = source_quality(raw_items, opportunities, drafts)
 
     print("XRWorkout outreach weekly report")
@@ -110,6 +118,14 @@ def main() -> None:
     print(f"creators with headset evidence: {sum(1 for row in creators if row.get('headset_confidence') in {'high', 'medium'})}")
     print(f"active creators: {sum(1 for row in creators if row.get('activity_level') in {'high', 'medium'})}")
     print(f"due or overdue follow-ups: {due_followup_count(followups, today)}")
+    print(f"LLM events: {len(llm_events)}")
+    print(f"LLM fallbacks to Codex: {sum(1 for row in llm_events if row.get('fallback_used'))}")
+    print(f"LLM failures: {sum(1 for row in llm_events if row.get('status') == 'failure')}")
+    if llm_events:
+        by_provider: dict[str, int] = defaultdict(int)
+        for row in llm_events:
+            by_provider[f"{row.get('provider')}/{row.get('model') or 'default'}"] += 1
+        print(f"LLM provider usage: {dict(sorted(by_provider.items()))}")
     print("")
     print("Source quality")
     print("--------------")

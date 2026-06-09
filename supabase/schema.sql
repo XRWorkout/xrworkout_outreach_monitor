@@ -160,3 +160,21 @@ create table if not exists dashboard_audit_logs (
 
 create index if not exists dashboard_audit_logs_created_idx on dashboard_audit_logs(created_at desc);
 create index if not exists dashboard_audit_logs_target_idx on dashboard_audit_logs(target_table, target_id);
+
+create table if not exists llm_usage_events (
+  id uuid primary key default gen_random_uuid(),
+  task text not null,
+  provider text not null,
+  model text,
+  status text not null check (status in ('success', 'failure')),
+  attempt integer not null default 1 check (attempt >= 1),
+  fallback_used boolean not null default false,
+  latency_ms integer check (latency_ms is null or latency_ms >= 0),
+  context_table text,
+  context_id text,
+  error_summary text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists llm_usage_events_created_idx on llm_usage_events(created_at desc);
+create index if not exists llm_usage_events_task_idx on llm_usage_events(task, provider, fallback_used);

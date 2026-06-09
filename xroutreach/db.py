@@ -98,6 +98,9 @@ class OutreachDB:
     def insert_followup(self, row: dict[str, Any]) -> None:
         self.client.table("followups").insert(row).execute()
 
+    def insert_llm_usage_event(self, row: dict[str, Any]) -> None:
+        self.client.table("llm_usage_events").insert(row).execute()
+
     def fetch_due_followups(self, as_of: date, limit: int) -> list[dict[str, Any]]:
         result = (
             self.client.table("followups")

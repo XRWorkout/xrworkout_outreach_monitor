@@ -68,14 +68,14 @@ The workflow:
 1. Runs the Reddit RSS, YouTube, and Twitch collectors.
 2. Converts matching source records into `raw_items`.
 3. Deduplicates records with a unique `dedupe_hash`.
-4. Runs LLM classification on unprocessed raw items.
+4. Runs LLM classification on unprocessed raw items through the task router.
 5. Promotes strong creator prospects into the `creators` table.
 
 Manual `workflow_dispatch` runs remain available even when scheduled automation is disabled.
 
 ## Opportunity Detection
 
-`scripts/classify_opportunities.py` reads unprocessed rows from `raw_items` and asks Codex CLI to classify each item.
+`scripts/classify_opportunities.py` reads unprocessed rows from `raw_items` and asks the LLM router to classify each item. With `CHEAP_LLM_ENABLED=true`, the primary model is Ollama Cloud `qwen3.5`; after one failed retry, the router falls back to Codex and logs the fallback.
 
 The classifier considers:
 
@@ -112,7 +112,7 @@ Each classified opportunity gets:
 
 ## Creator Detection
 
-`scripts/discover_creators.py` reviews YouTube and Twitch source items and promotes strong creator prospects into `creators`.
+`scripts/discover_creators.py` reviews YouTube, Twitch, and reliable creator-history source items and promotes strong creator prospects into `creators`. With `CHEAP_LLM_ENABLED=true`, the primary model is Ollama Cloud `gpt-oss:120b`; after one failed retry, the router falls back to Codex.
 
 Creator records track:
 

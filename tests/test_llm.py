@@ -7,6 +7,16 @@ from xroutreach.config import Settings
 from xroutreach.llm import LLM
 
 
+class FakeResponse:
+    def __init__(self, status_code: int, payload: dict, text: str = ""):
+        self.status_code = status_code
+        self._payload = payload
+        self.text = text or str(payload)
+
+    def json(self):
+        return self._payload
+
+
 def test_llm_uses_codex_cli_and_clamps_classification_score(monkeypatch):
     commands = []
 
@@ -126,13 +136,168 @@ def test_llm_draft_prompt_preserves_manual_channels(monkeypatch):
     assert "required for email; empty string for dm and comment" in prompts[0]
 
 
-def _settings() -> Settings:
+def test_llm_uses_ollama_for_classification_when_enabled(monkeypatch):
+    calls = []
+
+    def fake_which(binary):
+        assert binary == "codex"
+        return "/usr/bin/codex"
+
+    def fake_post(url, headers, json, timeout):
+        calls.append({"url": url, "headers": headers, "json": json, "timeout": timeout})
+        return FakeResponse(
+            200,
+            {
+                "message": {
+                    "content": (
+                        '{"opportunity_type":"creator_opportunity","summary":"Relevant creator",'
+                        '"pain_point":"Needs VR fitness content","xrworkout_relevance":"Strong fit",'
+                        '"audience_type":"VR fitness audience","score":80,"priority":"medium",'
+                        '"recommended_action":"email","outreach_safety":"safe"}'
+                    )
+                }
+            },
+        )
+
+    monkeypatch.setattr("xroutreach.llm.shutil.which", fake_which)
+    monkeypatch.setattr("xroutreach.llm.requests.post", fake_post)
+
+    result = LLM(_settings(cheap_llm_enabled=True)).classify(
+        {"source": "youtube", "title": "VR fitness"}
+    )
+
+    assert calls[0]["url"] == "https://ollama.com/api/chat"
+    assert calls[0]["headers"]["Authorization"] == "Bearer ollama-secret"
+    assert calls[0]["json"]["model"] == "qwen3.5"
+    assert result["score"] == 80
+
+
+def test_llm_retries_ollama_then_falls_back_to_codex(monkeypatch, capsys):
+    commands = []
+
+    def fake_which(binary):
+        assert binary == "codex"
+        return "/usr/bin/codex"
+
+    def fake_run(command, input, capture_output, text, timeout, check):
+        commands.append(command)
+        output_path = command[command.index("--output-last-message") + 1]
+        Path(output_path).write_text(
+            '{"opportunity_type":"creator_opportunity","summary":"Fallback creator",'
+            '"pain_point":"Needs VR fitness content","xrworkout_relevance":"Strong fit",'
+            '"audience_type":"VR fitness audience","score":70,"priority":"medium",'
+            '"recommended_action":"email","outreach_safety":"safe"}',
+            encoding="utf-8",
+        )
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setattr("xroutreach.llm.shutil.which", fake_which)
+    monkeypatch.setattr("xroutreach.llm.subprocess.run", fake_run)
+
+    calls = []
+
+    def fake_post(url, headers, json, timeout):
+        calls.append(json)
+        return FakeResponse(200, {"message": {"content": "not json"}})
+
+    monkeypatch.setattr("xroutreach.llm.requests.post", fake_post)
+
+    result = LLM(_settings(cheap_llm_enabled=True)).classify(
+        {"source": "youtube", "title": "VR fitness"}
+    )
+
+    assert len(calls) == 2
+    assert len(commands) == 1
+    assert result["summary"] == "Fallback creator"
+    assert "LLM fallback: task=classify_opportunity primary=ollama/qwen3.5" in capsys.readouterr().out
+
+
+def test_llm_falls_back_to_codex_after_ollama_auth_and_rate_errors(monkeypatch):
+    commands = []
+
+    def fake_which(binary):
+        assert binary == "codex"
+        return "/usr/bin/codex"
+
+    def fake_run(command, input, capture_output, text, timeout, check):
+        commands.append(command)
+        output_path = command[command.index("--output-last-message") + 1]
+        Path(output_path).write_text(
+            '{"opportunity_type":"creator_opportunity","summary":"Fallback after HTTP errors",'
+            '"pain_point":"Needs VR fitness content","xrworkout_relevance":"Strong fit",'
+            '"audience_type":"VR fitness audience","score":70,"priority":"medium",'
+            '"recommended_action":"email","outreach_safety":"safe"}',
+            encoding="utf-8",
+        )
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setattr("xroutreach.llm.shutil.which", fake_which)
+    monkeypatch.setattr("xroutreach.llm.subprocess.run", fake_run)
+
+    responses_to_return = [
+        FakeResponse(401, {"error": "unauthorized"}),
+        FakeResponse(429, {"error": "rate limit"}),
+    ]
+    calls = []
+
+    def fake_post(url, headers, json, timeout):
+        calls.append(json)
+        return responses_to_return.pop(0)
+
+    monkeypatch.setattr("xroutreach.llm.requests.post", fake_post)
+
+    result = LLM(_settings(cheap_llm_enabled=True)).classify(
+        {"source": "youtube", "title": "VR fitness"}
+    )
+
+    assert len(calls) == 2
+    assert len(commands) == 1
+    assert result["summary"] == "Fallback after HTTP errors"
+
+
+def test_llm_draft_stays_on_codex_when_cheap_llm_enabled(monkeypatch):
+    commands = []
+
+    def fake_which(binary):
+        assert binary == "codex"
+        return "/usr/bin/codex"
+
+    def fake_run(command, input, capture_output, text, timeout, check):
+        commands.append(command)
+        output_path = command[command.index("--output-last-message") + 1]
+        Path(output_path).write_text(
+            '{"channel":"email","subject":"Creator access","body":"Short founder-led draft."}',
+            encoding="utf-8",
+        )
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    def unexpected_post(*args, **kwargs):
+        raise AssertionError("drafting should not call Ollama")
+
+    monkeypatch.setattr("xroutreach.llm.shutil.which", fake_which)
+    monkeypatch.setattr("xroutreach.llm.subprocess.run", fake_run)
+    monkeypatch.setattr("xroutreach.llm.requests.post", unexpected_post)
+
+    result = LLM(_settings(cheap_llm_enabled=True)).draft(
+        {"recommended_action": "email", "summary": "Relevant opportunity"}
+    )
+
+    assert len(commands) == 1
+    assert result["subject"] == "Creator access"
+
+
+def _settings(cheap_llm_enabled: bool = False) -> Settings:
     return Settings(
         supabase_url="",
         supabase_service_role_key="",
         codex_bin="codex",
         codex_model="",
         codex_timeout_seconds=300,
+        cheap_llm_enabled=cheap_llm_enabled,
+        ollama_base_url="https://ollama.com/api",
+        ollama_api_key="ollama-secret" if cheap_llm_enabled else "",
+        llm_policy_path="llm_policy.json",
+        llm_notify_fallbacks=True,
         reddit_client_id="",
         reddit_client_secret="",
         reddit_user_agent="",
