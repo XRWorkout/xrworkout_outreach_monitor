@@ -45,7 +45,7 @@ class TaskPolicy:
 DEFAULT_POLICY: dict[str, TaskPolicy] = {
     "classify_opportunity": TaskPolicy(
         provider="ollama",
-        model="qwen3.5",
+        model="qwen3.5:397b",
         timeout_seconds=180,
         retries=1,
         temperature=0,

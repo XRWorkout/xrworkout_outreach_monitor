@@ -168,7 +168,7 @@ def test_llm_uses_ollama_for_classification_when_enabled(monkeypatch):
 
     assert calls[0]["url"] == "https://ollama.com/api/chat"
     assert calls[0]["headers"]["Authorization"] == "Bearer ollama-secret"
-    assert calls[0]["json"]["model"] == "qwen3.5"
+    assert calls[0]["json"]["model"] == "qwen3.5:397b"
     assert result["score"] == 80
 
 
@@ -209,7 +209,7 @@ def test_llm_retries_ollama_then_falls_back_to_codex(monkeypatch, capsys):
     assert len(calls) == 2
     assert len(commands) == 1
     assert result["summary"] == "Fallback creator"
-    assert "LLM fallback: task=classify_opportunity primary=ollama/qwen3.5" in capsys.readouterr().out
+    assert "LLM fallback: task=classify_opportunity primary=ollama/qwen3.5:397b" in capsys.readouterr().out
 
 
 def test_llm_falls_back_to_codex_after_ollama_auth_and_rate_errors(monkeypatch):

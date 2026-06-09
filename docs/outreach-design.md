@@ -75,7 +75,7 @@ Manual `workflow_dispatch` runs remain available even when scheduled automation 
 
 ## Opportunity Detection
 
-`scripts/classify_opportunities.py` reads unprocessed rows from `raw_items` and asks the LLM router to classify each item. With `CHEAP_LLM_ENABLED=true`, the primary model is Ollama Cloud `qwen3.5`; after one failed retry, the router falls back to Codex and logs the fallback.
+`scripts/classify_opportunities.py` reads unprocessed rows from `raw_items` and asks the LLM router to classify each item. With `CHEAP_LLM_ENABLED=true`, the primary model is Ollama Cloud `qwen3.5:397b`; after one failed retry, the router falls back to Codex and logs the fallback.
 
 The classifier considers:
 
