@@ -358,12 +358,14 @@ function contactLabel(publicContact: string, profile: string) {
 function sourceKindLabel(value: ExportSourceKind) {
   if (value === "opportunity_author") return "Opportunity Author";
   if (value === "conversation_author") return "Conversation Author";
+  if (value === "conversation_record") return "Conversation Record";
   return "Creator";
 }
 
 function contactKind(contact: string) {
   if (contact.includes("@")) return "email";
   if (contact === "Manual contact path") return "manual";
+  if (contact === "Review source manually") return "review";
   return "missing";
 }
 
@@ -371,7 +373,16 @@ function sourceScopeMatches(sourceKind: ExportSourceKind, scope: ContactExportRe
   if (scope === "all") return true;
   if (scope === "creators") return sourceKind === "creator";
   if (scope === "opportunities") return sourceKind === "opportunity_author";
-  if (scope === "conversations") return sourceKind === "conversation_author";
+  if (scope === "conversations") return sourceKind === "conversation_author" || sourceKind === "conversation_record";
+  return true;
+}
+
+function recordScopeMatches(sourceKind: ExportSourceKind, scope: ContactExportRequest["recordScope"]) {
+  if (scope === "all") return true;
+  if (scope === "prospects") return sourceKind !== "conversation_record";
+  if (scope === "conversations") return sourceKind === "conversation_author" || sourceKind === "conversation_record";
+  if (scope === "creators") return sourceKind === "creator";
+  if (scope === "opportunities") return sourceKind === "opportunity_author";
   return true;
 }
 
@@ -379,6 +390,10 @@ export type ContactExportRequest = {
   limit: number;
   minFollowers: number | null;
   maxFollowers: number | null;
+  minOpportunityScore: number | null;
+  minCreatorScore: number | null;
+  priorityFloor: "all" | "low" | "medium" | "high";
+  recordScope: "all" | "prospects" | "conversations" | "creators" | "opportunities";
   format: ExportFormat;
   query: string;
   contactFilter: "all" | "email" | "manual";
@@ -391,6 +406,7 @@ export type ContactExportRow = {
   platform: string;
   source: string;
   sourceKind: string;
+  recordType: string;
   profile: string;
   contact: string;
   followers: string;
@@ -403,13 +419,14 @@ export type ContactExportRow = {
   sampleMessage: string;
 };
 
-type ExportSourceKind = "creator" | "opportunity_author" | "conversation_author";
+type ExportSourceKind = "creator" | "opportunity_author" | "conversation_author" | "conversation_record";
 
 type ContactExportCandidate = {
   name: string;
   platform: string;
   source: string;
   sourceKind: ExportSourceKind;
+  recordType: "Prospect" | "Conversation";
   profile: string;
   contact: string;
   followerCount: number | null;
@@ -422,12 +439,50 @@ type ContactExportCandidate = {
   rank: number;
 };
 
+function priorityValue(priority: string) {
+  if (priority === "high") return 3;
+  if (priority === "medium") return 2;
+  if (priority === "low") return 1;
+  return 0;
+}
+
+function priorityFloorFromQuery(normalized: string): ContactExportRequest["priorityFloor"] {
+  if (normalized.includes("high only") || normalized.includes("high priority") || normalized.includes("high-priority")) return "high";
+  if (normalized.includes("medium and up") || normalized.includes("medium or higher") || normalized.includes("medium+")) return "medium";
+  if (normalized.includes("low and up") || normalized.includes("low or higher") || normalized.includes("low+")) return "low";
+  return "all";
+}
+
+function scoreThresholdFromQuery(normalized: string) {
+  const patterns = [
+    /\bscore\s*(?:of\s*)?(?:above|over|at least|minimum|min)?\s*(\d{1,3})\s*\+?\b/,
+    /\b(?:above|over|at least|minimum|min)\s*(\d{1,3})\s*(?:score|opportunity score)?\b/,
+    /\b(\d{1,3})\s*\+\s*(?:score|opportunity score|records|opportunities)?\b/
+  ];
+  for (const pattern of patterns) {
+    const match = normalized.match(pattern);
+    if (!match) continue;
+    const score = Number(match[1]);
+    if (Number.isFinite(score)) return Math.min(100, Math.max(0, score));
+  }
+  return null;
+}
+
 export function parseContactExportRequest(query: string, format: ExportFormat): ContactExportRequest {
   const normalized = query.toLowerCase();
-  const limitMatch = normalized.match(/\b(?:first|top|limit|export|need)\s+(\d{1,4})\b/) || normalized.match(/\b(\d{1,4})\s+(?:people|contacts|creators|prospects|leads)\b/);
+  const limitMatch = normalized.match(/\b(?:first|top|limit|export|need|give me)\s+(\d{1,4})\b/) || normalized.match(/\b(\d{1,4})\s+(?:people|contacts|creators|prospects|leads|records|conversations|opportunities)\b/);
   const rangeMatch = normalized.match(/(\d+(?:\.\d+)?\s*[kmb]?)\s*(?:-|to|through|and)\s*(\d+(?:\.\d+)?\s*[kmb]?)\s*(?:followers|subs|subscribers)?/);
   const explicitFormat = normalized.includes("json") ? "json" : normalized.includes("text") || normalized.includes("txt") ? "txt" : normalized.includes("csv") || normalized.includes("excel") ? "csv" : format;
   const contactFilter = normalized.includes("email") || normalized.includes("public contact") ? "email" : normalized.includes("manual") || normalized.includes("dm") ? "manual" : "all";
+  const recordScope = normalized.includes("conversation")
+    ? "conversations"
+    : normalized.includes("opportunit")
+      ? "opportunities"
+      : normalized.includes("creator")
+        ? "creators"
+        : normalized.includes("prospect") || normalized.includes("people") || normalized.includes("contacts")
+          ? "prospects"
+          : "all";
   const sourceScope = normalized.includes("opportunit")
     ? "opportunities"
     : normalized.includes("conversation")
@@ -435,15 +490,21 @@ export function parseContactExportRequest(query: string, format: ExportFormat): 
       : normalized.includes("creator")
         ? "creators"
         : "all";
+  const scoreThreshold = scoreThresholdFromQuery(normalized);
+  const priorityFloor = priorityFloorFromQuery(normalized);
   return {
-    limit: Math.min(500, Math.max(1, limitMatch ? Number(limitMatch[1]) : 50)),
+    limit: Math.min(1000, Math.max(1, limitMatch ? Number(limitMatch[1]) : 50)),
     minFollowers: rangeMatch ? parseFollowerCount(rangeMatch[1]) : null,
     maxFollowers: rangeMatch ? parseFollowerCount(rangeMatch[2]) : null,
+    minOpportunityScore: scoreThreshold,
+    minCreatorScore: scoreThreshold,
+    priorityFloor,
+    recordScope,
     format: explicitFormat,
     query,
     contactFilter,
     sourceScope,
-    highPriorityOnly: normalized.includes("high priority") || normalized.includes("high-priority")
+    highPriorityOnly: priorityFloor === "high"
   };
 }
 
@@ -463,12 +524,14 @@ function exportFollowerScore(count: number | null) {
 }
 
 function exportCandidateRank(candidate: Omit<ContactExportCandidate, "rank">) {
-  const contactScore = contactKind(candidate.contact) === "email" ? 24 : contactKind(candidate.contact) === "manual" ? 14 : 0;
+  const kind = contactKind(candidate.contact);
+  const contactScore = kind === "email" ? 40 : kind === "manual" ? 28 : kind === "review" ? 10 : 0;
   const statusScore = candidate.status === "contact_ready" ? 24 : candidate.status === "reviewed" ? 16 : candidate.status === "new" ? 8 : 0;
   const scoreSignal = candidate.score === null ? 0 : Math.min(24, Math.max(0, Math.round(candidate.score / 4)));
-  const sourceScore = candidate.sourceKind === "creator" ? 14 : candidate.sourceKind === "opportunity_author" ? 11 : 7;
+  const sourceScore = candidate.sourceKind === "creator" ? 14 : candidate.sourceKind === "opportunity_author" ? 11 : candidate.sourceKind === "conversation_author" ? 7 : 0;
   const profileScore = candidate.profile ? 8 : 0;
-  return contactScore + statusScore + exportPriorityScore(candidate.priority) + scoreSignal + sourceScore + profileScore + exportFollowerScore(candidate.followerCount);
+  const bucketScore = kind === "email" ? 300 : kind === "manual" ? 220 : candidate.sourceKind === "conversation_record" && (candidate.score || 0) >= 50 ? 150 : 60;
+  return bucketScore + contactScore + statusScore + exportPriorityScore(candidate.priority) + scoreSignal + sourceScore + profileScore + exportFollowerScore(candidate.followerCount);
 }
 
 function shouldExcludeOpportunity(opportunity: Opportunity) {
@@ -479,6 +542,7 @@ function shouldExcludeOpportunity(opportunity: Opportunity) {
 
 function candidateKey(candidate: ContactExportCandidate) {
   const profileKey = normalizedProfileKey(candidate.profile);
+  if (candidate.sourceKind === "conversation_record") return `source:${normalizedProfileKey(candidate.source || candidate.profile)}`;
   return profileKey ? `profile:${profileKey}` : `name:${normalizedNameKey(candidate.platform, candidate.name)}`;
 }
 
@@ -503,6 +567,7 @@ function creatorCandidate(creator: Creator, drafts: Draft[]): ContactExportCandi
     platform: creator.platform,
     source: creator.recent_relevant_content || creator.profile_url,
     sourceKind: "creator" as const,
+    recordType: "Prospect" as const,
     profile: creator.profile_url,
     contact,
     followerCount: creatorFollowerCount(creator),
@@ -520,24 +585,29 @@ function opportunityCandidate(opportunity: Opportunity): ContactExportCandidate 
   const item = opportunity.raw_items;
   const profile = profileUrlFromRawItem(item);
   const name = item?.author_name?.trim();
-  if (!name || !profile || shouldExcludeOpportunity(opportunity)) return null;
+  if (shouldExcludeOpportunity(opportunity) || (!name && !profile && !item?.source_url)) return null;
+  const isConversationRecord = !name || !profile;
   const contact = contactLabel(publicContactFromRawItem(item), profile);
   const focus = opportunity.summary || item?.title || opportunity.pain_point || "your VR fitness conversation";
   const recommendedAction = opportunity.recommended_action || (contactKind(contact) === "email" ? "Prepare outreach" : "Review manually");
+  const displayName = name || item?.title?.trim() || `${platformLabel(opportunity.platform)} opportunity`;
   const candidate = {
-    name,
+    name: displayName,
     platform: opportunity.platform || item?.source || "unknown",
     source: item?.source_url || profile,
-    sourceKind: "opportunity_author" as const,
-    profile,
-    contact,
+    sourceKind: isConversationRecord ? "conversation_record" as const : "opportunity_author" as const,
+    recordType: isConversationRecord ? "Conversation" as const : "Prospect" as const,
+    profile: profile || item?.source_url || "",
+    contact: isConversationRecord ? "Review source manually" : contact,
     followerCount: conversationFollowerCount(item as RawItem, opportunity),
     priority: opportunity.priority,
     score: opportunity.score,
     status: opportunity.status,
     fit: opportunity.xrworkout_relevance || opportunity.pain_point || opportunity.summary || "Classified outreach opportunity",
     recommendedAction,
-    sampleMessage: `Hi ${firstName(name)}, I saw your ${platformLabel(opportunity.platform)} post about ${focus}. XRWorkout is looking for people who can give practical feedback on VR fitness experiences. Would you be open to taking a look and sharing what would be useful for your audience?`
+    sampleMessage: isConversationRecord
+      ? `Review this ${platformLabel(opportunity.platform)} opportunity about ${focus}. If it looks relevant, decide whether it belongs in monitoring, a manual community reply, or creator outreach.`
+      : `Hi ${firstName(displayName)}, I saw your ${platformLabel(opportunity.platform)} post about ${focus}. XRWorkout is looking for people who can give practical feedback on VR fitness experiences. Would you be open to taking a look and sharing what would be useful for your audience?`
   };
   return { ...candidate, rank: exportCandidateRank(candidate) };
 }
@@ -547,18 +617,21 @@ function conversationCandidate(item: RawItem, opportunityByRawItemId: Map<string
   if (linkedOpportunity && shouldExcludeOpportunity(linkedOpportunity)) return null;
   const profile = profileUrlFromRawItem(item);
   const name = item.author_name?.trim();
-  if (!name || !profile) return null;
-  const contact = contactLabel(publicContactFromRawItem(item), profile);
+  if (!name && !profile && !item.source_url) return null;
+  const isConversationRecord = !name || !profile;
+  const contact = isConversationRecord ? "Review source manually" : contactLabel(publicContactFromRawItem(item), profile);
   const priority = linkedOpportunity?.priority || "medium";
   const status = linkedOpportunity?.status || "new";
-  const sourceKind: ExportSourceKind = linkedOpportunity ? "opportunity_author" : "conversation_author";
+  const sourceKind: ExportSourceKind = isConversationRecord ? "conversation_record" : linkedOpportunity ? "opportunity_author" : "conversation_author";
   const focus = linkedOpportunity?.summary || item.title || "your VR fitness conversation";
+  const displayName = name || item.title?.trim() || `${platformLabel(item.source)} conversation`;
   const candidate = {
-    name,
+    name: displayName,
     platform: linkedOpportunity?.platform || item.source,
     source: item.source_url || profile,
     sourceKind,
-    profile,
+    recordType: isConversationRecord ? "Conversation" as const : "Prospect" as const,
+    profile: profile || item.source_url || "",
     contact,
     followerCount: conversationFollowerCount(item, linkedOpportunity),
     priority,
@@ -566,7 +639,9 @@ function conversationCandidate(item: RawItem, opportunityByRawItemId: Map<string
     status,
     fit: linkedOpportunity?.xrworkout_relevance || linkedOpportunity?.pain_point || item.title || item.body || "Public conversation lead",
     recommendedAction: linkedOpportunity?.recommended_action || conversationManualAction(item),
-    sampleMessage: `Hi ${firstName(name)}, I saw your ${platformLabel(linkedOpportunity?.platform || item.source)} post about ${focus}. XRWorkout is looking for practical feedback from people already discussing VR fitness. Would it be useful if I shared more details?`
+    sampleMessage: isConversationRecord
+      ? `Review this ${platformLabel(linkedOpportunity?.platform || item.source)} conversation about ${focus}. If it looks relevant, decide whether it belongs in monitoring, a manual community reply, or creator outreach.`
+      : `Hi ${firstName(displayName)}, I saw your ${platformLabel(linkedOpportunity?.platform || item.source)} post about ${focus}. XRWorkout is looking for practical feedback from people already discussing VR fitness. Would it be useful if I shared more details?`
   };
   return { ...candidate, rank: exportCandidateRank(candidate) };
 }
@@ -575,10 +650,15 @@ function requestMatchesCandidate(candidate: ContactExportCandidate, request: Con
   if (request.minFollowers !== null && (candidate.followerCount === null || candidate.followerCount < request.minFollowers)) return false;
   if (request.maxFollowers !== null && (candidate.followerCount === null || candidate.followerCount > request.maxFollowers)) return false;
   if (request.highPriorityOnly && candidate.priority !== "high") return false;
+  if (request.priorityFloor !== "all" && priorityValue(candidate.priority) < priorityValue(request.priorityFloor)) return false;
+  if (candidate.recordType === "Conversation" && request.minOpportunityScore !== null && (candidate.score === null || candidate.score < request.minOpportunityScore)) return false;
+  if (candidate.recordType === "Prospect" && candidate.sourceKind === "creator" && request.minCreatorScore !== null && (candidate.score === null || candidate.score < request.minCreatorScore)) return false;
+  if (candidate.recordType === "Prospect" && candidate.sourceKind !== "creator" && request.minOpportunityScore !== null && (candidate.score === null || candidate.score < request.minOpportunityScore)) return false;
+  if (!recordScopeMatches(candidate.sourceKind, request.recordScope)) return false;
   if (!sourceScopeMatches(candidate.sourceKind, request.sourceScope)) return false;
   const kind = contactKind(candidate.contact);
   if (request.contactFilter === "email" && kind !== "email") return false;
-  if (request.contactFilter === "manual" && kind !== "manual") return false;
+  if (request.contactFilter === "manual" && !["manual", "review"].includes(kind)) return false;
   return true;
 }
 
@@ -599,6 +679,7 @@ export function buildContactExportRows(creators: Creator[], drafts: Draft[], opp
       platform: platformLabel(candidate.platform),
       source: candidate.source,
       sourceKind: sourceKindLabel(candidate.sourceKind),
+      recordType: candidate.recordType,
       profile: candidate.profile,
       contact: candidate.contact,
       followers: followerCountLabel(candidate.followerCount),
@@ -622,12 +703,12 @@ export function contactExportContent(rows: ContactExportRow[], request: ContactE
     return rows
       .map(
         (row, index) =>
-          `${index + 1}. ${row.name}\nPlatform: ${row.platform}\nSource: ${row.source}\nSource kind: ${row.sourceKind}\nProfile: ${row.profile}\nContact: ${row.contact}\nFollowers: ${row.followers}\nPriority: ${row.priority}\nScore: ${row.score}\nStatus: ${row.status}\nFit: ${row.fit}\nRecommended action: ${row.recommendedAction}\nSample message:\n${row.sampleMessage}`
+          `${index + 1}. ${row.name}\nRecord type: ${row.recordType}\nPlatform: ${row.platform}\nSource: ${row.source}\nSource kind: ${row.sourceKind}\nProfile: ${row.profile}\nContact: ${row.contact}\nFollowers: ${row.followers}\nPriority: ${row.priority}\nScore: ${row.score}\nStatus: ${row.status}\nFit: ${row.fit}\nRecommended action: ${row.recommendedAction}\nSample message:\n${row.sampleMessage}`
       )
       .join("\n\n---\n\n");
   }
-  const headers = ["Name", "Platform", "Source", "Source Kind", "Profile", "Contact", "Followers", "Priority", "Score", "Status", "Fit", "Recommended Action", "Sample Message"];
-  const lines = rows.map((row) => [row.name, row.platform, row.source, row.sourceKind, row.profile, row.contact, row.followers, row.priority, row.score, row.status, row.fit, row.recommendedAction, row.sampleMessage].map(csvCell).join(","));
+  const headers = ["Name", "Platform", "Source", "Source Kind", "Record Type", "Profile", "Contact", "Followers", "Priority", "Score", "Status", "Fit", "Recommended Action", "Sample Message"];
+  const lines = rows.map((row) => [row.name, row.platform, row.source, row.sourceKind, row.recordType, row.profile, row.contact, row.followers, row.priority, row.score, row.status, row.fit, row.recommendedAction, row.sampleMessage].map(csvCell).join(","));
   return [headers.map(csvCell).join(","), ...lines].join("\n");
 }
 
@@ -756,7 +837,7 @@ export default function Page() {
   const [creatorHeadset, setCreatorHeadset] = useState("all");
   const [creatorContactability, setCreatorContactability] = useState("all");
   const [outreachTab, setOutreachTab] = useState<"drafts" | "followups" | "history">("drafts");
-  const [exportQuery, setExportQuery] = useState("First 50 people to contact with sample messages, 100-1000 followers");
+  const [exportQuery, setExportQuery] = useState("First 200 records score 50+ with sample messages");
   const [exportFormat, setExportFormat] = useState<ExportFormat>("csv");
   const [cleanStartRunning, setCleanStartRunning] = useState(false);
   const [nowMs] = useState(() => Date.now());
@@ -2328,6 +2409,14 @@ function ExportView({
     request.minFollowers !== null && request.maxFollowers !== null
       ? `${followerCountLabel(request.minFollowers)} to ${followerCountLabel(request.maxFollowers)}`
       : "Any follower count";
+  const matchedProspects = rows.filter((row) => row.recordType === "Prospect").length;
+  const matchedConversations = rows.filter((row) => row.recordType === "Conversation").length;
+  const minimumQuality =
+    request.minOpportunityScore !== null
+      ? `Score ${request.minOpportunityScore}+`
+      : request.priorityFloor !== "all"
+        ? `${labelFor(request.priorityFloor)}+`
+        : "Any score";
 
   return (
     <div className="grid gap-5">
@@ -2347,7 +2436,7 @@ function ExportView({
               className="min-h-24"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="First 50 prospects with sample messages, 100-1000 followers"
+              placeholder="First 200 records score 50+ with sample messages"
             />
           </Field>
           <Field label="File format">
@@ -2361,11 +2450,12 @@ function ExportView({
       </Card>
 
       <section className="grid gap-4 xl:grid-cols-4">
-        <Card className="p-4"><MiniStat label="Matched Prospects" value={rows.length} /></Card>
-        <Card className="p-4"><MiniStat label="Available Creators" value={totalCreators} /></Card>
-        <Card className="p-4"><MiniStat label="Limit" value={request.limit} /></Card>
-        <Card className="p-4"><MiniStat label="Follower Filter" value={followerFilter} /></Card>
+        <Card className="p-4"><MiniStat label="Matched Prospects" value={matchedProspects} /></Card>
+        <Card className="p-4"><MiniStat label="Matched Conversations" value={matchedConversations} /></Card>
+        <Card className="p-4"><MiniStat label="Minimum Quality" value={minimumQuality} /></Card>
+        <Card className="p-4"><MiniStat label="Download Limit" value={request.limit} /></Card>
       </section>
+      <p className="text-xs text-zinc-500">Follower filter: {followerFilter}. Available creator records: {totalCreators}.</p>
 
       <Card className="overflow-hidden p-0">
         <div className="border-b border-white/10 p-5">
@@ -2392,7 +2482,7 @@ function ExportView({
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/10">
-                {rows.slice(0, 50).map((row) => (
+                {rows.slice(0, 100).map((row) => (
                   <tr key={`${row.platform}-${row.profile}`} className="align-top">
                     <td className="px-4 py-4">
                       <p className="font-medium text-white">{row.name}</p>
