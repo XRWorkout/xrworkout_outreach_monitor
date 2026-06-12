@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 from scripts.discover_creators import (
+    canonical_profile_url,
+    conversation_author_lead_fit,
     creator_row,
     fallback_creator_fit,
     fit_source_item,
     has_reliable_creator_history,
+    is_apify_conversation_author_lead,
+    normalize_platform,
     public_contact_from_item,
 )
 
@@ -200,6 +204,64 @@ def test_apify_social_rows_are_not_reliable_creator_history():
     assert has_reliable_creator_history(item) is False
 
 
+def test_apify_conversation_author_rows_can_seed_review_leads():
+    item = {
+        "id": "raw-1",
+        "source": "apify_tiktok",
+        "source_url": "https://www.tiktok.com/@creator/video/1",
+        "author_name": "Quest Coach",
+        "author_url": "https://www.tiktok.com/@creator",
+        "title": "Quest 3 VR boxing workout",
+        "body": "Trying a VR fitness routine today",
+        "follower_count": 850,
+        "raw_json": {
+            "source_type": "social_post",
+            "engagement": {"likes": 42, "comments": 5},
+        },
+    }
+
+    fit = conversation_author_lead_fit(item)
+
+    assert is_apify_conversation_author_lead(item) is True
+    assert fit is not None
+    assert fit["platform"] == "apify_tiktok"
+    assert fit["profile_url"] == "https://www.tiktok.com/@creator"
+    assert fit["priority"] in {"low", "medium"}
+    assert fit["recent_total_posts_count"] == 0
+    assert fit["activity_level"] == "unknown"
+    assert fit["public_contact"] is None
+    assert "review" in fit["offer_angle"].lower()
+
+
+def test_apify_conversation_author_rows_without_identity_are_skipped():
+    item = {
+        "source": "apify_x",
+        "source_url": "https://x.com/someone/status/1",
+        "author_name": "Quest fan",
+        "title": "Quest fitness",
+        "body": "VR workout",
+        "raw_json": {"source_type": "social_post"},
+    }
+
+    assert is_apify_conversation_author_lead(item) is False
+    assert conversation_author_lead_fit(item) is None
+
+
+def test_post_only_apify_rows_are_review_leads_not_profile_history():
+    item = {
+        "source": "apify_instagram",
+        "source_url": "https://instagram.com/p/abc",
+        "author_name": "Creator",
+        "author_url": "https://instagram.com/creator",
+        "title": "Mixed reality workout",
+        "body": "Quest cardio",
+        "raw_json": {"source_type": "social_post"},
+    }
+
+    assert has_reliable_creator_history(item) is False
+    assert conversation_author_lead_fit(item) is not None
+
+
 def test_apify_profile_history_rows_can_feed_creator_scoring():
     item = {
         "source": "apify_tiktok",
@@ -212,3 +274,33 @@ def test_apify_profile_history_rows_can_feed_creator_scoring():
     }
 
     assert has_reliable_creator_history(item) is True
+
+
+def test_creator_row_normalizes_platform_and_prefers_author_profile_url():
+    item = {
+        "source": "apify_tiktok",
+        "source_url": "https://www.tiktok.com/@creator/video/1",
+        "author_name": "Creator",
+        "author_url": "https://www.tiktok.com/@creator",
+        "title": "Quest workout",
+        "body": "VR fitness",
+    }
+    fit = {
+        "name": "Creator",
+        "platform": "TikTok",
+        "profile_url": "https://www.tiktok.com/@creator/video/1",
+        "public_contact": None,
+        "niche": "VR fitness",
+        "audience_estimate": "Unknown",
+        "audience_quality": "Needs review",
+        "fit_reason": "Public post matched VR fitness",
+        "offer_angle": "Review manually",
+        "priority": "low",
+    }
+
+    row = creator_row(item, fit)
+
+    assert normalize_platform("TikTok") == "apify_tiktok"
+    assert row["platform"] == "apify_tiktok"
+    assert row["profile_url"] == "https://www.tiktok.com/@creator"
+    assert canonical_profile_url(item, fit) == "https://www.tiktok.com/@creator"

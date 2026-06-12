@@ -23,8 +23,13 @@ def optional_rows(db: OutreachDB, table: str, select: str) -> list[dict]:
 
 def source_cluster(source: str | None) -> str:
     normalized = (source or "unknown").lower()
+    normalized = normalized.replace("-", "_").replace(" ", "_")
     if normalized in {"apify_x", "apify_twitter", "twitter"}:
         return "x"
+    if normalized in {"tiktok", "tik_tok"}:
+        return "apify_tiktok"
+    if normalized == "instagram":
+        return "apify_instagram"
     if normalized in {"apify_facebook", "apify_facebook_group", "apify_facebook_groups", "facebook", "facebook_groups"}:
         return "facebook_group"
     if normalized in {"apify_discord", "discord_server"}:
@@ -36,10 +41,14 @@ def source_cluster(source: str | None) -> str:
     return normalized
 
 
-def source_quality(raw_items: list[dict], opportunities: list[dict], drafts: list[dict]) -> list[dict]:
+def source_quality(raw_items: list[dict], opportunities: list[dict], drafts: list[dict], creators: list[dict] | None = None) -> list[dict]:
     raw_counts: dict[str, int] = defaultdict(int)
     for item in raw_items:
         raw_counts[source_cluster(item.get("source"))] += 1
+
+    creator_counts: dict[str, int] = defaultdict(int)
+    for creator in creators or []:
+        creator_counts[source_cluster(creator.get("platform"))] += 1
 
     draft_counts: dict[str, int] = defaultdict(int)
     approved_sent_counts: dict[str, int] = defaultdict(int)
@@ -55,7 +64,7 @@ def source_quality(raw_items: list[dict], opportunities: list[dict], drafts: lis
     for opportunity in opportunities:
         grouped[source_cluster(opportunity.get("platform"))].append(opportunity)
 
-    all_sources = set(raw_counts) | set(grouped) | set(draft_counts)
+    all_sources = set(raw_counts) | set(grouped) | set(draft_counts) | set(creator_counts)
     quality = []
     for source in sorted(all_sources):
         source_opportunities = grouped.get(source, [])
@@ -67,6 +76,7 @@ def source_quality(raw_items: list[dict], opportunities: list[dict], drafts: lis
                 "raw_items": raw_counts[source],
                 "opportunities": len(source_opportunities),
                 "high_priority": high_count,
+                "creators": creator_counts[source],
                 "average_score": round(mean(scores), 1) if scores else 0,
                 "drafts": draft_counts[source],
                 "approved_or_sent": approved_sent_counts[source],
@@ -95,10 +105,10 @@ def main() -> None:
     raw_items = rows(db, "raw_items", "source")
     opportunities = rows(db, "opportunities", "platform, priority, score, status")
     drafts = rows(db, "drafts", "status, channel, opportunities(platform, raw_items(source))")
-    creators = rows(db, "creators", "status, public_contact, creator_quality_score, headset_confidence, activity_level")
+    creators = rows(db, "creators", "platform, status, public_contact, creator_quality_score, headset_confidence, activity_level")
     followups = rows(db, "followups", "status, due_date")
     llm_events = optional_rows(db, "llm_usage_events", "task, provider, model, status, fallback_used")
-    quality = source_quality(raw_items, opportunities, drafts)
+    quality = source_quality(raw_items, opportunities, drafts, creators)
 
     print("XRWorkout outreach weekly report")
     print("================================")
@@ -143,7 +153,7 @@ def main() -> None:
             print(
                 f"{row['source']}: raw={row['raw_items']} "
                 f"opportunities={row['opportunities']} high={row['high_priority']} "
-                f"avg_score={row['average_score']} drafts={row['drafts']} "
+                f"creators={row['creators']} avg_score={row['average_score']} drafts={row['drafts']} "
                 f"approved_or_sent={row['approved_or_sent']}"
             )
     else:
