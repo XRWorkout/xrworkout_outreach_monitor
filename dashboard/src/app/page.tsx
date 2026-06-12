@@ -300,7 +300,7 @@ function activityEvidenceLabel(creator: Creator) {
 }
 
 function exportSafeFilename(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 42) || "contacts";
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 42) || "prospects";
 }
 
 function firstName(name: string) {
@@ -314,92 +314,320 @@ function sampleMessageForCreator(creator: Creator, draft?: Draft) {
   return `Hi ${firstName(creator.name)}, I liked your ${platformLabel(creator.platform)} work around ${focus}. XRWorkout is looking for creators who can give practical feedback on VR fitness experiences. Would you be open to trying ${offer} and sharing what feels useful for your audience?`;
 }
 
+function rawJsonString(value: Record<string, unknown> | null | undefined, keys: string[]) {
+  if (!value) return "";
+  for (const key of keys) {
+    const rawValue = value[key];
+    if (typeof rawValue === "string" && rawValue.trim()) return rawValue.trim();
+  }
+  return "";
+}
+
+function publicContactFromRawItem(item?: RawItem | null) {
+  return rawJsonString(item?.raw_json, ["public_contact", "email", "contact", "businessEmail", "business_email"]);
+}
+
+function profileUrlFromRawItem(item?: RawItem | null) {
+  return (
+    item?.author_url?.trim() ||
+    rawJsonString(item?.raw_json, ["authorUrl", "author_url", "profileUrl", "profile_url", "userUrl", "channelUrl", "channel_url"]) ||
+    ""
+  );
+}
+
+function normalizedProfileKey(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .replace(/^www\./, "")
+    .replace(/[?#].*$/, "")
+    .replace(/\/$/, "");
+}
+
+function normalizedNameKey(platform: string, name: string) {
+  return `${platform.toLowerCase()}:${name.toLowerCase().replace(/[^a-z0-9]+/g, "")}`;
+}
+
+function contactLabel(publicContact: string, profile: string) {
+  if (publicContact) return publicContact;
+  if (profile) return "Manual contact path";
+  return "No public contact captured";
+}
+
+function sourceKindLabel(value: ExportSourceKind) {
+  if (value === "opportunity_author") return "Opportunity Author";
+  if (value === "conversation_author") return "Conversation Author";
+  return "Creator";
+}
+
+function contactKind(contact: string) {
+  if (contact.includes("@")) return "email";
+  if (contact === "Manual contact path") return "manual";
+  return "missing";
+}
+
+function sourceScopeMatches(sourceKind: ExportSourceKind, scope: ContactExportRequest["sourceScope"]) {
+  if (scope === "all") return true;
+  if (scope === "creators") return sourceKind === "creator";
+  if (scope === "opportunities") return sourceKind === "opportunity_author";
+  if (scope === "conversations") return sourceKind === "conversation_author";
+  return true;
+}
+
 export type ContactExportRequest = {
   limit: number;
   minFollowers: number | null;
   maxFollowers: number | null;
   format: ExportFormat;
   query: string;
+  contactFilter: "all" | "email" | "manual";
+  sourceScope: "all" | "creators" | "opportunities" | "conversations";
+  highPriorityOnly: boolean;
 };
 
 export type ContactExportRow = {
   name: string;
   platform: string;
+  source: string;
+  sourceKind: string;
   profile: string;
   contact: string;
   followers: string;
   followerCount: number | null;
   priority: string;
+  score: string;
   status: string;
   fit: string;
+  recommendedAction: string;
   sampleMessage: string;
+};
+
+type ExportSourceKind = "creator" | "opportunity_author" | "conversation_author";
+
+type ContactExportCandidate = {
+  name: string;
+  platform: string;
+  source: string;
+  sourceKind: ExportSourceKind;
+  profile: string;
+  contact: string;
+  followerCount: number | null;
+  priority: string;
+  score: number | null;
+  status: string;
+  fit: string;
+  recommendedAction: string;
+  sampleMessage: string;
+  rank: number;
 };
 
 export function parseContactExportRequest(query: string, format: ExportFormat): ContactExportRequest {
   const normalized = query.toLowerCase();
-  const limitMatch = normalized.match(/\b(?:first|top|limit|export|need)\s+(\d{1,4})\b/) || normalized.match(/\b(\d{1,4})\s+(?:people|contacts|creators)\b/);
+  const limitMatch = normalized.match(/\b(?:first|top|limit|export|need)\s+(\d{1,4})\b/) || normalized.match(/\b(\d{1,4})\s+(?:people|contacts|creators|prospects|leads)\b/);
   const rangeMatch = normalized.match(/(\d+(?:\.\d+)?\s*[kmb]?)\s*(?:-|to|through|and)\s*(\d+(?:\.\d+)?\s*[kmb]?)\s*(?:followers|subs|subscribers)?/);
   const explicitFormat = normalized.includes("json") ? "json" : normalized.includes("text") || normalized.includes("txt") ? "txt" : normalized.includes("csv") || normalized.includes("excel") ? "csv" : format;
+  const contactFilter = normalized.includes("email") || normalized.includes("public contact") ? "email" : normalized.includes("manual") || normalized.includes("dm") ? "manual" : "all";
+  const sourceScope = normalized.includes("opportunit")
+    ? "opportunities"
+    : normalized.includes("conversation")
+      ? "conversations"
+      : normalized.includes("creator")
+        ? "creators"
+        : "all";
   return {
     limit: Math.min(500, Math.max(1, limitMatch ? Number(limitMatch[1]) : 50)),
     minFollowers: rangeMatch ? parseFollowerCount(rangeMatch[1]) : null,
     maxFollowers: rangeMatch ? parseFollowerCount(rangeMatch[2]) : null,
     format: explicitFormat,
-    query
+    query,
+    contactFilter,
+    sourceScope,
+    highPriorityOnly: normalized.includes("high priority") || normalized.includes("high-priority")
   };
 }
 
-function creatorExportScore(creator: Creator) {
-  const priorityScore = creator.priority === "high" ? 30 : creator.priority === "medium" ? 18 : 8;
-  const statusScore = creator.status === "contact_ready" ? 30 : creator.status === "reviewed" ? 18 : creator.status === "new" ? 10 : 0;
-  const contactScore = creator.public_contact ? 14 : 0;
-  const followerScore = creator.follower_count ? Math.max(0, 12 - Math.floor(creator.follower_count / 10000)) : 4;
-  return priorityScore + statusScore + contactScore + followerScore;
+function exportPriorityScore(priority: string) {
+  if (priority === "high") return 35;
+  if (priority === "medium") return 22;
+  if (priority === "low") return 8;
+  return 0;
 }
 
-export function buildContactExportRows(creators: Creator[], drafts: Draft[], request: ContactExportRequest): ContactExportRow[] {
-  return creators
-    .filter((creator) => {
-      const count = creatorFollowerCount(creator);
-      if (request.minFollowers !== null && (count === null || count < request.minFollowers)) return false;
-      if (request.maxFollowers !== null && (count === null || count > request.maxFollowers)) return false;
-      return creator.status !== "rejected";
-    })
-    .sort((a, b) => creatorExportScore(b) - creatorExportScore(a) || (a.follower_count || 0) - (b.follower_count || 0))
+function exportFollowerScore(count: number | null) {
+  if (count === null) return 5;
+  if (count <= 10_000) return 14;
+  if (count <= 50_000) return 11;
+  if (count <= 100_000) return 7;
+  return 3;
+}
+
+function exportCandidateRank(candidate: Omit<ContactExportCandidate, "rank">) {
+  const contactScore = contactKind(candidate.contact) === "email" ? 24 : contactKind(candidate.contact) === "manual" ? 14 : 0;
+  const statusScore = candidate.status === "contact_ready" ? 24 : candidate.status === "reviewed" ? 16 : candidate.status === "new" ? 8 : 0;
+  const scoreSignal = candidate.score === null ? 0 : Math.min(24, Math.max(0, Math.round(candidate.score / 4)));
+  const sourceScore = candidate.sourceKind === "creator" ? 14 : candidate.sourceKind === "opportunity_author" ? 11 : 7;
+  const profileScore = candidate.profile ? 8 : 0;
+  return contactScore + statusScore + exportPriorityScore(candidate.priority) + scoreSignal + sourceScore + profileScore + exportFollowerScore(candidate.followerCount);
+}
+
+function shouldExcludeOpportunity(opportunity: Opportunity) {
+  const status = opportunity.status.toLowerCase();
+  const safety = (opportunity.outreach_safety || "").toLowerCase();
+  return status === "rejected" || safety.includes("do_not_engage") || safety.includes("do not engage") || safety.includes("unsafe");
+}
+
+function candidateKey(candidate: ContactExportCandidate) {
+  const profileKey = normalizedProfileKey(candidate.profile);
+  return profileKey ? `profile:${profileKey}` : `name:${normalizedNameKey(candidate.platform, candidate.name)}`;
+}
+
+function dedupeCandidates(candidates: ContactExportCandidate[]) {
+  const bestByKey = new Map<string, ContactExportCandidate>();
+  for (const candidate of candidates) {
+    const key = candidateKey(candidate);
+    const current = bestByKey.get(key);
+    if (!current || candidate.rank > current.rank) {
+      bestByKey.set(key, candidate);
+    }
+  }
+  return Array.from(bestByKey.values());
+}
+
+function creatorCandidate(creator: Creator, drafts: Draft[]): ContactExportCandidate | null {
+  if (creator.status === "rejected") return null;
+  const draft = drafts.find((item) => item.creator_id === creator.id);
+  const contact = contactLabel(creator.public_contact?.trim() || "", creator.profile_url);
+  const candidate = {
+    name: creator.name,
+    platform: creator.platform,
+    source: creator.recent_relevant_content || creator.profile_url,
+    sourceKind: "creator" as const,
+    profile: creator.profile_url,
+    contact,
+    followerCount: creatorFollowerCount(creator),
+    priority: creator.priority,
+    score: creator.creator_quality_score ?? null,
+    status: creator.status,
+    fit: creator.fit_reason || creator.niche || creator.audience_quality || "Needs operator review",
+    recommendedAction: creator.public_contact ? "Validate contact and prepare outreach" : creator.offer_angle || "Review manually for comment, DM, or later creator outreach.",
+    sampleMessage: sampleMessageForCreator(creator, draft)
+  };
+  return { ...candidate, rank: exportCandidateRank(candidate) };
+}
+
+function opportunityCandidate(opportunity: Opportunity): ContactExportCandidate | null {
+  const item = opportunity.raw_items;
+  const profile = profileUrlFromRawItem(item);
+  const name = item?.author_name?.trim();
+  if (!name || !profile || shouldExcludeOpportunity(opportunity)) return null;
+  const contact = contactLabel(publicContactFromRawItem(item), profile);
+  const focus = opportunity.summary || item?.title || opportunity.pain_point || "your VR fitness conversation";
+  const recommendedAction = opportunity.recommended_action || (contactKind(contact) === "email" ? "Prepare outreach" : "Review manually");
+  const candidate = {
+    name,
+    platform: opportunity.platform || item?.source || "unknown",
+    source: item?.source_url || profile,
+    sourceKind: "opportunity_author" as const,
+    profile,
+    contact,
+    followerCount: conversationFollowerCount(item as RawItem, opportunity),
+    priority: opportunity.priority,
+    score: opportunity.score,
+    status: opportunity.status,
+    fit: opportunity.xrworkout_relevance || opportunity.pain_point || opportunity.summary || "Classified outreach opportunity",
+    recommendedAction,
+    sampleMessage: `Hi ${firstName(name)}, I saw your ${platformLabel(opportunity.platform)} post about ${focus}. XRWorkout is looking for people who can give practical feedback on VR fitness experiences. Would you be open to taking a look and sharing what would be useful for your audience?`
+  };
+  return { ...candidate, rank: exportCandidateRank(candidate) };
+}
+
+function conversationCandidate(item: RawItem, opportunityByRawItemId: Map<string, Opportunity>): ContactExportCandidate | null {
+  const linkedOpportunity = opportunityByRawItemId.get(item.id);
+  if (linkedOpportunity && shouldExcludeOpportunity(linkedOpportunity)) return null;
+  const profile = profileUrlFromRawItem(item);
+  const name = item.author_name?.trim();
+  if (!name || !profile) return null;
+  const contact = contactLabel(publicContactFromRawItem(item), profile);
+  const priority = linkedOpportunity?.priority || "medium";
+  const status = linkedOpportunity?.status || "new";
+  const sourceKind: ExportSourceKind = linkedOpportunity ? "opportunity_author" : "conversation_author";
+  const focus = linkedOpportunity?.summary || item.title || "your VR fitness conversation";
+  const candidate = {
+    name,
+    platform: linkedOpportunity?.platform || item.source,
+    source: item.source_url || profile,
+    sourceKind,
+    profile,
+    contact,
+    followerCount: conversationFollowerCount(item, linkedOpportunity),
+    priority,
+    score: linkedOpportunity?.score ?? null,
+    status,
+    fit: linkedOpportunity?.xrworkout_relevance || linkedOpportunity?.pain_point || item.title || item.body || "Public conversation lead",
+    recommendedAction: linkedOpportunity?.recommended_action || conversationManualAction(item),
+    sampleMessage: `Hi ${firstName(name)}, I saw your ${platformLabel(linkedOpportunity?.platform || item.source)} post about ${focus}. XRWorkout is looking for practical feedback from people already discussing VR fitness. Would it be useful if I shared more details?`
+  };
+  return { ...candidate, rank: exportCandidateRank(candidate) };
+}
+
+function requestMatchesCandidate(candidate: ContactExportCandidate, request: ContactExportRequest) {
+  if (request.minFollowers !== null && (candidate.followerCount === null || candidate.followerCount < request.minFollowers)) return false;
+  if (request.maxFollowers !== null && (candidate.followerCount === null || candidate.followerCount > request.maxFollowers)) return false;
+  if (request.highPriorityOnly && candidate.priority !== "high") return false;
+  if (!sourceScopeMatches(candidate.sourceKind, request.sourceScope)) return false;
+  const kind = contactKind(candidate.contact);
+  if (request.contactFilter === "email" && kind !== "email") return false;
+  if (request.contactFilter === "manual" && kind !== "manual") return false;
+  return true;
+}
+
+export function buildContactExportRows(creators: Creator[], drafts: Draft[], opportunities: Opportunity[], rawItems: RawItem[], request: ContactExportRequest): ContactExportRow[] {
+  const opportunityByRawItemId = new Map(opportunities.flatMap((opportunity) => (opportunity.raw_items?.id ? [[opportunity.raw_items.id, opportunity] as const] : [])));
+  const candidates = [
+    ...creators.map((creator) => creatorCandidate(creator, drafts)),
+    ...opportunities.map(opportunityCandidate),
+    ...rawItems.map((item) => conversationCandidate(item, opportunityByRawItemId))
+  ].filter((candidate): candidate is ContactExportCandidate => Boolean(candidate));
+
+  return dedupeCandidates(candidates)
+    .filter((candidate) => requestMatchesCandidate(candidate, request))
+    .sort((a, b) => b.rank - a.rank || (a.followerCount ?? Number.MAX_SAFE_INTEGER) - (b.followerCount ?? Number.MAX_SAFE_INTEGER) || a.name.localeCompare(b.name))
     .slice(0, request.limit)
-    .map((creator) => {
-      const draft = drafts.find((item) => item.creator_id === creator.id);
-      return {
-        name: creator.name,
-        platform: platformLabel(creator.platform),
-        profile: creator.profile_url,
-        contact: creator.public_contact || "No public contact captured",
-        followers: followerCountLabel(creatorFollowerCount(creator)),
-        followerCount: creatorFollowerCount(creator),
-        priority: labelFor(creator.priority),
-        status: labelFor(creator.status),
-        fit: creator.fit_reason || creator.niche || creator.audience_quality || "Needs operator review",
-        sampleMessage: sampleMessageForCreator(creator, draft)
-      };
-    });
+    .map((candidate) => ({
+      name: candidate.name,
+      platform: platformLabel(candidate.platform),
+      source: candidate.source,
+      sourceKind: sourceKindLabel(candidate.sourceKind),
+      profile: candidate.profile,
+      contact: candidate.contact,
+      followers: followerCountLabel(candidate.followerCount),
+      followerCount: candidate.followerCount,
+      priority: labelFor(candidate.priority),
+      score: candidate.score === null ? "Not scored" : String(candidate.score),
+      status: labelFor(candidate.status),
+      fit: candidate.fit,
+      recommendedAction: candidate.recommendedAction,
+      sampleMessage: candidate.sampleMessage
+    }));
 }
 
 function csvCell(value: unknown) {
   return `"${String(value ?? "").replace(/"/g, '""')}"`;
 }
 
-function contactExportContent(rows: ContactExportRow[], request: ContactExportRequest) {
+export function contactExportContent(rows: ContactExportRow[], request: ContactExportRequest) {
   if (request.format === "json") return JSON.stringify(rows, null, 2);
   if (request.format === "txt") {
     return rows
       .map(
         (row, index) =>
-          `${index + 1}. ${row.name}\nPlatform: ${row.platform}\nProfile: ${row.profile}\nContact: ${row.contact}\nFollowers: ${row.followers}\nPriority: ${row.priority}\nStatus: ${row.status}\nFit: ${row.fit}\nSample message:\n${row.sampleMessage}`
+          `${index + 1}. ${row.name}\nPlatform: ${row.platform}\nSource: ${row.source}\nSource kind: ${row.sourceKind}\nProfile: ${row.profile}\nContact: ${row.contact}\nFollowers: ${row.followers}\nPriority: ${row.priority}\nScore: ${row.score}\nStatus: ${row.status}\nFit: ${row.fit}\nRecommended action: ${row.recommendedAction}\nSample message:\n${row.sampleMessage}`
       )
       .join("\n\n---\n\n");
   }
-  const headers = ["Name", "Platform", "Profile", "Contact", "Followers", "Priority", "Status", "Fit", "Sample Message"];
-  const lines = rows.map((row) => [row.name, row.platform, row.profile, row.contact, row.followers, row.priority, row.status, row.fit, row.sampleMessage].map(csvCell).join(","));
+  const headers = ["Name", "Platform", "Source", "Source Kind", "Profile", "Contact", "Followers", "Priority", "Score", "Status", "Fit", "Recommended Action", "Sample Message"];
+  const lines = rows.map((row) => [row.name, row.platform, row.source, row.sourceKind, row.profile, row.contact, row.followers, row.priority, row.score, row.status, row.fit, row.recommendedAction, row.sampleMessage].map(csvCell).join(","));
   return [headers.map(csvCell).join(","), ...lines].join("\n");
 }
 
@@ -805,7 +1033,7 @@ export default function Page() {
   }
 
   const summary = data.summary;
-  const rawItems = summary?.rawItems || [];
+  const rawItems = useMemo(() => summary?.rawItems || [], [summary?.rawItems]);
   const dryRunSendEnabled = (data.automation?.variables.DRY_RUN_SEND || "true") === "true";
   const kpis = buildKpis(summary, data.creators, data.drafts, data.offers.length);
   const priority = priorityCounts(data.opportunities);
@@ -852,7 +1080,7 @@ export default function Page() {
     return matchesFollowers && matchesScore && matchesActivity && matchesHeadset && matchesContactability;
   });
   const exportRequest = useMemo(() => parseContactExportRequest(exportQuery, exportFormat), [exportFormat, exportQuery]);
-  const exportRows = useMemo(() => buildContactExportRows(data.creators, data.drafts, exportRequest), [data.creators, data.drafts, exportRequest]);
+  const exportRows = useMemo(() => buildContactExportRows(data.creators, data.drafts, data.opportunities, rawItems, exportRequest), [data.creators, data.drafts, data.opportunities, rawItems, exportRequest]);
   const showAssistant = activeView !== "creators" && activeView !== "export";
 
   if (loading && !session) {
@@ -1074,7 +1302,7 @@ export default function Page() {
                   totalCreators={data.creators.length}
                   download={() => {
                     downloadContactExport(exportRows, exportRequest);
-                    setNotice(`Exported ${exportRows.length} contacts.`);
+                    setNotice(`Exported ${exportRows.length} prospects.`);
                   }}
                 />
               ) : null}
@@ -2106,8 +2334,8 @@ function ExportView({
       <Card className="p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h3 className="font-semibold text-white">Contact Export Builder</h3>
-            <p className="mt-1 text-sm text-zinc-500">Build a downloadable contact list from creator records, filters, and existing draft context.</p>
+            <h3 className="font-semibold text-white">Prospect Export Builder</h3>
+            <p className="mt-1 text-sm text-zinc-500">Build a downloadable prospect list from creators, opportunity authors, conversation leads, and existing draft context.</p>
           </div>
           <Button variant="primary" onClick={download} disabled={!rows.length}>
             <FileDown size={15} /> Download {request.format.toUpperCase()}
@@ -2119,7 +2347,7 @@ function ExportView({
               className="min-h-24"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="First 50 people to contact with sample messages, 100-1000 followers"
+              placeholder="First 50 prospects with sample messages, 100-1000 followers"
             />
           </Field>
           <Field label="File format">
@@ -2133,7 +2361,7 @@ function ExportView({
       </Card>
 
       <section className="grid gap-4 xl:grid-cols-4">
-        <Card className="p-4"><MiniStat label="Matched Contacts" value={rows.length} /></Card>
+        <Card className="p-4"><MiniStat label="Matched Prospects" value={rows.length} /></Card>
         <Card className="p-4"><MiniStat label="Available Creators" value={totalCreators} /></Card>
         <Card className="p-4"><MiniStat label="Limit" value={request.limit} /></Card>
         <Card className="p-4"><MiniStat label="Follower Filter" value={followerFilter} /></Card>
@@ -2144,17 +2372,18 @@ function ExportView({
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h3 className="font-semibold text-white">Export Preview</h3>
-              <p className="mt-1 text-sm text-zinc-500">Sorted by contact readiness, priority, contact availability, and smaller audience fit.</p>
+              <p className="mt-1 text-sm text-zinc-500">Sorted by contact readiness, opportunity quality, source quality, and smaller audience fit.</p>
             </div>
             <SoftBadge tone={rows.length ? "good" : "warn"}>{rows.length ? "Ready" : "No matches"}</SoftBadge>
           </div>
         </div>
         {rows.length ? (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[980px] text-left text-sm">
+            <table className="w-full min-w-[1180px] text-left text-sm">
               <thead className="border-b border-white/10 bg-white/[0.03] text-xs uppercase tracking-[0.12em] text-zinc-500">
                 <tr>
                   <th className="px-4 py-3 font-medium">Person</th>
+                  <th className="px-4 py-3 font-medium">Source</th>
                   <th className="px-4 py-3 font-medium">Contact</th>
                   <th className="px-4 py-3 font-medium">Followers</th>
                   <th className="px-4 py-3 font-medium">Priority</th>
@@ -2171,11 +2400,20 @@ function ExportView({
                         {row.platform} <ExternalLink size={12} />
                       </a>
                     </td>
+                    <td className="px-4 py-4 text-zinc-400">
+                      <p>{row.sourceKind}</p>
+                      {row.source ? (
+                        <a className="mt-1 inline-flex items-center gap-1 text-xs text-cyan-200" href={row.source} target="_blank" rel="noreferrer">
+                          Source <ExternalLink size={12} />
+                        </a>
+                      ) : null}
+                    </td>
                     <td className="px-4 py-4 text-zinc-400">{row.contact}</td>
                     <td className="px-4 py-4 text-zinc-400">{row.followers}</td>
                     <td className="px-4 py-4">
                       <div className="flex flex-wrap gap-2">
                         <SoftBadge tone={toneFor(row.priority)}>{row.priority}</SoftBadge>
+                        <SoftBadge>{row.score}</SoftBadge>
                         <SoftBadge>{row.status}</SoftBadge>
                       </div>
                     </td>
@@ -2192,7 +2430,7 @@ function ExportView({
           </div>
         ) : (
           <div className="p-5">
-            <EmptyState title="No contacts match this request" detail="Try a wider follower range or run creator discovery to bring in more prospects." />
+            <EmptyState title="No prospects match this request" detail="Try a wider follower range or run source collection to bring in more conversation and opportunity leads." />
           </div>
         )}
       </Card>

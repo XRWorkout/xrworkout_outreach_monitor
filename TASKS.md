@@ -147,6 +147,8 @@ Updated on 2026-06-12.
 - [x] Verified the creator promotion/export fix locally: backend tests passed, dashboard tests passed, dashboard typecheck passed, dashboard lint passed, and dashboard production build passed.
 - [x] Ran live `python scripts/discover_creators.py --limit 10` on 2026-06-12; it reported `scanned=10 upserted=8 fallback=0 leads=8 skipped=2`.
 - [x] Confirmed Supabase after live validation: `raw_items: 940`, `opportunities: 434`, `creators: 77`, `drafts: 12`, `followups: 0`, `offers: 0`, and `creators_with_contact: 0`.
+- [x] Implemented smarter dashboard prospect export on 2026-06-12 so Export combines creators, opportunity authors, and public conversation-author leads with dedupe, ranking, source context, manual-contact labels, and CSV/JSON/text output.
+- [x] Verified the smarter export locally: focused dashboard export tests passed, dashboard lint passed, dashboard typecheck passed, and dashboard production build passed.
 - [ ] Validate max-efficiency `APIFY_CONVERSATION_ACTORS_JSON` for X/Twitter, TikTok, Instagram hashtags/reels, Discord server discovery, and public Facebook groups in the dashboard.
 - [ ] Use Automation > Run Missing Source to validate Apify conversations and forums individually before relying on Clean Start for full refreshes.
 - [ ] Decide whether TikTok and Instagram should remain supplemental social-listening/opportunity sources only, or whether a later profile-history actor can support creator scoring.

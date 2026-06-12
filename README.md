@@ -79,7 +79,7 @@ Dashboard presents conversations, opportunity feeds, creator pipeline, outreach 
 - Manual source collection workflow for rerunning one missing source from the Automation tab without wiping the whole dataset.
 - Scheduled collection, draft, and report jobs are gated by `AUTOMATION_ENABLED`; scheduled approved sends are gated by `SEND_AUTOMATION_ENABLED`; manual runs still work for validation.
 - Next.js dashboard under `dashboard/` with Supabase login, operator allowlist, dark-mode Outreach OS navigation, Dashboard, Conversations, Conversation Map, Creators, Outreach, Export, Automations, Run Monitor, Analytics, and Settings views.
-- Dashboard product surfaces include presentation-layer labels, KPI cards, live opportunity feed, AI-style recommendations, social listening filters, interactive source radar with native/Apify source alias aggregation, creator-quality filters/evidence panels, creator kanban, outreach review drawers, contact export builder, automation agent cards, workflow controls, live run monitoring, and source attribution charts.
+- Dashboard product surfaces include presentation-layer labels, KPI cards, live opportunity feed, AI-style recommendations, social listening filters, interactive source radar with native/Apify source alias aggregation, creator-quality filters/evidence panels, creator kanban, outreach review drawers, multi-source prospect export builder, automation agent cards, workflow controls, live run monitoring, and source attribution charts.
 - Deployed dashboard for day-to-day review and automation controls.
 - Audited dashboard editing for opportunity status, creator review fields, follow-up outcomes, and offer outcomes.
 - Manual dashboard dispatch from selected opportunities into the LLM draft generator.
@@ -269,7 +269,7 @@ Keep `DRY_RUN_SEND=true` during setup. The send script can also be run with `--d
 4. Use Conversation Map to see which platforms are live, inactive, or producing useful opportunities.
 5. Use Creators to validate quality score, recent VR/activity evidence, headset evidence, contact details, fit, offer angle, and pipeline status.
 6. Use Outreach to review `needs_review` drafts, scheduled follow-ups, and outreach history.
-7. Use Export to create downloadable contact lists from creator data, follower ranges, manual-contact leads, and sample message context.
+7. Use Export to create downloadable prospect lists from creator data, opportunity authors, conversation-author leads, follower ranges, manual-contact paths, and sample message context.
 8. When an opportunity is worth outreach, use `Generate LLM draft` from the opportunity review pane.
 9. Mark only safe, useful email drafts as `approved`; comments and DMs remain manual.
 10. Run approved-send only as a dry-run while `DRY_RUN_SEND=true`.
@@ -320,7 +320,7 @@ Current views:
 - Draft review view with editable subject/body, recipient contact, creator profile, linked opportunity, original source link, and approve/reject/edit-needed actions.
 - Creator pipeline with contact availability, profile URL, quality score, recent VR/activity counts, headset confidence, movement evidence, engagement/contactability evidence, safety notes, recent relevant content, niche, fit reason, offer angle, status, and priority.
 - Follow-up queue for due and overdue follow-ups with original draft, creator contact, creator profile, linked opportunity, and source link.
-- Export builder for dynamic contact-list requests, follower-range parsing, result previews, sample outreach messages, and downloadable CSV, JSON, or readable text files.
+- Export builder for dynamic prospect requests, follower-range parsing, result previews, sample outreach messages, and downloadable CSV, JSON, or readable text files. Exports combine creator records, high-fit opportunity authors, and public conversation-author leads, then dedupe and rank them while clearly labeling public contacts, manual contact paths, and missing contact data.
 - Offer tracking for the 3-month-free creator offer and content outcomes.
 - Automation status showing schedule state, last workflow runs, failures, `AUTOMATION_ENABLED`, `APIFY_ENABLED`, `SEND_AUTOMATION_ENABLED`, and `DRY_RUN_SEND`.
 - Automation controls for toggling automation variables, starting a clean automatic pipeline, rerunning a specific missing source, and manually dispatching collection, draft, approved-send dry runs, and reports.
