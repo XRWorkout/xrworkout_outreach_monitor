@@ -13,7 +13,7 @@ Doing that manually is slow and inconsistent. This repo builds the operating lay
 - Collect relevant signals from Reddit RSS, YouTube, Twitch, and disabled-by-default Apify creator/social actors.
 - Deduplicate source items before they enter the pipeline.
 - Use Codex CLI to classify, score, and summarize opportunities.
-- Promote promising creators into a reviewable prospect table.
+- Promote promising creators and public conversation-author leads into a reviewable prospect table.
 - Apply a documented candidate scoring rubric for creator quality, recency, VR/headset proof, activity, contactability, safety, and review priority.
 - Generate outreach drafts for high-fit opportunities.
 - Require human approval before any email is sent.
@@ -72,7 +72,7 @@ Dashboard presents conversations, opportunity feeds, creator pipeline, outreach 
 - Brevo email sender with dry-run support.
 - Approval-only sending logic.
 - Follow-up task creation after sent emails.
-- Weekly report script with action queues, creator-quality evidence counts, and source-quality ranking.
+- Weekly report script with action queues, creator-quality evidence counts, source-quality ranking, and creator conversion counts by source.
 - Clean reset script for deleting operational outreach rows before a fresh run.
 - GitHub Actions schedules for collection, drafts, approved sends, and weekly reporting.
 - Manual clean automatic start workflow that resets outreach data, runs Reddit, YouTube, Twitch, Apify conversations when enabled, public forums, blogs, classification, creator discovery, draft generation, then reports counts.
@@ -133,11 +133,11 @@ Dashboard presents conversations, opportunity feeds, creator pipeline, outreach 
 | `scripts/collect_twitch.py` | Collects relevant Twitch channel records. |
 | `scripts/collect_apify_creators.py` | Runs configured Apify creator actors when `APIFY_ENABLED=true`, normalizes profile/recent-post evidence, and stores rows in `raw_items`. |
 | `scripts/collect_apify_social.py` | Runs configured Apify social-listening actors when `APIFY_ENABLED=true` and stores post-level signals in `raw_items`. |
-| `scripts/collect_apify_conversations.py` | Runs configured public conversation actors for X/Twitter, Facebook groups/pages, TikTok, Discord server discovery, and other Apify-backed social sources. |
+| `scripts/collect_apify_conversations.py` | Runs configured public conversation actors for X/Twitter, Facebook groups/pages, TikTok, Discord server discovery, and other Apify-backed social sources, preserving public author/profile metadata when actors expose it. |
 | `scripts/collect_forums.py` | Collects public Discourse-style VR/forum threads through public JSON endpoints. |
 | `scripts/collect_blogs.py` | Collects VR/XR blog and news RSS/Atom feed articles. |
 | `scripts/classify_opportunities.py` | Scores raw items and creates outreach opportunities. |
-| `scripts/discover_creators.py` | Promotes strong creator prospects into `creators`, applies candidate scoring evidence, and carries forward visible public contact metadata for human validation. |
+| `scripts/discover_creators.py` | Promotes strong creator prospects into `creators`, applies candidate scoring evidence, normalizes creator platform/profile identity, and also creates review-only conversation-author leads from Apify rows with usable public author profiles. |
 | `scripts/generate_drafts.py` | Creates outreach drafts for high-priority safe opportunities. |
 | `scripts/generate_draft_for_opportunity.py` | Creates one LLM-generated `needs_review` draft for an operator-selected opportunity. |
 | `scripts/check_ollama_cloud.py` | Verifies Ollama Cloud auth, configured model tags, and a small JSON smoke response. |
@@ -269,7 +269,7 @@ Keep `DRY_RUN_SEND=true` during setup. The send script can also be run with `--d
 4. Use Conversation Map to see which platforms are live, inactive, or producing useful opportunities.
 5. Use Creators to validate quality score, recent VR/activity evidence, headset evidence, contact details, fit, offer angle, and pipeline status.
 6. Use Outreach to review `needs_review` drafts, scheduled follow-ups, and outreach history.
-7. Use Export to create downloadable contact lists from creator data, follower ranges, and sample message context.
+7. Use Export to create downloadable contact lists from creator data, follower ranges, manual-contact leads, and sample message context.
 8. When an opportunity is worth outreach, use `Generate LLM draft` from the opportunity review pane.
 9. Mark only safe, useful email drafts as `approved`; comments and DMs remain manual.
 10. Run approved-send only as a dry-run while `DRY_RUN_SEND=true`.

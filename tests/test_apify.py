@@ -71,6 +71,7 @@ def test_normalize_x_conversation_item_preserves_source_type_and_engagement():
             "id": "tweet-1",
             "url": "https://x.com/creator/status/1",
             "full_text": "Looking for a better Quest workout than FitXR",
+            "description": "Business: creator@example.com",
             "createdAt": "2026-06-01T00:00:00+00:00",
             "username": "creator",
             "favorite_count": 12,
@@ -84,6 +85,7 @@ def test_normalize_x_conversation_item_preserves_source_type_and_engagement():
     assert row["source"] == "apify_x"
     assert row["raw_json"]["source_type"] == "social_post"
     assert row["raw_json"]["engagement"]["likes"] == 12
+    assert row["raw_json"]["public_contact"] == "creator@example.com"
     assert row["raw_json"]["automation_policy"] == "no_auto_post_or_dm"
 
 

@@ -4,7 +4,7 @@ This file tracks concrete setup, validation, and launch tasks for the outreach s
 
 ## Latest Validation Notes
 
-Updated on 2026-06-09.
+Updated on 2026-06-12.
 
 - [x] Verified `.env` exists at `/home/yorgobekaii/xrworkout-outreach/.env`.
 - [x] Verified configured values are present for Supabase, YouTube, Twitch, Brevo, founder name, site URL, and `DRY_RUN_SEND`.
@@ -139,6 +139,14 @@ Updated on 2026-06-09.
 - [x] Retried Manual source collection with `source=blogs` and `classify=true` in run `27415927251`; it succeeded and classified `50` rows.
 - [x] Enabled `APIFY_ENABLED=true` for controlled manual source validation while keeping `SEND_AUTOMATION_ENABLED=false` and `DRY_RUN_SEND=true`.
 - [x] Fixed malformed `APIFY_CONVERSATION_ACTORS_JSON` and confirmed run `27420245192` succeeded with Apify conversation collection and Ollama classification.
+- [x] Confirmed the creator/export imbalance on 2026-06-12 before the fix: live Supabase had `raw_items: 940`, `opportunities: 434`, `creators: 69`, and `creators_with_contact: 0`.
+- [x] Implemented review-only Apify conversation-author lead promotion so public post authors with usable profile URLs can enter `creators` without pretending post-only rows are profile-history evidence.
+- [x] Normalized creator platform/profile identity before upsert so display values like `TikTok` or `YouTube` do not create new duplicate keys going forward.
+- [x] Updated Apify conversation normalization to preserve visible public contact when present, while keeping auto-post/auto-DM disabled.
+- [x] Updated weekly report source quality to include creator counts by source.
+- [x] Verified the creator promotion/export fix locally: backend tests passed, dashboard tests passed, dashboard typecheck passed, dashboard lint passed, and dashboard production build passed.
+- [x] Ran live `python scripts/discover_creators.py --limit 10` on 2026-06-12; it reported `scanned=10 upserted=8 fallback=0 leads=8 skipped=2`.
+- [x] Confirmed Supabase after live validation: `raw_items: 940`, `opportunities: 434`, `creators: 77`, `drafts: 12`, `followups: 0`, `offers: 0`, and `creators_with_contact: 0`.
 - [ ] Validate max-efficiency `APIFY_CONVERSATION_ACTORS_JSON` for X/Twitter, TikTok, Instagram hashtags/reels, Discord server discovery, and public Facebook groups in the dashboard.
 - [ ] Use Automation > Run Missing Source to validate Apify conversations and forums individually before relying on Clean Start for full refreshes.
 - [ ] Decide whether TikTok and Instagram should remain supplemental social-listening/opportunity sources only, or whether a later profile-history actor can support creator scoring.
@@ -146,7 +154,7 @@ Updated on 2026-06-09.
 - [ ] Deploy the latest dashboard update with follower filters, cleaned conversation review, the Run Monitor interface, and the new Export tab.
 - [ ] Keep `SEND_AUTOMATION_ENABLED=false` so scheduled approved sends remain disabled.
 - [ ] Keep `DRY_RUN_SEND=true` so dashboard send workflow dispatches remain dry-run only.
-- [ ] Review the current 33 creator rows for contact validity and mark valid prospects `contact_ready`; all 33 currently lack public contact.
+- [ ] Review the current 77 creator rows for contact validity and mark valid prospects `contact_ready`; all 77 currently lack public contact.
 - [ ] Review the 5 `needs_review` drafts with the improved source/opportunity context; reject weak targets and approve only safe email drafts.
 - [ ] Add deeper route-handler tests for the dashboard API write paths if the current schema/helper coverage is not enough.
 - [ ] Treat Reddit API credentials as a future upgrade only if RSS collection becomes unreliable.
@@ -170,4 +178,4 @@ Updated on 2026-06-09.
 - [ ] Scheduled collection/draft/report automation should be enabled only through the dashboard `Clean start` flow or an explicit operator decision.
 - [ ] Scheduled approved sending is intentionally disabled with `SEND_AUTOMATION_ENABLED=false`.
 - [ ] Follow-up sending is intentionally operator-handled in v1; one pending follow-up is due on 2026-06-01.
-- [ ] Apify is intentionally disabled until actor choice, low-limit validation, schema deployment, and Starter-plan usage are reviewed.
+- [ ] Apify is enabled for controlled manual validation; keep using low limits and source-specific runs until actor quality and Starter-plan usage are reviewed.

@@ -331,6 +331,9 @@ class LLM:
                 "creator_evidence": item.get("raw_json", {}).get("creator_evidence")
                 if isinstance(item.get("raw_json"), dict)
                 else {},
+                "source_type": item.get("raw_json", {}).get("source_type")
+                if isinstance(item.get("raw_json"), dict)
+                else "",
                 "keyword": item.get("raw_json", {}).get("keyword")
                 if isinstance(item.get("raw_json"), dict)
                 else "",
@@ -341,8 +344,10 @@ class LLM:
             "raw_items": compact_items,
             "task": (
                 "Build a review list of creators who may be strong fits for XRWorkout. "
-                "Evaluate YouTube, Twitch, and Apify-enriched creator items inclusively, "
-                "but prioritize quality using the candidate-scoring rubric. "
+                "Evaluate YouTube, Twitch, and Apify profile-history creator items inclusively, "
+                "but prioritize quality using the candidate-scoring rubric. Post-only Apify "
+                "conversation author leads are promoted deterministically outside this LLM "
+                "step and must not be treated as full profile-history evidence. "
                 "For each plausible creator, return: raw_item_id, name, platform, "
                 "profile_url, public_contact if visible in the input otherwise null, "
                 "niche, audience_estimate using the real follower_count when present, "

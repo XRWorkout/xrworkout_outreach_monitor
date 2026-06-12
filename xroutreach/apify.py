@@ -305,6 +305,7 @@ def normalize_conversation_item(item: dict[str, Any], config: dict[str, Any], ru
             "dataset_id": run.get("defaultDatasetId"),
             "platform": platform,
             "engagement": engagement,
+            "public_contact": public_contact(item),
             "manual_action": "review_source" if item_type == "server_discovery" else "join_manually",
             "automation_policy": "no_auto_post_or_dm",
             "dataset_item": item,

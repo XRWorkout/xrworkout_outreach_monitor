@@ -42,6 +42,57 @@ MOVEMENT_TERMS = [
 
 EMAIL_RE = re.compile(r"(?<![A-Z0-9._%+-])([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})(?![A-Z0-9._%+-])", re.IGNORECASE)
 
+PLATFORM_ALIASES = {
+    "tiktok": "apify_tiktok",
+    "tik_tok": "apify_tiktok",
+    "instagram": "apify_instagram",
+    "x": "apify_x",
+    "twitter": "apify_x",
+    "apify_twitter": "apify_x",
+    "facebook": "apify_facebook",
+    "facebook_group": "apify_facebook_group",
+    "facebook_groups": "apify_facebook_group",
+    "facebook groups": "apify_facebook_group",
+    "apify_facebook_groups": "apify_facebook_group",
+    "discord": "apify_discord",
+}
+
+APIFY_CONVERSATION_SOURCES = {
+    "apify",
+    "apify_instagram",
+    "apify_tiktok",
+    "apify_social",
+    "apify_x",
+    "apify_twitter",
+    "apify_facebook",
+    "apify_facebook_group",
+    "apify_discord",
+}
+
+
+def normalize_platform(value: Any) -> str:
+    normalized = str(value or "").strip().lower().replace("-", "_")
+    normalized = re.sub(r"\s+", "_", normalized)
+    return PLATFORM_ALIASES.get(normalized, normalized)
+
+
+def canonical_profile_url(item: dict[str, Any], fit: dict[str, Any]) -> str | None:
+    source = normalize_platform(fit.get("platform") or item.get("source"))
+    author_url = item.get("author_url")
+    fit_url = fit.get("profile_url")
+    source_url = item.get("source_url")
+    if isinstance(author_url, str) and author_url.strip():
+        return author_url.strip()
+    if isinstance(fit_url, str) and fit_url.strip():
+        return fit_url.strip()
+    if source in {"youtube", "twitch"} and isinstance(source_url, str) and source_url.strip():
+        return source_url.strip()
+    raw_json = item.get("raw_json") if isinstance(item.get("raw_json"), dict) else {}
+    source_type = str(raw_json.get("source_type") or "")
+    if source_type in {"profile_history", "profile_lead", "contact_enrichment"} and isinstance(source_url, str) and source_url.strip():
+        return source_url.strip()
+    return None
+
 
 def public_contact_from_item(item: dict[str, Any]) -> str | None:
     raw_json = item.get("raw_json") if isinstance(item.get("raw_json"), dict) else {}
@@ -78,6 +129,21 @@ def has_reliable_creator_history(item: dict[str, Any]) -> bool:
     raw_json = item.get("raw_json") if isinstance(item.get("raw_json"), dict) else {}
     evidence = raw_json.get("creator_evidence") if isinstance(raw_json.get("creator_evidence"), dict) else {}
     return evidence.get("history_quality") == "profile_history"
+
+
+def is_apify_conversation_author_lead(item: dict[str, Any]) -> bool:
+    source = normalize_platform(item.get("source"))
+    if source not in APIFY_CONVERSATION_SOURCES:
+        return False
+    if has_reliable_creator_history(item):
+        return False
+    name = item.get("author_name")
+    url = item.get("author_url")
+    if not isinstance(name, str) or not name.strip():
+        return False
+    if not isinstance(url, str) or not url.strip():
+        return False
+    return True
 
 
 def has_term(text: str, term: str) -> bool:
@@ -142,6 +208,62 @@ def fallback_creator_fit(item: dict[str, Any]) -> dict[str, Any] | None:
     }
 
 
+def conversation_author_lead_fit(item: dict[str, Any]) -> dict[str, Any] | None:
+    if not is_apify_conversation_author_lead(item):
+        return None
+
+    haystack = " ".join(
+        str(value or "")
+        for value in [
+            item.get("title"),
+            item.get("body"),
+            item.get("author_name"),
+            item.get("source_url"),
+        ]
+    ).lower()
+    if not has_creator_signal(haystack):
+        return None
+
+    raw_json = item.get("raw_json") if isinstance(item.get("raw_json"), dict) else {}
+    source_type = str(raw_json.get("source_type") or "social_post").replace("_", " ")
+    engagement = raw_json.get("engagement") if isinstance(raw_json.get("engagement"), dict) else {}
+    engagement_bits = ", ".join(f"{key}: {value}" for key, value in engagement.items() if value is not None)
+    evidence = creator_evidence_from_item(item)
+    score = min(int(evidence["creator_quality_score"]), 69)
+    return {
+        "raw_item_id": item.get("id"),
+        "name": item.get("author_name"),
+        "platform": normalize_platform(item.get("source")),
+        "profile_url": item.get("author_url"),
+        "public_contact": public_contact_from_item(item),
+        "niche": "Conversation author lead",
+        "follower_count": follower_count_from_item(item),
+        "audience_estimate": "Unknown" if not item.get("follower_count") else f"{item.get('follower_count')} visible followers or members",
+        "audience_quality": "Needs manual review from conversation context",
+        "fit_reason": (
+            f"Review-only creator lead from a public {source_type}; "
+            "the source content matched XRWorkout creator keywords."
+        ),
+        "talks_about": "VR, fitness, gaming, or wellness signal in a public conversation",
+        "offer_angle": "Review manually for comment, DM, or later creator outreach. Do not auto-contact.",
+        "creator_quality_score": score,
+        "recent_vr_posts_count": 0,
+        "recent_total_posts_count": 0,
+        "last_post_at": None,
+        "activity_level": "unknown",
+        "vr_involvement_evidence": evidence["vr_involvement_evidence"],
+        "movement_fit_evidence": evidence["movement_fit_evidence"],
+        "headset_evidence": evidence["headset_evidence"],
+        "headset_confidence": evidence["headset_confidence"],
+        "engagement_evidence": engagement_bits,
+        "contactability_evidence": "Public profile URL captured; no email assumed.",
+        "safety_notes": "Review-only conversation author lead from public source data.",
+        "priority": "medium" if score >= 60 else "low",
+        "lead_source_type": "conversation_author",
+        "source_url": item.get("source_url"),
+    }
+
+
 def creator_row(item: dict[str, Any], fit: dict[str, Any]) -> dict[str, Any]:
     fit_reason = fit.get("fit_reason", "")
     talks_about = fit.get("talks_about")
@@ -155,8 +277,8 @@ def creator_row(item: dict[str, Any], fit: dict[str, Any]) -> dict[str, Any]:
 
     return {
         "name": fit.get("name") or item.get("author_name") or "Unknown",
-        "platform": fit.get("platform") or item["source"],
-        "profile_url": fit.get("profile_url") or item.get("author_url") or item.get("source_url"),
+        "platform": normalize_platform(fit.get("platform") or item["source"]),
+        "profile_url": canonical_profile_url(item, fit),
         "public_contact": fit.get("public_contact") or public_contact_from_item(item),
         "niche": fit.get("niche", ""),
         "follower_count": follower_count_from_item(item),
@@ -195,37 +317,9 @@ def fit_source_item(items_by_id: dict[str, dict[str, Any]], fit: dict[str, Any])
     return None
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--limit", type=int, default=50)
-    args = parser.parse_args()
-
-    cfg = settings()
-    db = OutreachDB(cfg)
-    llm = LLM(cfg)
-
+def promote_fallback_items(db: OutreachDB, items: list[dict[str, Any]], used_item_ids: set[str]) -> tuple[int, int]:
     created = 0
     skipped = 0
-    fallback_created = 0
-    items = db.fetch_creator_source_items(args.limit * 3)
-    items = [item for item in items if has_reliable_creator_history(item)][: args.limit]
-    if not items:
-        print("Creator discovery: scanned=0 upserted=0 fallback=0 skipped=0")
-        return
-
-    items_by_id = {item["id"]: item for item in items if item.get("id")}
-    used_item_ids: set[str] = set()
-
-    for fit in llm.creator_fits(items):
-        item = fit_source_item(items_by_id, fit)
-        if not item:
-            skipped += 1
-            continue
-        db.upsert_creator(creator_row(item, fit))
-        if item.get("id"):
-            used_item_ids.add(item["id"])
-        created += 1
-
     for item in items:
         if item.get("id") in used_item_ids:
             continue
@@ -234,13 +328,72 @@ def main() -> None:
             skipped += 1
             continue
         db.upsert_creator(creator_row(item, fallback_fit))
-        fallback_created += 1
         created += 1
+        if item.get("id"):
+            used_item_ids.add(item["id"])
+    return created, skipped
+
+
+def promote_conversation_author_leads(db: OutreachDB, items: list[dict[str, Any]], used_item_ids: set[str]) -> tuple[int, int]:
+    created = 0
+    skipped = 0
+    for item in items:
+        if item.get("id") in used_item_ids:
+            continue
+        lead_fit = conversation_author_lead_fit(item)
+        if not lead_fit:
+            skipped += 1
+            continue
+        db.upsert_creator(creator_row(item, lead_fit))
+        created += 1
+        if item.get("id"):
+            used_item_ids.add(item["id"])
+    return created, skipped
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--limit", type=int, default=50)
+    args = parser.parse_args()
+
+    cfg = settings()
+    db = OutreachDB(cfg)
+
+    created = 0
+    skipped = 0
+    fallback_created = 0
+    lead_created = 0
+    source_items = db.fetch_creator_source_items(args.limit * 4)
+    items = [item for item in source_items if has_reliable_creator_history(item)][: args.limit]
+    lead_items = [item for item in source_items if is_apify_conversation_author_lead(item)][: args.limit]
+    if not items and not lead_items:
+        print("Creator discovery: scanned=0 upserted=0 fallback=0 skipped=0")
+        return
+
+    items_by_id = {item["id"]: item for item in items if item.get("id")}
+    used_item_ids: set[str] = set()
+
+    if items:
+        llm = LLM(cfg)
+        for fit in llm.creator_fits(items):
+            item = fit_source_item(items_by_id, fit)
+            if not item:
+                skipped += 1
+                continue
+            db.upsert_creator(creator_row(item, fit))
+            if item.get("id"):
+                used_item_ids.add(item["id"])
+            created += 1
+
+    fallback_created, fallback_skipped = promote_fallback_items(db, items, used_item_ids)
+    lead_created, lead_skipped = promote_conversation_author_leads(db, lead_items, used_item_ids)
+    created += fallback_created + lead_created
+    skipped += fallback_skipped + lead_skipped
 
     print(
         "Creator discovery: "
-        f"scanned={len(items)} upserted={created} "
-        f"fallback={fallback_created} skipped={skipped}"
+        f"scanned={len(items) + len(lead_items)} upserted={created} "
+        f"fallback={fallback_created} leads={lead_created} skipped={skipped}"
     )
 
 

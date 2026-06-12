@@ -68,7 +68,7 @@ type DashboardData = {
 };
 
 type View = "dashboard" | "conversations" | "map" | "creators" | "outreach" | "export" | "automations" | "runMonitor" | "analytics" | "settings";
-type ExportFormat = "csv" | "json" | "txt";
+export type ExportFormat = "csv" | "json" | "txt";
 
 const emptyData: DashboardData = {
   summary: null,
@@ -314,7 +314,7 @@ function sampleMessageForCreator(creator: Creator, draft?: Draft) {
   return `Hi ${firstName(creator.name)}, I liked your ${platformLabel(creator.platform)} work around ${focus}. XRWorkout is looking for creators who can give practical feedback on VR fitness experiences. Would you be open to trying ${offer} and sharing what feels useful for your audience?`;
 }
 
-type ContactExportRequest = {
+export type ContactExportRequest = {
   limit: number;
   minFollowers: number | null;
   maxFollowers: number | null;
@@ -322,7 +322,7 @@ type ContactExportRequest = {
   query: string;
 };
 
-type ContactExportRow = {
+export type ContactExportRow = {
   name: string;
   platform: string;
   profile: string;
@@ -335,7 +335,7 @@ type ContactExportRow = {
   sampleMessage: string;
 };
 
-function parseContactExportRequest(query: string, format: ExportFormat): ContactExportRequest {
+export function parseContactExportRequest(query: string, format: ExportFormat): ContactExportRequest {
   const normalized = query.toLowerCase();
   const limitMatch = normalized.match(/\b(?:first|top|limit|export|need)\s+(\d{1,4})\b/) || normalized.match(/\b(\d{1,4})\s+(?:people|contacts|creators)\b/);
   const rangeMatch = normalized.match(/(\d+(?:\.\d+)?\s*[kmb]?)\s*(?:-|to|through|and)\s*(\d+(?:\.\d+)?\s*[kmb]?)\s*(?:followers|subs|subscribers)?/);
@@ -357,7 +357,7 @@ function creatorExportScore(creator: Creator) {
   return priorityScore + statusScore + contactScore + followerScore;
 }
 
-function buildContactExportRows(creators: Creator[], drafts: Draft[], request: ContactExportRequest): ContactExportRow[] {
+export function buildContactExportRows(creators: Creator[], drafts: Draft[], request: ContactExportRequest): ContactExportRow[] {
   return creators
     .filter((creator) => {
       const count = creatorFollowerCount(creator);

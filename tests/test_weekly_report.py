@@ -19,18 +19,38 @@ def test_source_quality_ranks_by_high_priority_then_average_score():
         {"status": "needs_review", "opportunities": {"raw_items": {"source": "reddit"}}},
     ]
 
-    quality = source_quality(raw_items, opportunities, drafts)
+    creators = [{"platform": "youtube"}, {"platform": "apify_tiktok"}]
+
+    quality = source_quality(raw_items, opportunities, drafts, creators)
 
     assert quality[0] == {
         "source": "youtube",
         "raw_items": 2,
         "opportunities": 2,
         "high_priority": 1,
+        "creators": 1,
         "average_score": 74,
         "drafts": 1,
         "approved_or_sent": 1,
     }
     assert quality[1]["source"] == "reddit"
+
+
+def test_source_quality_includes_creator_only_sources():
+    quality = source_quality([], [], [], [{"platform": "TikTok"}, {"platform": "apify_tiktok"}])
+
+    assert quality == [
+        {
+            "source": "apify_tiktok",
+            "raw_items": 0,
+            "opportunities": 0,
+            "high_priority": 0,
+            "creators": 2,
+            "average_score": 0,
+            "drafts": 0,
+            "approved_or_sent": 0,
+        }
+    ]
 
 
 def test_due_followup_count_only_counts_pending_due_rows():
