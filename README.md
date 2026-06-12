@@ -67,7 +67,7 @@ Dashboard presents conversations, opportunity feeds, creator pipeline, outreach 
 - Reddit RSS collector for low-volume public Reddit monitoring, with the PRAW collector retained as a future OAuth/API fallback.
 - YouTube collector using the YouTube Data API.
 - Twitch collector using the Twitch Helix API.
-- Disabled-by-default Apify creator and social collectors with Starter-plan item/run caps.
+- Apify creator, social, and public conversation collectors with item/run caps, currently used for controlled dashboard validation.
 - Codex CLI wrapper for classification, creator discovery, and draft generation.
 - Brevo email sender with dry-run support.
 - Approval-only sending logic.
@@ -79,7 +79,7 @@ Dashboard presents conversations, opportunity feeds, creator pipeline, outreach 
 - Manual source collection workflow for rerunning one missing source from the Automation tab without wiping the whole dataset.
 - Scheduled collection, draft, and report jobs are gated by `AUTOMATION_ENABLED`; scheduled approved sends are gated by `SEND_AUTOMATION_ENABLED`; manual runs still work for validation.
 - Next.js dashboard under `dashboard/` with Supabase login, operator allowlist, dark-mode Outreach OS navigation, Dashboard, Conversations, Conversation Map, Creators, Outreach, Export, Automations, Run Monitor, Analytics, and Settings views.
-- Dashboard product surfaces include presentation-layer labels, KPI cards, live opportunity feed, AI-style recommendations, social listening filters, interactive source radar, creator-quality filters/evidence panels, creator kanban, outreach review drawers, contact export builder, automation agent cards, workflow controls, live run monitoring, and source attribution charts.
+- Dashboard product surfaces include presentation-layer labels, KPI cards, live opportunity feed, AI-style recommendations, social listening filters, interactive source radar with native/Apify source alias aggregation, creator-quality filters/evidence panels, creator kanban, outreach review drawers, contact export builder, automation agent cards, workflow controls, live run monitoring, and source attribution charts.
 - Deployed dashboard for day-to-day review and automation controls.
 - Audited dashboard editing for opportunity status, creator review fields, follow-up outcomes, and offer outcomes.
 - Manual dashboard dispatch from selected opportunities into the LLM draft generator.
@@ -90,7 +90,7 @@ Dashboard presents conversations, opportunity feeds, creator pipeline, outreach 
 ## What Is Planned
 
 - Expand dashboard outcome tracking after the first controlled send loop is complete.
-- Configure and validate Apify actors at low limits before enabling scheduled supplemental scraping.
+- Validate higher-volume Apify conversation actors for X/Twitter, TikTok, Instagram hashtags/reels, Discord discovery, and public Facebook groups before relying on them in scheduled refreshes.
 
 ## Tech Stack
 
@@ -226,12 +226,12 @@ Optional settings:
 - `EMAIL_PROVIDER`, defaults to `brevo`
 - `DRY_RUN_SEND`, keep `true` so dashboard send dispatches stay dry-run only
 - `REDDIT_USER_AGENT`, optional; defaults to a clear XRWorkout monitoring user agent
-- `APIFY_ENABLED`, keep `false` until actors and usage are validated
+- `APIFY_ENABLED`, enable only during controlled actor validation or after actor quality is accepted
 - `APIFY_CREATOR_ACTORS_JSON`, JSON array of actor configs
 - `APIFY_SOCIAL_ACTORS_JSON`, JSON array of actor configs
 - `APIFY_CONVERSATION_ACTORS_JSON`, JSON array of public conversation actor configs
 - `APIFY_MAX_ITEMS_PER_RUN`, defaults to `100`
-- `APIFY_MAX_RUNS_PER_DAY`, defaults to `4`
+- `APIFY_MAX_RUNS_PER_DAY`, defaults to `4`; current max-efficiency validation uses `6`
 - `FORUM_SOURCES_JSON`, JSON array of public Discourse/forum sources
 - `BLOG_FEEDS_JSON`, JSON array of RSS/Atom feed sources
 
@@ -302,7 +302,7 @@ Launch control:
 - Approved-send schedules stop early unless `SEND_AUTOMATION_ENABLED` is explicitly `true`.
 - If either automation variable is missing, that schedule behaves as disabled.
 - Keep manual runs available for testing while scheduled automation is disabled.
-- Keep `APIFY_ENABLED=false` until low-limit Apify actor validation is reviewed.
+- Keep `APIFY_ENABLED` controlled by the operator; current validation enables it for manual source runs while scheduled approved sending remains disabled.
 - Keep `DRY_RUN_SEND=true` as the separate email safety switch; dashboard send dispatch is dry-run only.
 - The dashboard `Clean start` action sets `AUTOMATION_ENABLED=true`, `SEND_AUTOMATION_ENABLED=false`, and `DRY_RUN_SEND=true` before dispatching `clean-automatic-start.yml`.
 - The dashboard `Run Missing Source` controls dispatch `manual-source-collection.yml` for all sources, Apify conversations, forums, blogs, Reddit, YouTube, or Twitch.
@@ -315,7 +315,7 @@ Current views:
 
 - Overview metrics for raw items, opportunities, creators, drafts, follow-ups, offers, action queues, and best-performing source.
 - Source charts and source-quality ranking showing platform volume, classified opportunities, high-priority count, average score, drafts, and approved/sent count.
-- Conversation Map and Conversations filters for platform, source type, intent, relevance, date, and follower range across X/Twitter, TikTok, YouTube, Reddit, Facebook, Discord discovery, VR forums, and VR blogs.
+- Conversation Map and Conversations filters for platform, source type, intent, relevance, date, and follower range across X/Twitter, TikTok, Instagram, YouTube, Reddit, Facebook groups, Discord discovery, VR forums, and VR blogs. Radar nodes light up from either native sources or matching Apify source aliases.
 - Opportunity queue with filters for platform, priority, score, age, safety status, and recommended action.
 - Draft review view with editable subject/body, recipient contact, creator profile, linked opportunity, original source link, and approve/reject/edit-needed actions.
 - Creator pipeline with contact availability, profile URL, quality score, recent VR/activity counts, headset confidence, movement evidence, engagement/contactability evidence, safety notes, recent relevant content, niche, fit reason, offer angle, status, and priority.

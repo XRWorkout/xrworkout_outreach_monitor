@@ -137,11 +137,11 @@ Updated on 2026-06-09.
 - [x] Ran `python scripts/check_ollama_cloud.py` locally and through self-hosted smoke run `27415474484`; Ollama and Codex checks passed.
 - [x] Verified `llm_usage_events` exists because weekly report read `66` LLM usage events in run `27415927251`.
 - [x] Retried Manual source collection with `source=blogs` and `classify=true` in run `27415927251`; it succeeded and classified `50` rows.
-- [ ] Keep `APIFY_ENABLED=false` until the expanded Apify conversation actors are configured and low-limit validation is reviewed in the dashboard.
-- [ ] Configure low-limit `APIFY_CONVERSATION_ACTORS_JSON` for X/Twitter, Facebook groups, Discord server discovery, and TikTok conversation discovery before enabling Apify.
-- [ ] Configure `FORUM_SOURCES_JSON` with the first small public source list.
+- [x] Enabled `APIFY_ENABLED=true` for controlled manual source validation while keeping `SEND_AUTOMATION_ENABLED=false` and `DRY_RUN_SEND=true`.
+- [x] Fixed malformed `APIFY_CONVERSATION_ACTORS_JSON` and confirmed run `27420245192` succeeded with Apify conversation collection and Ollama classification.
+- [ ] Validate max-efficiency `APIFY_CONVERSATION_ACTORS_JSON` for X/Twitter, TikTok, Instagram hashtags/reels, Discord server discovery, and public Facebook groups in the dashboard.
 - [ ] Use Automation > Run Missing Source to validate Apify conversations and forums individually before relying on Clean Start for full refreshes.
-- [ ] Decide whether to use the tested TikTok actor only as a supplemental social-listening/opportunity source.
+- [ ] Decide whether TikTok and Instagram should remain supplemental social-listening/opportunity sources only, or whether a later profile-history actor can support creator scoring.
 - [ ] Test a better profile-history actor or actor input before using Apify for creator scoring, activity filters, or recent VR-post counts.
 - [ ] Deploy the latest dashboard update with follower filters, cleaned conversation review, the Run Monitor interface, and the new Export tab.
 - [ ] Keep `SEND_AUTOMATION_ENABLED=false` so scheduled approved sends remain disabled.

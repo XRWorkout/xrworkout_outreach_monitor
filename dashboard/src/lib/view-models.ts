@@ -173,20 +173,34 @@ export function funnelData(summary: SummaryData | null, opportunities: Opportuni
 export function platformNodes(summary: SummaryData | null, creators: Creator[]) {
   const configured = ["reddit", "discord", "x", "youtube", "tiktok", "instagram", "facebook_group", "vr_forum", "vr_blog"];
   const sourceQuality = new Map((summary?.sourceQuality || []).map((row) => [row.source.toLowerCase(), row]));
+  const aliases: Record<string, string[]> = {
+    discord: ["discord", "discord_server", "apify_discord", "apify_discord_server"],
+    x: ["x", "twitter", "apify_x", "apify_twitter"],
+    tiktok: ["tiktok", "apify_tiktok"],
+    instagram: ["instagram", "apify_instagram"],
+    facebook_group: ["facebook_group", "facebook_groups", "apify_facebook_group", "apify_facebook_groups"]
+  };
+
   return configured.map((source, index) => {
-    const quality = sourceQuality.get(source) || sourceQuality.get(source === "twitter" ? "x" : source);
+    const sourceAliases = aliases[source] || [source];
+    const qualityRows = sourceAliases.flatMap((alias) => {
+      const row = sourceQuality.get(alias);
+      return row ? [row] : [];
+    });
     const creatorDensity = creators.filter((creator) => {
       const platform = creator.platform.toLowerCase();
-      if (source === "x") return platform === "x" || platform === "twitter" || platform === "apify_x";
-      return platform === source;
+      return sourceAliases.includes(platform);
     }).length;
+    const volume = qualityRows.reduce((total, row) => total + row.rawItems, 0);
+    const opportunities = qualityRows.reduce((total, row) => total + row.opportunities, 0);
+    const weightedScore = qualityRows.reduce((total, row) => total + row.averageScore * row.opportunities, 0);
     return {
       id: source,
       label: platformLabel(source),
-      live: Boolean(quality?.rawItems || creatorDensity),
-      volume: quality?.rawItems || 0,
-      opportunities: quality?.opportunities || 0,
-      relevance: quality?.averageScore || 0,
+      live: Boolean(volume || opportunities || creatorDensity),
+      volume,
+      opportunities,
+      relevance: opportunities ? Math.round((weightedScore / opportunities) * 10) / 10 : 0,
       creators: creatorDensity,
       angle: (index / configured.length) * Math.PI * 2
     };

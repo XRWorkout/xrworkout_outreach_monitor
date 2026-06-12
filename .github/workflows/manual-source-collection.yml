@@ -86,7 +86,7 @@ jobs:
         env: *env
       - name: Collect Apify conversations
         if: ${{ inputs.source == 'all' || inputs.source == 'apify_conversations' }}
-        run: python scripts/collect_apify_conversations.py --limit 10
+        run: python scripts/collect_apify_conversations.py --limit "${APIFY_MAX_ITEMS_PER_RUN:-100}"
         env: *env
       - name: Collect forums
         if: ${{ inputs.source == 'all' || inputs.source == 'forums' }}
