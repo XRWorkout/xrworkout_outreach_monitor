@@ -156,7 +156,110 @@ describe("contact export helpers", () => {
     const rows = buildContactExportRows([], [], [opportunity()], [], parseContactExportRequest("first 1 prospects csv", "csv"));
 
     expect(contactExportContent(rows, parseContactExportRequest("first 1 prospects csv", "csv"))).toContain('"Source Kind"');
+    expect(contactExportContent(rows, parseContactExportRequest("first 1 prospects csv", "csv"))).toContain('"Record Type"');
     expect(contactExportContent(rows, parseContactExportRequest("first 1 prospects json", "json"))).toContain('"recommendedAction"');
+    expect(contactExportContent(rows, parseContactExportRequest("first 1 prospects json", "json"))).toContain('"recordType"');
+    expect(contactExportContent(rows, parseContactExportRequest("first 1 prospects text", "txt"))).toContain("Record type:");
     expect(contactExportContent(rows, parseContactExportRequest("first 1 prospects text", "txt"))).toContain("Recommended action:");
+  });
+
+  it("filters opportunity and conversation records by score threshold", () => {
+    const request = parseContactExportRequest("first 10 records score 60+ csv", "csv");
+
+    const rows = buildContactExportRows(
+      [],
+      [],
+      [
+        opportunity({ id: "strong", score: 72, raw_items: rawItem({ id: "raw-strong", author_name: null, author_url: null, source_url: "https://example.com/strong" }) }),
+        opportunity({ id: "weak", score: 42, raw_items: rawItem({ id: "raw-weak", author_name: null, author_url: null, source_url: "https://example.com/weak" }) })
+      ],
+      [],
+      request
+    );
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ sourceKind: "Conversation Record", score: "72", contact: "Review source manually" });
+  });
+
+  it("includes medium and high priority but excludes low priority", () => {
+    const request = parseContactExportRequest("first 10 records medium and up csv", "csv");
+
+    const rows = buildContactExportRows(
+      [],
+      [],
+      [
+        opportunity({ id: "high", priority: "high", raw_items: rawItem({ id: "raw-high", author_name: "High Creator", author_url: "https://example.com/high" }) }),
+        opportunity({ id: "medium", priority: "medium", raw_items: rawItem({ id: "raw-medium", author_name: "Medium Creator", author_url: "https://example.com/medium" }) }),
+        opportunity({ id: "low", priority: "low", raw_items: rawItem({ id: "raw-low", author_name: "Low Creator", author_url: "https://example.com/low" }) })
+      ],
+      [],
+      request
+    );
+
+    expect(rows.map((row) => row.name).sort()).toEqual(["High Creator", "Medium Creator"]);
+  });
+
+  it("supports high-only priority requests", () => {
+    const request = parseContactExportRequest("first 10 high only records csv", "csv");
+
+    const rows = buildContactExportRows(
+      [],
+      [],
+      [
+        opportunity({ id: "high", priority: "high", raw_items: rawItem({ id: "raw-high", author_name: "High Creator", author_url: "https://example.com/high" }) }),
+        opportunity({ id: "medium", priority: "medium", raw_items: rawItem({ id: "raw-medium", author_name: "Medium Creator", author_url: "https://example.com/medium" }) })
+      ],
+      [],
+      request
+    );
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ name: "High Creator", priority: "High Priority" });
+  });
+
+  it("parses large record requests up to the 1000 row cap", () => {
+    expect(parseContactExportRequest("first 800 records score 50+", "csv")).toMatchObject({
+      limit: 800,
+      minOpportunityScore: 50,
+      minCreatorScore: 50
+    });
+    expect(parseContactExportRequest("first 2000 records", "csv").limit).toBe(1000);
+  });
+
+  it("exports conversation records without author profiles using the source url", () => {
+    const request = parseContactExportRequest("first 10 records score 50+ csv", "csv");
+
+    const rows = buildContactExportRows(
+      [],
+      [],
+      [opportunity({ score: 75, raw_items: rawItem({ author_name: null, author_url: null, source_url: "https://example.com/conversation", title: "A useful VR workout thread" }) })],
+      [],
+      request
+    );
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      name: "A useful VR workout thread",
+      sourceKind: "Conversation Record",
+      recordType: "Conversation",
+      profile: "https://example.com/conversation",
+      contact: "Review source manually"
+    });
+  });
+
+  it("ranks contact-ready prospects above same-score conversation records", () => {
+    const request = parseContactExportRequest("first 10 records score 50+ csv", "csv");
+
+    const rows = buildContactExportRows(
+      [creator({ status: "contact_ready", public_contact: "coach@example.com", creator_quality_score: 75, priority: "high" })],
+      [],
+      [opportunity({ score: 75, raw_items: rawItem({ id: "raw-conversation", author_name: null, author_url: null, source_url: "https://example.com/conversation" }) })],
+      [],
+      request
+    );
+
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toMatchObject({ recordType: "Prospect", contact: "coach@example.com" });
+    expect(rows[1]).toMatchObject({ recordType: "Conversation", contact: "Review source manually" });
   });
 });
