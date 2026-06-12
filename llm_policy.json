@@ -1,7 +1,7 @@
 {
   "classify_opportunity": {
     "provider": "ollama",
-    "model": "qwen3.5:397b",
+    "model": "gemma3:12b",
     "timeout_seconds": 180,
     "retries": 1,
     "temperature": 0
