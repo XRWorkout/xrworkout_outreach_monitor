@@ -255,6 +255,37 @@ def test_llm_falls_back_to_codex_after_ollama_auth_and_rate_errors(monkeypatch):
     assert result["summary"] == "Fallback after HTTP errors"
 
 
+def test_llm_uses_codex_default_model_when_cheap_llm_disabled(monkeypatch):
+    commands = []
+
+    def fake_which(binary):
+        assert binary == "codex"
+        return "/usr/bin/codex"
+
+    def fake_run(command, input, capture_output, text, timeout, check):
+        commands.append(command)
+        output_path = command[command.index("--output-last-message") + 1]
+        Path(output_path).write_text(
+            '{"opportunity_type":"creator_opportunity","summary":"Codex default",'
+            '"pain_point":"Needs VR fitness content","xrworkout_relevance":"Strong fit",'
+            '"audience_type":"VR fitness audience","score":70,"priority":"medium",'
+            '"recommended_action":"email","outreach_safety":"safe"}',
+            encoding="utf-8",
+        )
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setattr("xroutreach.llm.shutil.which", fake_which)
+    monkeypatch.setattr("xroutreach.llm.subprocess.run", fake_run)
+
+    result = LLM(_settings(cheap_llm_enabled=False)).classify(
+        {"source": "youtube", "title": "VR fitness"}
+    )
+
+    assert result["summary"] == "Codex default"
+    assert "--model" not in commands[0]
+    assert "qwen3.5:397b" not in commands[0]
+
+
 def test_llm_draft_stays_on_codex_when_cheap_llm_enabled(monkeypatch):
     commands = []
 

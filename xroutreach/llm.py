@@ -383,16 +383,17 @@ class LLM:
     ) -> dict[str, Any]:
         policy = self.policy.get(task, DEFAULT_POLICY[task])
         provider = self._provider(policy)
-        attempts = max(1, policy.retries + 1)
+        runtime_policy = self._runtime_policy(policy, provider)
+        attempts = max(1, runtime_policy.retries + 1)
         last_error: Exception | None = None
 
         for attempt in range(1, attempts + 1):
             started = time.monotonic()
             try:
-                data = provider.json_completion(system, payload, schema, policy)
+                data = provider.json_completion(system, payload, schema, runtime_policy)
                 self._log_event(
                     task,
-                    policy,
+                    runtime_policy,
                     provider.provider_name,
                     "success",
                     attempt,
@@ -407,7 +408,7 @@ class LLM:
                 last_error = exc
                 self._log_event(
                     task,
-                    policy,
+                    runtime_policy,
                     provider.provider_name,
                     "failure",
                     attempt,
@@ -431,7 +432,7 @@ class LLM:
             if self.settings.llm_notify_fallbacks:
                 print(
                     "LLM fallback: "
-                    f"task={task} primary={provider.provider_name}/{policy.model} "
+                    f"task={task} primary={provider.provider_name}/{runtime_policy.model or 'default'} "
                     f"fallback=codex reason={summarize_error(str(last_error or 'unknown'))}"
                 )
             try:
@@ -472,6 +473,17 @@ class LLM:
                 raise RuntimeError("Ollama provider was not initialized")
             return self.ollama
         return self.codex
+
+    def _runtime_policy(self, policy: TaskPolicy, provider: LLMProvider) -> TaskPolicy:
+        if provider.provider_name == "codex" and policy.provider != "codex":
+            return TaskPolicy(
+                provider="codex",
+                model=self.settings.codex_model,
+                timeout_seconds=self.settings.codex_timeout_seconds,
+                retries=0,
+                temperature=0,
+            )
+        return policy
 
     def _log_event(
         self,
