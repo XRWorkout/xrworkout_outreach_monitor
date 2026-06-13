@@ -918,13 +918,35 @@ function conversationBody(item: RawItem, opportunity?: Opportunity) {
   return item.body?.trim() || opportunity?.summary || opportunity?.pain_point || "No conversation details captured.";
 }
 
-function defaultCreatorPanelPosition() {
+const creatorWorkspaceMaxSize = { width: 1080, height: 720 };
+
+function creatorWorkspaceDimensions() {
   if (typeof window === "undefined") {
-    return { x: 920, y: 96 };
+    return creatorWorkspaceMaxSize;
   }
   return {
-    x: Math.max(24, window.innerWidth - 500),
-    y: 96
+    width: Math.min(creatorWorkspaceMaxSize.width, window.innerWidth - 32),
+    height: Math.min(creatorWorkspaceMaxSize.height, window.innerHeight - 32)
+  };
+}
+
+function defaultCreatorPanelPosition() {
+  if (typeof window === "undefined") {
+    return { x: 96, y: 80 };
+  }
+  const size = creatorWorkspaceDimensions();
+  return {
+    x: Math.max(16, Math.round((window.innerWidth - size.width) / 2)),
+    y: Math.max(16, Math.round((window.innerHeight - size.height) / 2))
+  };
+}
+
+function clampCreatorPanelPosition(nextX: number, nextY: number) {
+  if (typeof window === "undefined") return { x: nextX, y: nextY };
+  const size = creatorWorkspaceDimensions();
+  return {
+    x: Math.min(Math.max(16, nextX), Math.max(16, window.innerWidth - size.width - 16)),
+    y: Math.min(Math.max(16, nextY), Math.max(16, window.innerHeight - size.height - 16))
   };
 }
 
@@ -1065,6 +1087,7 @@ export default function Page() {
 
   function reviewCreator(creator: Creator) {
     setSelectedCreator(creator);
+    setCreatorPanelPosition(defaultCreatorPanelPosition());
     setMinimizedCreators((current) => current.filter((item) => item.id !== creator.id));
     setCreatorStatus(creator.status || "new");
     setCreatorContact(creator.public_contact || "");
@@ -1576,6 +1599,7 @@ export default function Page() {
           </div>
           {activeView === "creators" && selectedCreator ? (
             <CreatorFloatingTab
+              key={selectedCreator.id}
               selectedCreator={selectedCreator}
               drafts={data.drafts}
               creatorStatus={creatorStatus}
@@ -2184,6 +2208,7 @@ function CreatorFloatingTab({
   setPosition: (position: { x: number; y: number }) => void;
 }) {
   const [dragOffset, setDragOffset] = useState<{ x: number; y: number } | null>(null);
+  const [workspacePage, setWorkspacePage] = useState<"review" | "outreach">("review");
   const creatorDrafts = drafts.filter((draft) => draft.creator_id === selectedCreator.id);
   const fit = creatorFitBand(selectedCreator);
   const relevantPosts = creatorRelevantPosts(selectedCreator);
@@ -2205,71 +2230,81 @@ function CreatorFloatingTab({
   );
   const sourceLinks: Array<{ label: string; url: string }> = [
     ...(selectedCreator.profile_url ? [{ label: "Profile", url: selectedCreator.profile_url }] : []),
-    ...(latestPostUrl ? [{ label: "Latest relevant post", url: latestPostUrl }] : []),
-    ...evidenceUrls.filter((url) => url !== latestPostUrl && url !== selectedCreator.profile_url).slice(0, 4).map((url, index) => ({ label: `Evidence ${index + 1}`, url }))
+    ...(latestPostUrl ? [{ label: "Latest post", url: latestPostUrl }] : []),
+    ...evidenceUrls.filter((url) => url !== latestPostUrl && url !== selectedCreator.profile_url).slice(0, 5).map((url, index) => ({ label: `Evidence ${index + 1}`, url }))
   ];
-
-  function clampPosition(nextX: number, nextY: number) {
-    if (typeof window === "undefined") return { x: nextX, y: nextY };
-    const maxX = Math.max(16, window.innerWidth - 780);
-    const maxY = Math.max(76, window.innerHeight - 260);
-    return {
-      x: Math.min(Math.max(16, nextX), maxX),
-      y: Math.min(Math.max(76, nextY), maxY)
-    };
-  }
 
   return (
     <Card
-      className="fixed z-40 w-[min(760px,calc(100vw-2rem))] overflow-hidden border-cyan-300/20 shadow-[0_30px_120px_rgba(0,0,0,0.52)]"
-      style={{ left: position.x, top: position.y }}
+      className="fixed z-40 flex overflow-hidden border-cyan-300/20 shadow-[0_30px_120px_rgba(0,0,0,0.6)]"
+      style={{
+        left: position.x,
+        top: position.y,
+        width: "min(1080px, calc(100vw - 2rem))",
+        height: "min(720px, calc(100vh - 2rem))"
+      }}
     >
-      <div
-        className="flex cursor-move items-center justify-between gap-3 border-b border-white/10 bg-white/[0.04] px-4 py-3"
-        onPointerDown={(event) => {
-          event.currentTarget.setPointerCapture(event.pointerId);
-          setDragOffset({ x: event.clientX - position.x, y: event.clientY - position.y });
-        }}
-        onPointerMove={(event) => {
-          if (!dragOffset) return;
-          setPosition(clampPosition(event.clientX - dragOffset.x, event.clientY - dragOffset.y));
-        }}
-        onPointerUp={(event) => {
-          event.currentTarget.releasePointerCapture(event.pointerId);
-          setDragOffset(null);
-        }}
-        onPointerCancel={() => setDragOffset(null)}
-      >
-        <div className="min-w-0">
-          <p className="text-xs font-medium uppercase tracking-[0.14em] text-cyan-200">Creator Review Workspace</p>
-          <h3 className="truncate text-sm font-semibold text-white">{selectedCreator.name}</h3>
-        </div>
-        <div className="flex shrink-0 gap-1">
-          <Button className="size-8 p-0" variant="ghost" onPointerDown={(event) => event.stopPropagation()} onClick={onMinimize} aria-label="Minimize creator workspace" title="Minimize">
-            <Minimize2 size={15} />
-          </Button>
-          <Button className="size-8 p-0" variant="ghost" onPointerDown={(event) => event.stopPropagation()} onClick={onClose} aria-label="Close creator workspace" title="Close">
-            <X size={15} />
-          </Button>
-        </div>
-      </div>
-      <div className="max-h-[calc(100vh-7rem)] overflow-auto p-5">
-        <div className="flex flex-wrap items-start justify-between gap-4">
+      <div className="flex min-h-0 w-full flex-col">
+        <div
+          className="flex cursor-move items-center justify-between gap-3 border-b border-white/10 bg-white/[0.04] px-4 py-3"
+          onPointerDown={(event) => {
+            event.currentTarget.setPointerCapture(event.pointerId);
+            setDragOffset({ x: event.clientX - position.x, y: event.clientY - position.y });
+          }}
+          onPointerMove={(event) => {
+            if (!dragOffset) return;
+            setPosition(clampCreatorPanelPosition(event.clientX - dragOffset.x, event.clientY - dragOffset.y));
+          }}
+          onPointerUp={(event) => {
+            event.currentTarget.releasePointerCapture(event.pointerId);
+            setDragOffset(null);
+          }}
+          onPointerCancel={() => setDragOffset(null)}
+        >
           <div className="flex min-w-0 items-center gap-3">
-            <div className="grid size-14 shrink-0 place-items-center rounded-lg border border-cyan-300/20 bg-cyan-300/10 text-lg font-semibold text-cyan-100">
+            <div className="grid size-10 shrink-0 place-items-center rounded-md border border-cyan-300/20 bg-cyan-300/10 text-sm font-semibold text-cyan-100">
               {initials(selectedCreator.name)}
             </div>
             <div className="min-w-0">
-              <h3 className="truncate text-xl font-semibold text-white">{selectedCreator.name}</h3>
-              <p className="mt-1 text-sm text-zinc-500">{platformLabel(selectedCreator.platform)} - {creatorFitCategory(selectedCreator)}</p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                <SoftBadge tone={fit.tone}>{selectedCreator.creator_quality_score ?? "--"}/100</SoftBadge>
-                <SoftBadge tone={toneFor(selectedCreator.status)}>{labelFor(selectedCreator.status)}</SoftBadge>
-                <SoftBadge>{creatorEvidenceQuality(selectedCreator)}</SoftBadge>
-              </div>
+              <p className="text-xs font-medium uppercase tracking-[0.14em] text-cyan-200">Creator Workspace</p>
+              <h3 className="truncate text-base font-semibold text-white">{selectedCreator.name}</h3>
             </div>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex shrink-0 items-center gap-2" onPointerDown={(event) => event.stopPropagation()}>
+            <div className="hidden rounded-md border border-white/10 bg-black/20 p-1 sm:flex">
+              {(["review", "outreach"] as const).map((page) => (
+                <button
+                  key={page}
+                  className={cn(
+                    "min-h-8 rounded px-3 text-sm font-medium transition",
+                    workspacePage === page ? "bg-cyan-300 text-zinc-950" : "text-zinc-400 hover:bg-white/[0.06] hover:text-zinc-100"
+                  )}
+                  onClick={() => setWorkspacePage(page)}
+                >
+                  {page === "review" ? "Review" : "Outreach"}
+                </button>
+              ))}
+            </div>
+            <Button className="size-8 p-0" variant="ghost" onClick={onMinimize} aria-label="Minimize creator workspace" title="Minimize">
+              <Minimize2 size={15} />
+            </Button>
+            <Button className="size-8 p-0" variant="ghost" onClick={onClose} aria-label="Close creator workspace" title="Close">
+              <X size={15} />
+            </Button>
+          </div>
+        </div>
+
+        <div className="grid shrink-0 gap-3 border-b border-white/10 bg-black/15 px-4 py-3 lg:grid-cols-[minmax(0,1fr)_auto]">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <SoftBadge tone={fit.tone}>{selectedCreator.creator_quality_score ?? "--"}/100</SoftBadge>
+              <SoftBadge tone={toneFor(selectedCreator.status)}>{labelFor(selectedCreator.status)}</SoftBadge>
+              <SoftBadge>{platformLabel(selectedCreator.platform)}</SoftBadge>
+              <SoftBadge>{creatorEvidenceQuality(selectedCreator)}</SoftBadge>
+            </div>
+            <p className="mt-2 line-clamp-2 text-sm leading-5 text-zinc-300">{creatorInclusionReason(selectedCreator)}</p>
+          </div>
+          <div className="grid grid-cols-3 gap-2 sm:flex">
             <Button variant="secondary" onClick={() => updateCreator("reviewed")}>
               <CheckCircle2 size={15} /> Reviewed
             </Button>
@@ -2277,71 +2312,100 @@ function CreatorFloatingTab({
               <Target size={15} /> Qualify
             </Button>
             <Button variant="primary" onClick={() => updateCreator("contact_ready")}>
-              <MailCheck size={15} /> Contact ready
+              <MailCheck size={15} /> Contact
             </Button>
           </div>
         </div>
 
-        <div className="mt-5 rounded-lg border border-cyan-300/15 bg-cyan-300/[0.055] p-4">
-          <div className="flex items-start gap-3">
-            <Sparkles className="mt-0.5 shrink-0 text-cyan-200" size={18} />
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-cyan-100">Why this creator is here</p>
-              <p className="mt-2 text-sm leading-6 text-zinc-200">{creatorInclusionReason(selectedCreator)}</p>
-              <p className="mt-2 text-sm leading-6 text-zinc-400"><LinkifiedText value={strongestCreatorEvidence(selectedCreator)} /></p>
-            </div>
-          </div>
+        <div className="flex shrink-0 border-b border-white/10 bg-white/[0.025] sm:hidden">
+          {(["review", "outreach"] as const).map((page) => (
+            <button
+              key={page}
+              className={cn(
+                "min-h-11 flex-1 text-sm font-medium transition",
+                workspacePage === page ? "bg-cyan-300 text-zinc-950" : "text-zinc-400"
+              )}
+              onClick={() => setWorkspacePage(page)}
+            >
+              {page === "review" ? "Review" : "Outreach"}
+            </button>
+          ))}
         </div>
 
-        <div className="mt-4 grid gap-3 md:grid-cols-4">
-          <MiniStat label="VR/XR 90d" value={selectedCreator.recent_vr_posts_count ?? 0} />
-          <MiniStat label="Observed 90d" value={selectedCreator.recent_total_posts_count ?? 0} />
-          <MiniStat label="Last relevant" value={selectedCreator.last_post_at ? shortDate(selectedCreator.last_post_at) : "Unknown"} />
-          <MiniStat label="Headset" value={labelFor(selectedCreator.headset_confidence || "unknown")} />
-        </div>
-
-        {sourceLinks.length ? (
-          <div className="mt-4 flex flex-wrap gap-2">
-            {sourceLinks.map((link) => (
-              <a key={`${link.label}-${link.url}`} className="inline-flex min-h-9 items-center gap-2 rounded-md border border-white/10 bg-white/[0.06] px-3 text-sm text-cyan-100 hover:border-cyan-300/40 hover:text-cyan-50" href={link.url} target="_blank" rel="noreferrer">
-                {link.label} <ExternalLink size={14} />
-              </a>
-            ))}
-          </div>
-        ) : null}
-
-        <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_290px]">
-          <div className="grid gap-4">
-            <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-sm font-medium text-zinc-200">Relevant post evidence</p>
-                <SoftBadge>{relevantPosts.length} captured</SoftBadge>
-              </div>
-              <div className="mt-3 grid gap-3">
-                {relevantPosts.length ? relevantPosts.slice(0, 6).map((post, index) => {
-                  const date = stringField(post, "published_at") || stringField(post, "date");
-                  const url = stringField(post, "url") || urlsFromText(stringField(post, "evidence"))[0] || "";
-                  const evidence = stringField(post, "evidence") || stringField(post, "text") || stringField(post, "title") || `Relevant post ${index + 1}`;
-                  return (
-                    <div key={`${date}-${index}`} className="rounded-md border border-white/10 bg-black/20 p-3">
-                      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-zinc-500">
-                        <span>{date ? shortDate(date) : "Date unavailable"}</span>
-                        {url ? <a className="inline-flex items-center gap-1 text-cyan-200 hover:text-cyan-100" href={url} target="_blank" rel="noreferrer">Open source <ExternalLink size={12} /></a> : null}
-                      </div>
-                      <p className="mt-2 text-sm leading-6 text-zinc-300"><LinkifiedText value={evidence} /></p>
+        <div className="min-h-0 flex-1 overflow-hidden p-4">
+          {workspacePage === "review" ? (
+            <div className="grid h-full min-h-0 gap-4 xl:grid-cols-[320px_minmax(0,1fr)_300px]">
+              <div className="grid min-h-0 content-start gap-3 overflow-y-auto pr-1">
+                <div className="rounded-lg border border-cyan-300/15 bg-cyan-300/[0.055] p-4">
+                  <div className="flex items-start gap-3">
+                    <Sparkles className="mt-0.5 shrink-0 text-cyan-200" size={18} />
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-cyan-100">Qualification signal</p>
+                      <p className="mt-2 text-sm leading-6 text-zinc-200">{creatorInclusionReason(selectedCreator)}</p>
+                      <p className="mt-2 text-sm leading-6 text-zinc-400"><LinkifiedText value={strongestCreatorEvidence(selectedCreator)} /></p>
                     </div>
-                  );
-                }) : (
-                  <p className="rounded-md border border-dashed border-white/10 p-4 text-sm leading-6 text-zinc-500">
-                    {activityEvidenceLabel(selectedCreator)}
-                  </p>
-                )}
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <MiniStat label="VR/XR 90d" value={selectedCreator.recent_vr_posts_count ?? 0} />
+                  <MiniStat label="Posts 90d" value={selectedCreator.recent_total_posts_count ?? 0} />
+                  <MiniStat label="Last post" value={selectedCreator.last_post_at ? shortDate(selectedCreator.last_post_at) : "Unknown"} />
+                  <MiniStat label="Headset" value={labelFor(selectedCreator.headset_confidence || "unknown")} />
+                </div>
+                <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
+                  <p className="text-sm font-medium text-zinc-200">Links</p>
+                  <div className="mt-3 grid gap-2">
+                    {sourceLinks.length ? sourceLinks.map((link) => (
+                      <a
+                        key={`${link.label}-${link.url}`}
+                        className="inline-flex min-h-10 items-center justify-between gap-3 rounded-md border border-white/10 bg-white/[0.06] px-3 text-sm text-cyan-100 hover:border-cyan-300/40 hover:text-cyan-50"
+                        href={link.url}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        <span className="truncate">{link.label}</span>
+                        <ExternalLink className="shrink-0" size={14} />
+                      </a>
+                    )) : <p className="text-sm text-zinc-500">No usable links captured.</p>}
+                  </div>
+                </div>
               </div>
-            </div>
 
-            <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
-              <p className="text-sm font-medium text-zinc-200">Evidence notes</p>
-              <div className="mt-3 grid gap-3 md:grid-cols-2">
+              <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3">
+                <div className="grid gap-3 md:grid-cols-3">
+                  <MiniStat label="Fit" value={creatorFitCategory(selectedCreator)} />
+                  <MiniStat label="Activity" value={labelFor(selectedCreator.activity_level || "unknown")} />
+                  <MiniStat label="Confidence" value={creatorEvidenceConfidence(selectedCreator)} />
+                </div>
+                <div className="min-h-0 rounded-lg border border-white/10 bg-white/[0.03] p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm font-medium text-zinc-200">Relevant post evidence</p>
+                    <SoftBadge>{relevantPosts.length} captured</SoftBadge>
+                  </div>
+                  <div className="mt-3 grid max-h-[calc(100%-2.5rem)] gap-3 overflow-y-auto pr-1">
+                    {relevantPosts.length ? relevantPosts.slice(0, 8).map((post, index) => {
+                      const date = stringField(post, "published_at") || stringField(post, "date");
+                      const url = stringField(post, "url") || urlsFromText(stringField(post, "evidence"))[0] || "";
+                      const evidence = stringField(post, "evidence") || stringField(post, "text") || stringField(post, "title") || `Relevant post ${index + 1}`;
+                      return (
+                        <div key={`${date}-${index}`} className="rounded-md border border-white/10 bg-black/20 p-3">
+                          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-zinc-500">
+                            <span>{date ? shortDate(date) : "Date unavailable"}</span>
+                            {url ? <a className="inline-flex items-center gap-1 text-cyan-200 hover:text-cyan-100" href={url} target="_blank" rel="noreferrer">Open source <ExternalLink size={12} /></a> : null}
+                          </div>
+                          <p className="mt-2 text-sm leading-6 text-zinc-300"><LinkifiedText value={evidence} /></p>
+                        </div>
+                      );
+                    }) : (
+                      <p className="rounded-md border border-dashed border-white/10 p-4 text-sm leading-6 text-zinc-500">
+                        {activityEvidenceLabel(selectedCreator)}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid min-h-0 content-start gap-3 overflow-y-auto pr-1">
                 <EvidenceNote label="VR/XR proof" value={selectedCreator.vr_involvement_evidence} />
                 <EvidenceNote label="Movement fit" value={selectedCreator.movement_fit_evidence} />
                 <EvidenceNote label="Headset evidence" value={selectedCreator.headset_evidence} />
@@ -2350,65 +2414,73 @@ function CreatorFloatingTab({
                 <EvidenceNote label="Safety notes" value={selectedCreator.safety_notes} />
               </div>
             </div>
-          </div>
+          ) : (
+            <div className="grid h-full min-h-0 gap-4 xl:grid-cols-[320px_minmax(0,1fr)_300px]">
+              <div className="grid min-h-0 content-start gap-3 overflow-y-auto pr-1">
+                <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
+                  <p className="text-sm font-medium text-zinc-200">Review controls</p>
+                  <div className="mt-3 grid gap-3">
+                    <Field label="Outreach status">
+                      <Select value={creatorStatus} onChange={(event) => setCreatorStatus(event.target.value)}>
+                        {creatorStatuses.map((status) => (
+                          <option key={status} value={status}>{labelFor(status)}</option>
+                        ))}
+                      </Select>
+                    </Field>
+                    <Field label="Priority">
+                      <Select value={creatorPriority} onChange={(event) => setCreatorPriority(event.target.value)}>
+                        {priorities.map((priority) => (
+                          <option key={priority} value={priority}>{labelFor(priority)}</option>
+                        ))}
+                      </Select>
+                    </Field>
+                    <Field label="Public contact">
+                      <TextInput value={creatorContact} onChange={(event) => setCreatorContact(event.target.value)} placeholder="creator@example.com or public contact note" />
+                    </Field>
+                  </div>
+                </div>
+                <ContextBlock
+                  rows={[
+                    ["Evidence", `${creatorEvidenceQuality(selectedCreator)} - ${creatorEvidenceConfidence(selectedCreator)}`],
+                    ["Activity", activityEvidenceLabel(selectedCreator)],
+                    ["Audience", selectedCreator.audience_quality || selectedCreator.audience_estimate || "No audience estimate."],
+                    ["Contact", selectedCreator.contactability_evidence || selectedCreator.public_contact || "No contact path captured."]
+                  ]}
+                />
+              </div>
 
-          <div className="grid content-start gap-4">
-            <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
-              <p className="text-sm font-medium text-zinc-200">Review controls</p>
-              <div className="mt-3 grid gap-3">
-                <Field label="Outreach status">
-                  <Select value={creatorStatus} onChange={(event) => setCreatorStatus(event.target.value)}>
-                    {creatorStatuses.map((status) => (
-                      <option key={status} value={status}>{labelFor(status)}</option>
-                    ))}
-                  </Select>
+              <div className="grid min-h-0 grid-rows-2 gap-3">
+                <Field label="Notes / fit reason">
+                  <TextArea className="h-full min-h-0 resize-none" value={creatorFitReason} onChange={(event) => setCreatorFitReason(event.target.value)} />
                 </Field>
-                <Field label="Priority">
-                  <Select value={creatorPriority} onChange={(event) => setCreatorPriority(event.target.value)}>
-                    {priorities.map((priority) => (
-                      <option key={priority} value={priority}>{labelFor(priority)}</option>
-                    ))}
-                  </Select>
-                </Field>
-                <Field label="Public contact">
-                  <TextInput value={creatorContact} onChange={(event) => setCreatorContact(event.target.value)} placeholder="creator@example.com or public contact note" />
+                <Field label="Suggested offer angle">
+                  <TextArea className="h-full min-h-0 resize-none" value={creatorOfferAngle} onChange={(event) => setCreatorOfferAngle(event.target.value)} />
                 </Field>
               </div>
-            </div>
 
-            <ContextBlock
-              rows={[
-                ["Evidence state", `${creatorEvidenceQuality(selectedCreator)} - ${creatorEvidenceConfidence(selectedCreator)}`],
-                ["Activity", activityEvidenceLabel(selectedCreator)],
-                ["Audience", selectedCreator.audience_quality || selectedCreator.audience_estimate || "No audience estimate."],
-                ["Recent content", selectedCreator.recent_relevant_content || "No recent content captured."],
-                ["Contact", selectedCreator.contactability_evidence || selectedCreator.public_contact || "No contact path captured."]
-              ]}
-            />
-
-            <Field label="Notes / fit reason">
-              <TextArea className="min-h-32" value={creatorFitReason} onChange={(event) => setCreatorFitReason(event.target.value)} />
-            </Field>
-            <Field label="Suggested offer angle">
-              <TextArea className="min-h-32" value={creatorOfferAngle} onChange={(event) => setCreatorOfferAngle(event.target.value)} />
-            </Field>
-
-            <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
-              <p className="text-sm font-medium text-zinc-200">Outreach drafts</p>
-              <div className="mt-3 grid gap-2 text-sm text-zinc-500">
-                {creatorDrafts.length ? creatorDrafts.map((draft) => <span key={draft.id}>{draft.subject || labelFor(draft.channel)}</span>) : <span>No linked drafts yet.</span>}
+              <div className="grid min-h-0 grid-rows-[minmax(0,1fr)_auto] gap-3">
+                <div className="min-h-0 rounded-lg border border-white/10 bg-white/[0.03] p-4">
+                  <p className="text-sm font-medium text-zinc-200">Outreach drafts</p>
+                  <div className="mt-3 grid max-h-[calc(100%-2rem)] gap-2 overflow-y-auto pr-1 text-sm text-zinc-500">
+                    {creatorDrafts.length ? creatorDrafts.map((draft) => (
+                      <div key={draft.id} className="rounded-md border border-white/10 bg-black/20 p-3">
+                        <p className="font-medium text-zinc-200">{draft.subject || labelFor(draft.channel)}</p>
+                        <p className="mt-1 text-xs text-zinc-500">{labelFor(draft.status)} - {labelFor(draft.channel)}</p>
+                      </div>
+                    )) : <span>No linked drafts yet.</span>}
+                  </div>
+                </div>
+                <div className="grid gap-2">
+                  <Button variant="danger" onClick={() => updateCreator("rejected")}>
+                    <XCircle size={15} /> Reject creator
+                  </Button>
+                  <Button variant="ghost" onClick={() => updateCreator()}>
+                    <Save size={15} /> Save edits
+                  </Button>
+                </div>
               </div>
             </div>
-
-            <div className="flex flex-wrap gap-2">
-              <Button variant="danger" onClick={() => updateCreator("rejected")}>
-                <XCircle size={15} /> Reject
-              </Button>
-              <Button variant="ghost" onClick={() => updateCreator()}>
-                <Save size={15} /> Save edits
-              </Button>
-            </div>
-          </div>
+          )}
         </div>
       </div>
     </Card>
