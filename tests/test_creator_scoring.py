@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from xroutreach.creator_scoring import activity_level, creator_score_from_evidence
+from xroutreach.creator_scoring import activity_level, creator_evidence_from_item, creator_score_from_evidence
 
 
 def days_ago(days: int) -> str:
@@ -46,3 +46,84 @@ def test_activity_level_uses_90_day_window():
     assert activity_level(2, days_ago(45)) == "medium"
     assert activity_level(1, days_ago(45)) == "low"
     assert activity_level(1, days_ago(120)) == "unknown"
+
+
+def test_creator_score_caps_single_incidental_vr_mention():
+    score = creator_score_from_evidence(
+        recent_vr_posts_count=1,
+        recent_total_posts_count=12,
+        last_post_at=days_ago(8),
+        follower_count=80_000,
+        public_contact="creator@example.com",
+        activity_level="high",
+        headset_confidence="unknown",
+        text="General tech creator tried a VR app once. No workouts or fitness content.",
+        engagement_available=True,
+    )
+
+    assert score <= 64
+
+
+def test_creator_score_rejects_generic_fitness_without_vr():
+    score = creator_score_from_evidence(
+        recent_vr_posts_count=0,
+        recent_total_posts_count=10,
+        last_post_at=days_ago(4),
+        follower_count=20_000,
+        public_contact="coach@example.com",
+        activity_level="high",
+        headset_confidence="unknown",
+        text="Home workout cardio boxing fitness coach focused on gym routines and wellness.",
+        engagement_available=True,
+    )
+
+    assert score <= 39
+
+
+def test_creator_evidence_counts_recent_profile_history_and_caps_llm_score():
+    item = {
+        "source": "apify_youtube",
+        "title": "Quest workouts",
+        "body": "VR fitness channel",
+        "author_name": "Quest Coach",
+        "follower_count": 12_000,
+        "raw_json": {
+            "public_contact": "coach@example.com",
+            "creator_evidence": {
+                "history_quality": "profile_history",
+                "headset_confidence": "high",
+                "engagement_evidence": "comments: 40",
+                "recent_posts": [
+                    {"title": "Quest 3 VR boxing workout", "published_at": days_ago(5)},
+                    {"title": "FitXR cardio routine", "published_at": days_ago(20)},
+                    {"title": "Regular vlog", "published_at": days_ago(35)},
+                    {"title": "Old Quest workout", "published_at": days_ago(140)},
+                ],
+            },
+        },
+    }
+    evidence = creator_evidence_from_item(item, {"creator_quality_score": 99})
+
+    assert evidence["recent_vr_posts_count"] == 2
+    assert evidence["recent_total_posts_count"] == 3
+    assert evidence["last_post_at"] == item["raw_json"]["creator_evidence"]["recent_posts"][0]["published_at"]
+    assert evidence["creator_quality_score"] >= 85
+    assert evidence["evidence_json"]["computed_evidence_quality"] == "profile_history"
+
+
+def test_creator_evidence_caps_llm_score_for_post_only_incidental_match():
+    item = {
+        "source": "youtube",
+        "title": "Trying VR once",
+        "body": "A general tech creator tests one app.",
+        "author_name": "Tech Creator",
+        "follower_count": 80_000,
+        "published_at": days_ago(4),
+        "raw_json": {"public_contact": "tech@example.com"},
+    }
+    evidence = creator_evidence_from_item(item, {"creator_quality_score": 95})
+
+    assert evidence["recent_vr_posts_count"] == 1
+    assert evidence["recent_total_posts_count"] == 1
+    assert evidence["creator_quality_score"] < 70
+    assert evidence["evidence_json"]["computed_evidence_quality"] == "observed_post"

@@ -94,7 +94,7 @@ const navigation: Array<{ id: View; label: string; icon: ReactNode }> = [
 ];
 
 const opportunityStatuses = ["new", "reviewed", "monitor", "contacted", "rejected"] as const;
-const creatorStatuses = ["new", "reviewed", "contact_ready", "contacted", "rejected"] as const;
+const creatorStatuses = ["new", "reviewed", "qualified", "contact_ready", "contacted", "rejected"] as const;
 const priorities = ["high", "medium", "low"] as const;
 const followupStatuses = ["pending", "completed", "skipped"] as const;
 const followerRanges = [
@@ -151,7 +151,7 @@ const intentFilters = [
   { value: "trend_news", label: "Trend / News" },
   { value: "partnership_lead", label: "Contact Lead" }
 ] as const;
-const creatorBoardColumns = ["Discovered", "Qualified", "Contacted", "Responded", "Partnered"] as const;
+const creatorBoardColumns = ["Discovered", "Reviewed", "Qualified", "Contacted", "Rejected"] as const;
 
 async function fetchJson<T>(path: string, token: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
@@ -190,8 +190,9 @@ function initials(name?: string | null) {
 
 function creatorStage(creator: Creator) {
   if (creator.status === "contacted") return "Contacted";
-  if (creator.status === "contact_ready" || creator.status === "reviewed") return "Qualified";
-  if (creator.status === "rejected") return "Responded";
+  if (creator.status === "contact_ready" || creator.status === "qualified") return "Qualified";
+  if (creator.status === "reviewed") return "Reviewed";
+  if (creator.status === "rejected") return "Rejected";
   return "Discovered";
 }
 
@@ -290,13 +291,46 @@ function contactabilityMatches(creator: Creator, filter: string) {
   return true;
 }
 
+function creatorFitBand(creator: Creator) {
+  const score = creator.creator_quality_score;
+  if (score === null || score === undefined) return { label: "Unscored", tone: "neutral" as const };
+  if (score >= 85) return { label: "Strong VR/XR fit", tone: "good" as const };
+  if (score >= 70) return { label: "Moderate fit", tone: "info" as const };
+  if (score >= 50) return { label: "Weak/incidental fit", tone: "warn" as const };
+  return { label: "Reject-level fit", tone: "bad" as const };
+}
+
+function creatorEvidenceQuality(creator: Creator) {
+  const value = creator.evidence_json?.computed_evidence_quality;
+  return typeof value === "string" && value.trim() ? labelFor(value) : "Evidence quality unknown";
+}
+
+function strongestCreatorEvidence(creator: Creator) {
+  return (
+    creator.vr_involvement_evidence ||
+    creator.movement_fit_evidence ||
+    creator.headset_evidence ||
+    creator.recent_relevant_content ||
+    creator.fit_reason ||
+    "No creator-specific evidence captured."
+  );
+}
+
 function activityEvidenceLabel(creator: Creator) {
   const level = creator.activity_level || "unknown";
   const total = creator.recent_total_posts_count ?? 0;
-  if (level === "unknown" || total <= 1) {
+  if (level === "unknown" || total <= 0) {
     return "Activity history not captured.";
   }
-  return `${labelFor(level)} - ${total} posts in last 90 days`;
+  return `${labelFor(level)} - ${total} observed posts in last 90 days`;
+}
+
+function creatorReviewRank(creator: Creator) {
+  const score = creator.creator_quality_score ?? -1;
+  const priorityBoost = creator.priority === "high" ? 30 : creator.priority === "medium" ? 15 : 0;
+  const statusBoost = creator.status === "contact_ready" ? 24 : creator.status === "qualified" ? 18 : creator.status === "reviewed" ? 8 : 0;
+  const evidenceBoost = (creator.recent_vr_posts_count ?? 0) * 3 + (creator.headset_confidence === "high" ? 8 : creator.headset_confidence === "medium" ? 4 : 0);
+  return score + priorityBoost + statusBoost + evidenceBoost;
 }
 
 function exportSafeFilename(value: string) {
@@ -1028,12 +1062,12 @@ export default function Page() {
     void loadDashboard(session.token);
   }
 
-  async function updateCreator() {
+  async function updateCreator(nextStatus = creatorStatus) {
     if (!session || !selectedCreator) return;
     const result = await fetchJson<{ creator: Creator }>(`/api/dashboard/creators/${selectedCreator.id}`, session.token, {
       method: "PATCH",
       body: JSON.stringify({
-        status: creatorStatus,
+        status: nextStatus,
         public_contact: creatorContact || null,
         priority: creatorPriority,
         fit_reason: creatorFitReason || null,
@@ -1045,7 +1079,8 @@ export default function Page() {
       creators: current.creators.map((creator) => (creator.id === result.creator.id ? result.creator : creator))
     }));
     setSelectedCreator(result.creator);
-    setNotice("Creator saved.");
+    setCreatorStatus(result.creator.status || nextStatus);
+    setNotice(`Creator marked ${labelFor(result.creator.status)}.`);
   }
 
   async function updateFollowup(nextStatus = followupStatus) {
@@ -1159,7 +1194,7 @@ export default function Page() {
     const matchesHeadset = creatorHeadset === "all" || (creator.headset_confidence || "unknown") === creatorHeadset;
     const matchesContactability = contactabilityMatches(creator, creatorContactability);
     return matchesFollowers && matchesScore && matchesActivity && matchesHeadset && matchesContactability;
-  });
+  }).sort((left, right) => creatorReviewRank(right) - creatorReviewRank(left));
   const exportRequest = useMemo(() => parseContactExportRequest(exportQuery, exportFormat), [exportFormat, exportQuery]);
   const exportRows = useMemo(() => buildContactExportRows(data.creators, data.drafts, data.opportunities, rawItems, exportRequest), [data.creators, data.drafts, data.opportunities, rawItems, exportRequest]);
   const showAssistant = activeView !== "creators" && activeView !== "export";
@@ -1878,7 +1913,7 @@ function CreatorsView(props: {
   creatorOfferAngle: string;
   setCreatorOfferAngle: (value: string) => void;
   reviewCreator: (creator: Creator) => void;
-  updateCreator: () => void;
+  updateCreator: (status?: string) => void;
 }) {
   const [collapsedColumns, setCollapsedColumns] = useState<Set<string>>(new Set());
   const creatorsByColumn = useMemo(
@@ -1891,9 +1926,9 @@ function CreatorsView(props: {
   );
   const stats = [
     ["Total Creators", props.creators.length],
-    ["High Priority", props.creators.filter((creator) => creator.priority === "high").length],
-    ["A-Score", props.creators.filter((creator) => (creator.creator_quality_score || 0) >= 85).length],
-    ["Contacted", props.creators.filter((creator) => creator.status === "contacted").length],
+    ["Strong Fit", props.creators.filter((creator) => (creator.creator_quality_score || 0) >= 85).length],
+    ["Qualified", props.creators.filter((creator) => ["qualified", "contact_ready"].includes(creator.status)).length],
+    ["Contact Ready", props.creators.filter((creator) => creator.status === "contact_ready").length],
   ];
 
   function toggleColumn(column: string) {
@@ -2015,8 +2050,9 @@ function CreatorsView(props: {
                             <p className="text-xs text-zinc-500">{platformLabel(creator.platform)}</p>
                           </div>
                         </div>
-                        <p className="mt-3 line-clamp-2 text-xs leading-5 text-zinc-500">{creator.niche || creator.fit_reason || "No niche captured yet."}</p>
+                        <p className="mt-3 line-clamp-2 text-xs leading-5 text-zinc-500">{strongestCreatorEvidence(creator)}</p>
                         <div className="mt-3 flex flex-wrap gap-2">
+                          <SoftBadge tone={creatorFitBand(creator).tone}>{creatorFitBand(creator).label}</SoftBadge>
                           <SoftBadge tone={toneFor(creator.priority)}>{labelFor(creator.priority)}</SoftBadge>
                           <SoftBadge>{creator.creator_quality_score ?? "No"} score</SoftBadge>
                           <SoftBadge>{creator.recent_vr_posts_count ?? 0} VR posts / 90d</SoftBadge>
@@ -2069,7 +2105,7 @@ function CreatorFloatingTab({
   setCreatorFitReason: (value: string) => void;
   creatorOfferAngle: string;
   setCreatorOfferAngle: (value: string) => void;
-  updateCreator: () => void;
+  updateCreator: (status?: string) => void;
   onMinimize: () => void;
   onClose: () => void;
   position: { x: number; y: number };
@@ -2156,7 +2192,8 @@ function CreatorFloatingTab({
           </Field>
           <ContextBlock
             rows={[
-              ["Quality score", selectedCreator.creator_quality_score === null || selectedCreator.creator_quality_score === undefined ? "No score captured." : `${selectedCreator.creator_quality_score}/100`],
+              ["Quality score", selectedCreator.creator_quality_score === null || selectedCreator.creator_quality_score === undefined ? "No score captured." : `${selectedCreator.creator_quality_score}/100 - ${creatorFitBand(selectedCreator).label}`],
+              ["Evidence quality", creatorEvidenceQuality(selectedCreator)],
               ["Audience", selectedCreator.audience_quality || selectedCreator.audience_estimate || "No audience estimate."],
               ["Recent content", selectedCreator.recent_relevant_content || "No recent content captured."],
               ["Profile", selectedCreator.profile_url]
@@ -2196,8 +2233,20 @@ function CreatorFloatingTab({
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button variant="primary" onClick={updateCreator}>
-              <Save size={15} /> Save creator
+            <Button variant="secondary" onClick={() => updateCreator("reviewed")}>
+              <CheckCircle2 size={15} /> Reviewed
+            </Button>
+            <Button variant="success" onClick={() => updateCreator("qualified")}>
+              <Target size={15} /> Qualify
+            </Button>
+            <Button variant="primary" onClick={() => updateCreator("contact_ready")}>
+              <MailCheck size={15} /> Contact ready
+            </Button>
+            <Button variant="danger" onClick={() => updateCreator("rejected")}>
+              <XCircle size={15} /> Reject
+            </Button>
+            <Button variant="ghost" onClick={() => updateCreator()}>
+              <Save size={15} /> Save edits
             </Button>
             <a className="inline-flex min-h-9 items-center gap-2 rounded-md border border-white/10 bg-white/[0.06] px-3 text-sm text-zinc-100" href={selectedCreator.profile_url} target="_blank" rel="noreferrer">
               Open profile <ExternalLink size={14} />

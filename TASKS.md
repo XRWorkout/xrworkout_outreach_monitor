@@ -4,7 +4,7 @@ This file tracks concrete setup, validation, and launch tasks for the outreach s
 
 ## Latest Validation Notes
 
-Updated on 2026-06-12.
+Updated on 2026-06-13.
 
 - [x] Verified `.env` exists at `/home/yorgobekaii/xrworkout-outreach/.env`.
 - [x] Verified configured values are present for Supabase, YouTube, Twitch, Brevo, founder name, site URL, and `DRY_RUN_SEND`.
@@ -151,6 +151,8 @@ Updated on 2026-06-12.
 - [x] Verified the smarter export locally: focused dashboard export tests passed, dashboard lint passed, dashboard typecheck passed, and dashboard production build passed.
 - [x] Extended dashboard Export on 2026-06-12 with score/priority threshold parsing, up to 1000 requested rows, high-scoring conversation records without clean author profiles, contact/prospect/conversation ranking buckets, richer feedback metrics, and 100-row preview.
 - [x] Verified threshold-based export locally: focused dashboard export tests passed after adding score, priority, large-limit, conversation-record, ranking, and output-format coverage.
+- [x] Hardened creator qualification on 2026-06-13: deterministic score caps now separate strong VR-fitness creators from one-off/incidental VR matches, profile-history rows recompute recent 90-day metrics, and the dashboard creator workflow now separates reviewed, qualified, contact-ready, contacted, and rejected states.
+- [x] Verified creator hardening locally: backend tests passed, dashboard lint passed, dashboard typecheck passed, dashboard tests passed, dashboard production build passed, and a representative scoring smoke check separated strong VR fitness, incidental VR, and irrelevant fitness examples.
 - [ ] Validate max-efficiency `APIFY_CONVERSATION_ACTORS_JSON` for X/Twitter, TikTok, Instagram hashtags/reels, Discord server discovery, and public Facebook groups in the dashboard.
 - [ ] Use Automation > Run Missing Source to validate Apify conversations and forums individually before relying on Clean Start for full refreshes.
 - [ ] Decide whether TikTok and Instagram should remain supplemental social-listening/opportunity sources only, or whether a later profile-history actor can support creator scoring.

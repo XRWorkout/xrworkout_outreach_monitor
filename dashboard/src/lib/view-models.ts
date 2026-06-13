@@ -85,7 +85,7 @@ export function buildRecommendations(opportunities: Opportunity[], creators: Cre
       })
     );
   creators
-    .filter((row) => row.priority === "high" || row.status === "contact_ready")
+    .filter((row) => row.priority === "high" || row.status === "qualified" || row.status === "contact_ready")
     .slice(0, 2)
     .forEach((row) =>
       recommendations.push({

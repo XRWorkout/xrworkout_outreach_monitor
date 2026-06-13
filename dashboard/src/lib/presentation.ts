@@ -47,6 +47,7 @@ const valueLabels: Record<string, string> = {
   needs_review: "Needs Review",
   edit_needed: "Edit Needed",
   contact_ready: "Contact Ready",
+  qualified: "Qualified",
   public_contact: "Public Contact",
   outreach_safety: "Outreach Safety",
   recommended_action: "Recommended Action",
@@ -112,7 +113,7 @@ export function isToday(value?: string | null) {
 
 export function toneFor(value?: string | null): "neutral" | "good" | "warn" | "bad" | "info" {
   const normalized = (value || "").toLowerCase();
-  if (["approved", "sent", "success", "completed", "contact_ready", "partnered", "active", "true"].includes(normalized)) return "good";
+  if (["approved", "sent", "success", "completed", "qualified", "contact_ready", "partnered", "active", "true"].includes(normalized)) return "good";
   if (["needs_review", "queued", "in_progress", "reviewed", "new"].includes(normalized)) return "info";
   if (["edit_needed", "pending", "medium", "monitor", "false"].includes(normalized)) return "warn";
   if (["rejected", "failure", "cancelled", "timed_out", "high", "overdue", "inactive"].includes(normalized)) return "bad";

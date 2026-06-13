@@ -39,7 +39,7 @@ Drafts should only be generated for high-priority opportunities that pass safety
 
 ## Creator Quality Score
 
-Use this 100-point model when reviewing creator candidates.
+Use this 100-point model when reviewing creator candidates. The deterministic scorer computes evidence from profile-history posts when available, uses a single observed source post only as weaker evidence, and caps any LLM-provided score when the collected evidence is weak.
 
 | Factor | Weight | High-Quality Signal |
 |---|---:|---|
@@ -57,7 +57,7 @@ Use this 100-point model when reviewing creator candidates.
 |---:|---|---|
 | `85-100` | A / high | Review first. If contact is valid and safety is clean, prepare creator outreach. |
 | `70-84` | B / medium | Keep in the review queue. Manually inspect recent posts before drafting. |
-| `50-69` | C / low | Monitor or enrich with more evidence. Do not draft automatically. |
+| `50-69` | C / low | Weak or incidental fit. Monitor or enrich with more evidence. Do not draft automatically. |
 | `0-49` | Reject / ignore | Leave alone unless a human sees a specific strategic reason. |
 
 ## Minimum Evidence Rules
@@ -79,7 +79,7 @@ Strong positive signals include:
 - A visible headset in recent content.
 - A profile, channel description, or post history that repeatedly connects VR/XR with fitness, movement, or wellness.
 
-If no headset signal exists, do not mark the creator `contact_ready` without manual review.
+If no headset signal exists, do not mark the creator `contact_ready` without manual review. A creator may be `qualified` after manual fit review, but `contact_ready` means the contact path has also been validated.
 
 ## Recency Rules
 
@@ -134,7 +134,7 @@ For these candidates, use `do_not_engage`, reject the draft, or leave the creato
 Apply strong penalties for:
 
 - Broad gaming creators with no clear VR/XR bridge.
-- Broad tech creators with only one weak VR mention.
+- Broad tech creators with only one weak VR mention. One observed VR post is capped below the strong-fit band unless it is a specific recent VR-fitness signal and supporting evidence exists.
 - Generic fitness creators with no headset, VR, XR, or active-gaming evidence.
 - Inactive accounts.
 - Keyword matches that only came from the search query, not the creator's own content.
@@ -159,7 +159,7 @@ When reviewing creators:
 1. Start with creators marked high or medium priority.
 2. Open the profile and recent relevant content.
 3. Confirm VR/XR proof, movement fit, recency, and safety.
-4. Validate the public contact manually before marking a creator `contact_ready`.
+4. Use `reviewed` for inspected records, `qualified` for real creator fit, and `contact_ready` only after validating the public contact path.
 5. Reject weak targets instead of editing around poor fit.
 6. Approve only messages that are specific, low-pressure, affiliation-clear, and free of health-outcome overclaims.
 
@@ -180,4 +180,4 @@ Current database fields already support the review model:
 - `creators.status`
 - `creators.public_contact`
 
-Future implementation can add explicit numeric creator sub-scores, but v1 can apply this rubric through LLM classification, dashboard review, and operator validation before outreach approval.
+The current implementation stores deterministic score caps and evidence quality in `creators.evidence_json`, so the dashboard can distinguish profile-history evidence, observed single-post evidence, and review-only conversation-author leads.

@@ -36,6 +36,22 @@ MOVEMENT_TERMS = [
     "body movement",
 ]
 
+STRONG_VR_FITNESS_TERMS = [
+    "vr fitness",
+    "vr workout",
+    "quest fitness",
+    "quest workout",
+    "meta quest fitness",
+    "mixed reality workout",
+    "supernatural",
+    "fitxr",
+    "les mills",
+    "bodycombat",
+    "beat saber workout",
+    "vr cardio",
+    "vr boxing",
+]
+
 HEADSET_TERMS = [
     "headset",
     "quest 2",
@@ -102,8 +118,12 @@ def evidence_text(item: dict[str, Any]) -> str:
     if isinstance(posts, list):
         for post in posts[:25]:
             if isinstance(post, dict):
-                values.extend(str(post.get(key) or "") for key in ["title", "caption", "text", "description"])
+                values.extend(str(post.get(key) or "") for key in ["title", "caption", "text", "description", "hashtags"])
     return "\n".join(values)
+
+
+def source_text(item: dict[str, Any]) -> str:
+    return "\n".join(str(item.get(key) or "") for key in ["title", "body", "author_name"])
 
 
 def raw_creator_evidence(item: dict[str, Any]) -> dict[str, Any]:
@@ -120,6 +140,83 @@ def int_value(value: Any) -> int | None:
     except (TypeError, ValueError):
         return None
     return parsed if parsed >= 0 else None
+
+
+def recent_relevant_posts_from_history(raw: dict[str, Any], text: str) -> tuple[int | None, int | None, str | None]:
+    posts = raw.get("recent_posts")
+    if not isinstance(posts, list):
+        return None, None, None
+
+    newest: datetime | None = None
+    total = 0
+    relevant = 0
+    for post in posts:
+        if not isinstance(post, dict):
+            continue
+        post_date_value = post.get("published_at") or post.get("created_at") or post.get("timestamp") or post.get("date")
+        age = days_old(post_date_value)
+        if age is None or age > RECENCY_DAYS:
+            continue
+        total += 1
+        post_text_value = "\n".join(str(post.get(key) or "") for key in ["title", "caption", "text", "description", "hashtags"])
+        if has_term(post_text_value, VR_TERMS):
+            relevant += 1
+        parsed = parse_datetime(post_date_value)
+        if parsed and (newest is None or parsed > newest):
+            newest = parsed
+
+    if total == 0 and has_term(text, VR_TERMS):
+        return None, None, None
+    return relevant, total, newest.isoformat() if newest else None
+
+
+def observed_post_evidence(item: dict[str, Any]) -> tuple[int | None, int | None, str | None]:
+    text = source_text(item)
+    if not text.strip():
+        return None, None, None
+    published_at = item.get("published_at") or item.get("collected_at")
+    age = days_old(published_at)
+    if age is None or age > RECENCY_DAYS:
+        return None, None, None
+    if not has_term(text, VR_TERMS):
+        return 0, 1, str(published_at) if isinstance(published_at, str) else None
+    return 1, 1, str(published_at) if isinstance(published_at, str) else None
+
+
+def score_cap(
+    *,
+    has_vr: bool,
+    has_movement: bool,
+    has_headset: bool,
+    vr_count: int,
+    total_count: int,
+    last_post_at: str | None,
+    has_safety_risk: bool,
+    evidence_quality: str,
+    text: str,
+) -> int:
+    if has_safety_risk:
+        return 25
+    if not has_vr:
+        return 39
+
+    last_post_days = days_old(last_post_at)
+    strong_specific_signal = has_term(text, STRONG_VR_FITNESS_TERMS)
+    cap = 100
+
+    if evidence_quality in {"conversation_author", "post_only"}:
+        cap = min(cap, 64)
+    if total_count == 0 and last_post_days is None:
+        cap = min(cap, 49)
+    if last_post_days is not None and last_post_days > RECENCY_DAYS:
+        cap = min(cap, 49)
+    if vr_count <= 1:
+        cap = min(cap, 76 if strong_specific_signal and has_movement else 64)
+    if not has_movement:
+        cap = min(cap, 62)
+    if not has_headset:
+        cap = min(cap, 84)
+    return cap
 
 
 def creator_score_from_evidence(
@@ -141,16 +238,19 @@ def creator_score_from_evidence(
     has_movement = has_term(text, MOVEMENT_TERMS)
     has_headset = headset_confidence in {"high", "medium"} or has_term(text, HEADSET_TERMS)
     has_safety_risk = has_term(text, SAFETY_TERMS)
+    strong_specific_signal = has_term(text, STRONG_VR_FITNESS_TERMS)
 
     score = 0
-    score += 25 if has_headset or (has_vr and vr_count >= 2) else 16 if has_vr else 0
-    score += 20 if has_movement and has_vr else 12 if has_movement else 0
-    if last_post_days is not None and last_post_days <= 30 and vr_count >= 1:
+    score += 25 if has_headset and vr_count >= 2 else 22 if has_headset or vr_count >= 2 else 16 if has_vr else 0
+    score += 20 if has_movement and (vr_count >= 2 or strong_specific_signal) else 15 if has_movement and has_vr else 10 if has_movement else 0
+    if last_post_days is not None and last_post_days <= 30 and vr_count >= 2:
         score += 15
-    elif vr_count >= 2 or activity_level == "high":
+    elif last_post_days is not None and last_post_days <= 30 and vr_count == 1:
+        score += 9
+    elif vr_count >= 2 and activity_level in {"high", "medium"}:
         score += 12
     elif vr_count == 1 or activity_level == "medium":
-        score += 8
+        score += 6
     elif total_count > 0:
         score += 3
     score += 15 if engagement_available else 8 if follower_count and follower_count >= 1_000 else 4 if follower_count else 0
@@ -158,19 +258,19 @@ def creator_score_from_evidence(
         score += 10 if follower_count >= 10_000 else 7 if follower_count >= 1_000 else 4
     score += 10 if public_contact and "@" in public_contact else 6 if public_contact else 0
     score += 0 if has_safety_risk else 5
+    cap = score_cap(
+        has_vr=has_vr,
+        has_movement=has_movement,
+        has_headset=has_headset,
+        vr_count=vr_count,
+        total_count=total_count,
+        last_post_at=last_post_at,
+        has_safety_risk=has_safety_risk,
+        evidence_quality="profile_history" if total_count > 1 else "observed_post" if total_count == 1 else "unknown",
+        text=text,
+    )
 
-    if not has_headset:
-        score = min(score, 84)
-    if vr_count == 0 and not has_vr:
-        score = min(score, 49)
-    if last_post_days is None and total_count == 0:
-        score = min(score, 69)
-    elif last_post_days is not None and last_post_days > RECENCY_DAYS:
-        score = min(score, 69)
-    if has_safety_risk:
-        score = min(score, 25)
-
-    return max(0, min(100, score))
+    return max(0, min(100, score, cap))
 
 
 def priority_for_creator_score(score: int) -> str:
@@ -199,9 +299,33 @@ def creator_evidence_from_item(item: dict[str, Any], fit: dict[str, Any] | None 
     fit = fit or {}
     raw = raw_creator_evidence(item)
     text = "\n".join([evidence_text(item), str(fit.get("fit_reason") or ""), str(fit.get("talks_about") or "")])
-    recent_vr_posts_count = int_value(fit.get("recent_vr_posts_count")) or int_value(raw.get("recent_vr_posts_count"))
-    recent_total_posts_count = int_value(fit.get("recent_total_posts_count")) or int_value(raw.get("recent_total_posts_count"))
+    history_vr_count, history_total_count, history_last_post = recent_relevant_posts_from_history(raw, text)
+    observed_vr_count, observed_total_count, observed_last_post = observed_post_evidence(item)
+    fit_vr_count = int_value(fit.get("recent_vr_posts_count"))
+    fit_total_count = int_value(fit.get("recent_total_posts_count"))
+    raw_vr_count = int_value(raw.get("recent_vr_posts_count"))
+    raw_total_count = int_value(raw.get("recent_total_posts_count"))
+    recent_vr_posts_count = (
+        fit_vr_count
+        if fit_vr_count is not None
+        else history_vr_count
+        if history_vr_count is not None
+        else raw_vr_count
+        if raw_vr_count is not None
+        else observed_vr_count
+    )
+    recent_total_posts_count = (
+        fit_total_count
+        if fit_total_count is not None
+        else history_total_count
+        if history_total_count is not None
+        else raw_total_count
+        if raw_total_count is not None
+        else observed_total_count
+    )
     last_post_at = fit.get("last_post_at") or raw.get("last_post_at")
+    if not last_post_at:
+        last_post_at = history_last_post or observed_last_post
     if not isinstance(last_post_at, str):
         last_post_at = None
     level = str(fit.get("activity_level") or raw.get("activity_level") or activity_level(recent_total_posts_count, last_post_at))
@@ -209,19 +333,35 @@ def creator_evidence_from_item(item: dict[str, Any], fit: dict[str, Any] | None 
     public_contact = fit.get("public_contact") or raw.get("public_contact")
     follower_count = int_value(item.get("follower_count")) or int_value(raw.get("follower_count"))
     engagement_available = bool(fit.get("engagement_evidence") or raw.get("engagement_evidence") or raw.get("engagement"))
-    score = int_value(fit.get("creator_quality_score"))
-    if score is None:
-        score = creator_score_from_evidence(
-            recent_vr_posts_count=recent_vr_posts_count,
-            recent_total_posts_count=recent_total_posts_count,
-            last_post_at=last_post_at,
-            follower_count=follower_count,
-            public_contact=public_contact if isinstance(public_contact, str) else None,
-            activity_level=level,
-            headset_confidence=headset_confidence,
-            text=text,
-            engagement_available=engagement_available,
-        )
+    deterministic_score = creator_score_from_evidence(
+        recent_vr_posts_count=recent_vr_posts_count,
+        recent_total_posts_count=recent_total_posts_count,
+        last_post_at=last_post_at,
+        follower_count=follower_count,
+        public_contact=public_contact if isinstance(public_contact, str) else None,
+        activity_level=level,
+        headset_confidence=headset_confidence,
+        text=text,
+        engagement_available=engagement_available,
+    )
+    evidence_quality = str(
+        fit.get("lead_source_type")
+        or raw.get("history_quality")
+        or ("profile_history" if history_total_count is not None else "observed_post" if observed_total_count is not None else "unknown")
+    )
+    cap = score_cap(
+        has_vr=(recent_vr_posts_count or 0) > 0 or has_term(text, VR_TERMS),
+        has_movement=has_term(text, MOVEMENT_TERMS),
+        has_headset=headset_confidence in {"high", "medium"} or has_term(text, HEADSET_TERMS),
+        vr_count=recent_vr_posts_count or 0,
+        total_count=recent_total_posts_count or 0,
+        last_post_at=last_post_at,
+        has_safety_risk=has_term(text, SAFETY_TERMS),
+        evidence_quality=evidence_quality,
+        text=text,
+    )
+    llm_score = int_value(fit.get("creator_quality_score"))
+    score = min(cap, deterministic_score if llm_score is None else max(deterministic_score, llm_score))
 
     return {
         "creator_quality_score": score,
@@ -236,5 +376,5 @@ def creator_evidence_from_item(item: dict[str, Any], fit: dict[str, Any] | None 
         "engagement_evidence": fit.get("engagement_evidence") or raw.get("engagement_evidence") or "",
         "contactability_evidence": fit.get("contactability_evidence") or raw.get("contactability_evidence") or ("Public email found." if isinstance(public_contact, str) and "@" in public_contact else ""),
         "safety_notes": fit.get("safety_notes") or raw.get("safety_notes") or "",
-        "evidence_json": {**raw, **({"llm_fit": fit} if fit else {})},
+        "evidence_json": {**raw, "computed_score_cap": cap, "computed_evidence_quality": evidence_quality, **({"llm_fit": fit} if fit else {})},
     }

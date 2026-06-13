@@ -8,7 +8,7 @@ export const opportunityStatusSchema = z
 
 export const creatorUpdateSchema = z
   .object({
-    status: z.enum(["new", "reviewed", "contact_ready", "contacted", "rejected"]).optional(),
+    status: z.enum(["new", "reviewed", "qualified", "contact_ready", "contacted", "rejected"]).optional(),
     public_contact: z.string().trim().max(300).nullable().optional(),
     priority: z.enum(["high", "medium", "low"]).optional(),
     fit_reason: z.string().trim().max(4000).nullable().optional(),
