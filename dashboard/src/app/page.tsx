@@ -302,7 +302,25 @@ function creatorFitBand(creator: Creator) {
 
 function creatorEvidenceQuality(creator: Creator) {
   const value = creator.evidence_json?.computed_evidence_quality;
+  if (value === "profile_history") return "Full profile history";
+  if (value === "profile_history_plus_observed") return "Profile history + observed posts";
+  if (value === "accumulated_observed_posts") return "Accumulated observed posts";
+  if (value === "observed_post") return "Single observed post";
+  if (value === "partial_history") return "Partial profile evidence";
+  if (value === "failed_enrichment") return "Enrichment failed";
+  if (value === "conversation_author") return "Conversation author lead";
+  if (value === "no_history") return "No post history captured";
   return typeof value === "string" && value.trim() ? labelFor(value) : "Evidence quality unknown";
+}
+
+function creatorEvidenceConfidence(creator: Creator) {
+  const value = creator.evidence_json?.computed_evidence_confidence;
+  return typeof value === "string" && value.trim() ? labelFor(value) : "Confidence unknown";
+}
+
+function numericEvidenceField(creator: Creator, key: string) {
+  const value = creator.evidence_json?.[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
 function creatorRelevantPosts(creator: Creator) {
@@ -356,17 +374,40 @@ function creatorInclusionReason(creator: Creator) {
 function activityEvidenceLabel(creator: Creator) {
   const level = creator.activity_level || "unknown";
   const total = creator.recent_total_posts_count ?? 0;
+  const vrCount = creator.recent_vr_posts_count ?? 0;
   const quality = creator.evidence_json?.computed_evidence_quality;
+  const confidence = creatorEvidenceConfidence(creator);
+  const observations = numericEvidenceField(creator, "computed_source_observation_count");
+  const profilePosts = numericEvidenceField(creator, "computed_profile_history_posts_count");
+  const observedPosts = numericEvidenceField(creator, "computed_observed_source_posts_count");
+
+  if (quality === "profile_history" || quality === "profile_history_plus_observed") {
+    const extra = quality === "profile_history_plus_observed" ? ` plus ${observedPosts} observed source post${observedPosts === 1 ? "" : "s"}` : "";
+    const profileBasis = profilePosts ? `; ${profilePosts} came from the profile-history payload` : "";
+    return `${labelFor(level)} activity from profile history: ${vrCount} VR/XR post${vrCount === 1 ? "" : "s"} across ${total} recent post${total === 1 ? "" : "s"}${extra}${profileBasis}. ${confidence}.`;
+  }
+  if (quality === "accumulated_observed_posts") {
+    return `${labelFor(level)} activity from accumulated source observations: ${vrCount} VR/XR post${vrCount === 1 ? "" : "s"} across ${total} observed post${total === 1 ? "" : "s"} from ${observations} stored source record${observations === 1 ? "" : "s"}. ${confidence}.`;
+  }
+  if (quality === "conversation_author") {
+    return `Review-only conversation author lead: ${vrCount} VR/XR source post${vrCount === 1 ? "" : "s"} observed. Full profile history was not supplied; use the source post and profile link for manual review. ${confidence}.`;
+  }
+  if (quality === "observed_post") {
+    return `Single observed source post: ${vrCount} VR/XR match from ${observedPosts || 1} stored post. Full profile history was not supplied; treat as low-confidence but actionable for manual review.`;
+  }
+  if (quality === "partial_history") {
+    return `Partial profile evidence: source returned profile metadata but no usable recent post list. ${observedPosts ? `${observedPosts} observed source post${observedPosts === 1 ? "" : "s"} still available for review.` : "No recent source post was attached."}`;
+  }
+  if (quality === "failed_enrichment") {
+    return `Creator enrichment failed for post history. ${observedPosts ? `${observedPosts} observed source post${observedPosts === 1 ? "" : "s"} remains available for manual qualification.` : "Retry enrichment or inspect the profile manually."}`;
+  }
   if (total > 0 && level !== "unknown") {
     return `${labelFor(level)} - ${total} observed post${total === 1 ? "" : "s"} in last 90 days`;
   }
-  if (quality === "conversation_author" || quality === "observed_post") {
-    return "Only the source post is available; full profile history was not supplied.";
-  }
   if (creator.last_post_at) {
-    return `Last activity seen ${shortDate(creator.last_post_at)}; recent post history unavailable.`;
+    return `Last activity seen ${shortDate(creator.last_post_at)}; no usable post-history list was captured.`;
   }
-  return "Profile history unavailable from this source.";
+  return `No post history captured yet. Use visible profile/source links and rerun enrichment; current evidence confidence is ${confidence.toLowerCase()}.`;
 }
 
 function creatorReviewRank(creator: Creator) {
@@ -2337,6 +2378,7 @@ function CreatorFloatingTab({
 
             <ContextBlock
               rows={[
+                ["Evidence state", `${creatorEvidenceQuality(selectedCreator)} - ${creatorEvidenceConfidence(selectedCreator)}`],
                 ["Activity", activityEvidenceLabel(selectedCreator)],
                 ["Audience", selectedCreator.audience_quality || selectedCreator.audience_estimate || "No audience estimate."],
                 ["Recent content", selectedCreator.recent_relevant_content || "No recent content captured."],

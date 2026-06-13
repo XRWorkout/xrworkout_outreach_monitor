@@ -166,7 +166,7 @@ def evidence_text(item: dict[str, Any]) -> str:
 
 
 def source_text(item: dict[str, Any]) -> str:
-    return "\n".join(str(item.get(key) or "") for key in ["title", "body", "author_name"])
+    return "\n".join(str(item.get(key) or "") for key in ["title", "body"])
 
 
 def raw_creator_evidence(item: dict[str, Any]) -> dict[str, Any]:
@@ -226,6 +226,15 @@ def recent_relevant_posts_from_history(raw: dict[str, Any], text: str, now: date
     }
 
 
+def history_quality_from_raw(raw: dict[str, Any]) -> str:
+    quality = str(raw.get("history_quality") or "").strip().lower()
+    if quality in {"profile_history", "profile_partial", "profile_only", "failed_enrichment", "enrichment_failed"}:
+        return quality
+    if isinstance(raw.get("recent_posts"), list):
+        return "profile_history"
+    return "unknown"
+
+
 def observed_post_evidence(item: dict[str, Any]) -> dict[str, Any]:
     text = source_text(item)
     if not text.strip():
@@ -253,6 +262,123 @@ def observed_post_evidence(item: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def post_identity(post: dict[str, Any]) -> str:
+    url = str(post.get("url") or "").strip().lower()
+    if url:
+        return f"url:{url}"
+    title = str(post.get("title") or "").strip().lower()
+    date = str(post.get("published_at") or post.get("date") or "").strip()[:10]
+    evidence = str(post.get("evidence") or "").strip().lower()[:120]
+    return f"text:{date}:{title}:{evidence}"
+
+
+def merge_relevant_posts(*post_lists: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    merged: dict[str, dict[str, Any]] = {}
+    for posts in post_lists:
+        for post in posts:
+            if not isinstance(post, dict):
+                continue
+            merged.setdefault(post_identity(post), post)
+    return sorted(merged.values(), key=lambda post: str(post.get("published_at") or ""), reverse=True)
+
+
+def accumulated_source_evidence(
+    item: dict[str, Any],
+    related_items: list[dict[str, Any]] | None = None,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    items = [item, *(related_items or [])]
+    seen_ids: set[str] = set()
+    unique_items: list[dict[str, Any]] = []
+    for candidate in items:
+        identity = str(candidate.get("id") or candidate.get("dedupe_hash") or candidate.get("source_url") or id(candidate))
+        if identity in seen_ids:
+            continue
+        seen_ids.add(identity)
+        unique_items.append(candidate)
+
+    best_history: dict[str, Any] | None = None
+    best_history_total = -1
+    profile_partial = False
+    failed_enrichment = False
+    observed_total = 0
+    observed_vr = 0
+    observed_posts: list[dict[str, Any]] = []
+    newest: datetime | None = None
+
+    for candidate in unique_items:
+        raw = raw_creator_evidence(candidate)
+        quality = history_quality_from_raw(raw)
+        if quality in {"profile_partial", "profile_only"}:
+            profile_partial = True
+        if quality in {"failed_enrichment", "enrichment_failed"}:
+            failed_enrichment = True
+
+        history = recent_relevant_posts_from_history(raw, evidence_text(candidate), now=now)
+        if history["available"]:
+            total = int_value(history.get("total_count")) or 0
+            if total > best_history_total:
+                best_history = history
+                best_history_total = total
+            parsed = parse_datetime(history.get("last_post_at"))
+            if parsed and (newest is None or parsed > newest):
+                newest = parsed
+
+        observed = observed_post_evidence(candidate)
+        if observed["available"]:
+            observed_total += int_value(observed.get("total_count")) or 0
+            observed_vr += int_value(observed.get("vr_count")) or 0
+            observed_posts.extend(observed.get("relevant_posts") or [])
+            parsed = parse_datetime(observed.get("last_post_at"))
+            if parsed and (newest is None or parsed > newest):
+                newest = parsed
+
+    history_total = int_value(best_history.get("total_count")) if best_history else None
+    history_vr = int_value(best_history.get("vr_count")) if best_history else None
+    history_posts = best_history.get("relevant_posts") if best_history else []
+    history_posts = history_posts if isinstance(history_posts, list) else []
+    relevant_posts = merge_relevant_posts(history_posts, observed_posts)
+
+    if history_total is not None and history_total > 0:
+        total_count = max(history_total, observed_total)
+        vr_count = max(history_vr or 0, observed_vr)
+        evidence_quality = "profile_history" if total_count == history_total else "profile_history_plus_observed"
+    elif observed_total > 1:
+        total_count = observed_total
+        vr_count = observed_vr
+        evidence_quality = "accumulated_observed_posts"
+    elif observed_total == 1:
+        total_count = observed_total
+        vr_count = observed_vr
+        evidence_quality = "observed_post"
+    else:
+        total_count = None
+        vr_count = None
+        evidence_quality = "failed_enrichment" if failed_enrichment else "partial_history" if profile_partial else "no_history"
+
+    if evidence_quality in {"profile_history", "profile_history_plus_observed"} and total_count and total_count >= 3:
+        confidence = "high"
+    elif evidence_quality in {"profile_history", "profile_history_plus_observed", "accumulated_observed_posts"}:
+        confidence = "medium"
+    elif evidence_quality == "observed_post":
+        confidence = "low"
+    else:
+        confidence = "weak"
+
+    return {
+        "vr_count": vr_count,
+        "total_count": total_count,
+        "last_post_at": newest.isoformat() if newest else None,
+        "relevant_posts": relevant_posts[:10],
+        "evidence_quality": evidence_quality,
+        "confidence": confidence,
+        "observed_source_posts_count": observed_total,
+        "observed_vr_posts_count": observed_vr,
+        "profile_history_posts_count": history_total or 0,
+        "source_observation_count": len(unique_items),
+    }
+
+
 def score_cap(
     *,
     has_vr: bool,
@@ -274,8 +400,12 @@ def score_cap(
     strong_specific_signal = has_term(text, STRONG_VR_FITNESS_TERMS)
     cap = 100
 
-    if evidence_quality in {"conversation_author", "post_only"}:
+    if evidence_quality in {"conversation_author", "post_only", "observed_post"}:
         cap = min(cap, 64)
+    if evidence_quality == "accumulated_observed_posts":
+        cap = min(cap, 78)
+    if evidence_quality in {"partial_history", "no_history", "failed_enrichment"}:
+        cap = min(cap, 54)
     if total_count == 0 and last_post_days is None:
         cap = min(cap, 49)
     if last_post_days is not None and last_post_days > RECENCY_DAYS:
@@ -372,26 +502,27 @@ def first_available_int(*values: int | None) -> int | None:
     return None
 
 
-def creator_evidence_from_item(item: dict[str, Any], fit: dict[str, Any] | None = None) -> dict[str, Any]:
+def creator_evidence_from_item(
+    item: dict[str, Any],
+    fit: dict[str, Any] | None = None,
+    related_items: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     fit = fit or {}
     raw = raw_creator_evidence(item)
     text = "\n".join([evidence_text(item), str(fit.get("fit_reason") or ""), str(fit.get("talks_about") or "")])
-    history = recent_relevant_posts_from_history(raw, text)
-    observed = observed_post_evidence(item)
+    accumulated = accumulated_source_evidence(item, related_items)
     fit_vr_count = int_value(fit.get("recent_vr_posts_count"))
     fit_total_count = int_value(fit.get("recent_total_posts_count"))
-    raw_vr_count = int_value(raw.get("recent_vr_posts_count"))
-    raw_total_count = int_value(raw.get("recent_total_posts_count"))
+    raw_quality = history_quality_from_raw(raw)
+    raw_vr_value = int_value(raw.get("recent_vr_posts_count"))
+    raw_total_value = int_value(raw.get("recent_total_posts_count"))
+    raw_vr_count = raw_vr_value if raw_quality == "profile_history" or raw_vr_value else None
+    raw_total_count = raw_total_value if raw_quality == "profile_history" or raw_total_value else None
 
-    history_vr_count = int_value(history.get("vr_count")) if history["available"] else None
-    history_total_count = int_value(history.get("total_count")) if history["available"] else None
-    observed_vr_count = int_value(observed.get("vr_count")) if observed["available"] else None
-    observed_total_count = int_value(observed.get("total_count")) if observed["available"] else None
-
-    # Source-derived post history is authoritative. LLM fit counts are only a last resort.
-    recent_vr_posts_count = first_available_int(history_vr_count, raw_vr_count, observed_vr_count, fit_vr_count)
-    recent_total_posts_count = first_available_int(history_total_count, raw_total_count, observed_total_count, fit_total_count)
-    last_post_at = history.get("last_post_at") or raw.get("last_post_at") or observed.get("last_post_at") or fit.get("last_post_at")
+    # Source-derived accumulated evidence is authoritative. LLM fit counts are only a last resort.
+    recent_vr_posts_count = first_available_int(int_value(accumulated.get("vr_count")), raw_vr_count, fit_vr_count)
+    recent_total_posts_count = first_available_int(int_value(accumulated.get("total_count")), raw_total_count, fit_total_count)
+    last_post_at = accumulated.get("last_post_at") or raw.get("last_post_at") or fit.get("last_post_at")
     if not isinstance(last_post_at, str):
         last_post_at = None
 
@@ -412,13 +543,7 @@ def creator_evidence_from_item(item: dict[str, Any], fit: dict[str, Any] | None 
         text=text,
         engagement_available=engagement_available,
     )
-    evidence_quality = str(
-        "profile_history"
-        if history["available"]
-        else fit.get("lead_source_type")
-        or raw.get("history_quality")
-        or ("observed_post" if observed["available"] else "unknown")
-    )
+    evidence_quality = str(fit.get("lead_source_type") or accumulated.get("evidence_quality") or raw.get("history_quality") or "unknown")
     cap = score_cap(
         has_vr=(recent_vr_posts_count or 0) > 0 or has_term(text, VR_TERMS),
         has_movement=has_term(text, MOVEMENT_TERMS),
@@ -432,7 +557,7 @@ def creator_evidence_from_item(item: dict[str, Any], fit: dict[str, Any] | None 
     )
     llm_score = int_value(fit.get("creator_quality_score"))
     score = min(cap, deterministic_score if llm_score is None else max(deterministic_score, llm_score))
-    relevant_posts = history.get("relevant_posts") if history["available"] else observed.get("relevant_posts")
+    relevant_posts = accumulated.get("relevant_posts")
     relevant_posts = relevant_posts if isinstance(relevant_posts, list) else []
 
     return {
@@ -452,9 +577,14 @@ def creator_evidence_from_item(item: dict[str, Any], fit: dict[str, Any] | None 
             **raw,
             "computed_score_cap": cap,
             "computed_evidence_quality": evidence_quality,
+            "computed_evidence_confidence": accumulated.get("confidence"),
             "computed_recent_relevant_posts": relevant_posts,
             "computed_recent_vr_posts_count": recent_vr_posts_count or 0,
             "computed_recent_total_posts_count": recent_total_posts_count or 0,
+            "computed_observed_source_posts_count": accumulated.get("observed_source_posts_count") or 0,
+            "computed_observed_vr_posts_count": accumulated.get("observed_vr_posts_count") or 0,
+            "computed_profile_history_posts_count": accumulated.get("profile_history_posts_count") or 0,
+            "computed_source_observation_count": accumulated.get("source_observation_count") or 1,
             **({"llm_fit": fit} if fit else {}),
         },
     }
