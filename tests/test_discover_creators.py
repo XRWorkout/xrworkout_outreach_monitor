@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+
 from scripts.discover_creators import (
     canonical_profile_url,
     conversation_author_lead_fit,
@@ -213,6 +215,7 @@ def test_apify_conversation_author_rows_can_seed_review_leads():
         "author_url": "https://www.tiktok.com/@creator",
         "title": "Quest 3 VR boxing workout",
         "body": "Trying a VR fitness routine today",
+        "published_at": (datetime.now(timezone.utc) - timedelta(days=2)).isoformat(),
         "follower_count": 850,
         "raw_json": {
             "source_type": "social_post",
@@ -227,8 +230,9 @@ def test_apify_conversation_author_rows_can_seed_review_leads():
     assert fit["platform"] == "apify_tiktok"
     assert fit["profile_url"] == "https://www.tiktok.com/@creator"
     assert fit["priority"] in {"low", "medium"}
-    assert fit["recent_total_posts_count"] == 0
-    assert fit["activity_level"] == "unknown"
+    assert fit["recent_vr_posts_count"] == 1
+    assert fit["recent_total_posts_count"] == 1
+    assert fit["activity_level"] == "low"
     assert fit["public_contact"] is None
     assert "review" in fit["offer_angle"].lower()
 

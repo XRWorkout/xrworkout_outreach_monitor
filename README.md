@@ -14,7 +14,7 @@ Doing that manually is slow and inconsistent. This repo builds the operating lay
 - Deduplicate source items before they enter the pipeline.
 - Use Codex CLI to classify, score, and summarize opportunities.
 - Promote promising creators and public conversation-author leads into a reviewable prospect table.
-- Apply deterministic creator-quality scoring with evidence caps for weak history, one-off VR mentions, stale activity, missing VR proof, contactability, safety, and review priority.
+- Apply deterministic creator-quality scoring with source-history-derived 90-day VR/XR counts, evidence caps for weak history, one-off VR mentions, stale activity, missing VR proof, contactability, safety, and review priority.
 - Generate outreach drafts for high-fit opportunities.
 - Require human approval before any email is sent.
 - Track sent drafts, follow-ups, and creator offers in Supabase.
@@ -79,7 +79,7 @@ Dashboard presents conversations, opportunity feeds, creator pipeline, outreach 
 - Manual source collection workflow for rerunning one missing source from the Automation tab without wiping the whole dataset.
 - Scheduled collection, draft, and report jobs are gated by `AUTOMATION_ENABLED`; scheduled approved sends are gated by `SEND_AUTOMATION_ENABLED`; manual runs still work for validation.
 - Next.js dashboard under `dashboard/` with Supabase login, operator allowlist, dark-mode Outreach OS navigation, Dashboard, Conversations, Conversation Map, Creators, Outreach, Export, Automations, Run Monitor, Analytics, and Settings views.
-- Dashboard product surfaces include presentation-layer labels, KPI cards, live opportunity feed, AI-style recommendations, social listening filters, interactive source radar with native/Apify source alias aggregation, creator-quality filters/evidence panels, creator kanban with reviewed/qualified/contact-ready transitions, outreach review drawers, multi-source prospect export builder, automation agent cards, workflow controls, live run monitoring, and source attribution charts.
+- Dashboard product surfaces include presentation-layer labels, KPI cards, live opportunity feed, AI-style recommendations, social listening filters, interactive source radar with native/Apify source alias aggregation, a drag-and-drop creator review board, explicit creator inclusion reasons, clickable profile/source/evidence links, a workspace-style creator detail panel, multi-source prospect export builder, automation agent cards, workflow controls, live run monitoring, and source attribution charts.
 - Deployed dashboard for day-to-day review and automation controls.
 - Audited dashboard editing for opportunity status, creator review fields, follow-up outcomes, and offer outcomes.
 - Manual dashboard dispatch from selected opportunities into the LLM draft generator.
@@ -137,7 +137,7 @@ Dashboard presents conversations, opportunity feeds, creator pipeline, outreach 
 | `scripts/collect_forums.py` | Collects public Discourse-style VR/forum threads through public JSON endpoints. |
 | `scripts/collect_blogs.py` | Collects VR/XR blog and news RSS/Atom feed articles. |
 | `scripts/classify_opportunities.py` | Scores raw items and creates outreach opportunities. |
-| `scripts/discover_creators.py` | Promotes creator prospects into `creators`, applies deterministic creator-quality evidence caps, normalizes creator platform/profile identity, and also creates capped review-only conversation-author leads from Apify rows with usable public author profiles. |
+| `scripts/discover_creators.py` | Promotes creator prospects into `creators`, computes source-history-backed 90-day VR/XR activity metrics, applies deterministic creator-quality evidence caps, normalizes creator platform/profile identity, and also creates capped review-only conversation-author leads from Apify rows with usable public author profiles. |
 | `scripts/generate_drafts.py` | Creates outreach drafts for high-priority safe opportunities. |
 | `scripts/generate_draft_for_opportunity.py` | Creates one LLM-generated `needs_review` draft for an operator-selected opportunity. |
 | `scripts/check_ollama_cloud.py` | Verifies Ollama Cloud auth, configured model tags, and a small JSON smoke response. |

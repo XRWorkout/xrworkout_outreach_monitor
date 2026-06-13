@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from typing import Any
 
 
@@ -67,16 +68,34 @@ HEADSET_TERMS = [
 ]
 
 SAFETY_TERMS = ["kids", "child", "children", "weight loss guaranteed", "guaranteed weight loss", "cure", "medical claim"]
+POST_DATE_KEYS = ["published_at", "publishedAt", "created_at", "createdAt", "createTimeISO", "timestamp", "date", "createTime"]
+POST_URL_KEYS = ["url", "postUrl", "post_url", "webVideoUrl", "videoUrl", "video_url", "shortUrl", "shareUrl"]
+POST_TEXT_KEYS = ["title", "caption", "text", "description", "hashtags"]
 
 
 def parse_datetime(value: Any) -> datetime | None:
+    if isinstance(value, bool) or value is None:
+        return None
+    if isinstance(value, (int, float)):
+        timestamp = int(value)
+        if timestamp > 10_000_000_000:
+            timestamp = timestamp // 1000
+        try:
+            return datetime.fromtimestamp(timestamp, timezone.utc)
+        except (OSError, ValueError):
+            return None
     if not isinstance(value, str) or not value.strip():
         return None
     normalized = value.strip().replace("Z", "+00:00")
+    if normalized.isdigit():
+        return parse_datetime(int(normalized))
     try:
         parsed = datetime.fromisoformat(normalized)
     except ValueError:
-        return None
+        try:
+            parsed = parsedate_to_datetime(value)
+        except (TypeError, ValueError, IndexError, OverflowError):
+            return None
     if parsed.tzinfo is None:
         return parsed.replace(tzinfo=timezone.utc)
     return parsed.astimezone(timezone.utc)
@@ -101,6 +120,30 @@ def has_term(text: str, terms: list[str]) -> bool:
     return False
 
 
+def first_string(value: dict[str, Any], keys: list[str]) -> str | None:
+    for key in keys:
+        raw = value.get(key)
+        if isinstance(raw, str) and raw.strip():
+            return raw.strip()
+    return None
+
+
+def post_text(post: dict[str, Any]) -> str:
+    return "\n".join(str(post.get(key) or "") for key in POST_TEXT_KEYS)
+
+
+def post_datetime(post: dict[str, Any]) -> datetime | None:
+    for key in POST_DATE_KEYS:
+        parsed = parse_datetime(post.get(key))
+        if parsed:
+            return parsed
+    return None
+
+
+def post_url(post: dict[str, Any]) -> str | None:
+    return first_string(post, POST_URL_KEYS)
+
+
 def evidence_text(item: dict[str, Any]) -> str:
     raw_json = item.get("raw_json") if isinstance(item.get("raw_json"), dict) else {}
     evidence = raw_json.get("creator_evidence") if isinstance(raw_json.get("creator_evidence"), dict) else {}
@@ -118,7 +161,7 @@ def evidence_text(item: dict[str, Any]) -> str:
     if isinstance(posts, list):
         for post in posts[:25]:
             if isinstance(post, dict):
-                values.extend(str(post.get(key) or "") for key in ["title", "caption", "text", "description", "hashtags"])
+                values.append(post_text(post))
     return "\n".join(values)
 
 
@@ -142,45 +185,72 @@ def int_value(value: Any) -> int | None:
     return parsed if parsed >= 0 else None
 
 
-def recent_relevant_posts_from_history(raw: dict[str, Any], text: str) -> tuple[int | None, int | None, str | None]:
+def recent_relevant_posts_from_history(raw: dict[str, Any], text: str, now: datetime | None = None) -> dict[str, Any]:
     posts = raw.get("recent_posts")
     if not isinstance(posts, list):
-        return None, None, None
+        return {"available": False, "vr_count": None, "total_count": None, "last_post_at": None, "relevant_posts": []}
 
+    current = now or datetime.now(timezone.utc)
     newest: datetime | None = None
     total = 0
-    relevant = 0
+    relevant_posts: list[dict[str, Any]] = []
     for post in posts:
         if not isinstance(post, dict):
             continue
-        post_date_value = post.get("published_at") or post.get("created_at") or post.get("timestamp") or post.get("date")
-        age = days_old(post_date_value)
-        if age is None or age > RECENCY_DAYS:
+        parsed = post_datetime(post)
+        if not parsed or (current - parsed).days > RECENCY_DAYS:
             continue
         total += 1
-        post_text_value = "\n".join(str(post.get(key) or "") for key in ["title", "caption", "text", "description", "hashtags"])
-        if has_term(post_text_value, VR_TERMS):
-            relevant += 1
-        parsed = parse_datetime(post_date_value)
-        if parsed and (newest is None or parsed > newest):
+        if newest is None or parsed > newest:
             newest = parsed
+        text_value = post_text(post)
+        if has_term(text_value, VR_TERMS):
+            relevant_posts.append(
+                {
+                    "title": first_string(post, ["title", "caption", "text", "description"]) or "Relevant VR/XR post",
+                    "published_at": parsed.isoformat(),
+                    "url": post_url(post),
+                    "evidence": text_value[:280],
+                }
+            )
 
     if total == 0 and has_term(text, VR_TERMS):
-        return None, None, None
-    return relevant, total, newest.isoformat() if newest else None
+        return {"available": False, "vr_count": None, "total_count": None, "last_post_at": None, "relevant_posts": []}
+    relevant_posts.sort(key=lambda post: str(post.get("published_at") or ""), reverse=True)
+    return {
+        "available": True,
+        "vr_count": len(relevant_posts),
+        "total_count": total,
+        "last_post_at": newest.isoformat() if newest else None,
+        "relevant_posts": relevant_posts[:10],
+    }
 
 
-def observed_post_evidence(item: dict[str, Any]) -> tuple[int | None, int | None, str | None]:
+def observed_post_evidence(item: dict[str, Any]) -> dict[str, Any]:
     text = source_text(item)
     if not text.strip():
-        return None, None, None
+        return {"available": False, "vr_count": None, "total_count": None, "last_post_at": None, "relevant_posts": []}
     published_at = item.get("published_at") or item.get("collected_at")
-    age = days_old(published_at)
-    if age is None or age > RECENCY_DAYS:
-        return None, None, None
-    if not has_term(text, VR_TERMS):
-        return 0, 1, str(published_at) if isinstance(published_at, str) else None
-    return 1, 1, str(published_at) if isinstance(published_at, str) else None
+    parsed = parse_datetime(published_at)
+    if not parsed or days_old(parsed.isoformat()) is None or days_old(parsed.isoformat()) > RECENCY_DAYS:
+        return {"available": False, "vr_count": None, "total_count": None, "last_post_at": None, "relevant_posts": []}
+    relevant = has_term(text, VR_TERMS)
+    return {
+        "available": True,
+        "vr_count": 1 if relevant else 0,
+        "total_count": 1,
+        "last_post_at": parsed.isoformat(),
+        "relevant_posts": [
+            {
+                "title": str(item.get("title") or "Observed source post"),
+                "published_at": parsed.isoformat(),
+                "url": item.get("source_url"),
+                "evidence": text[:280],
+            }
+        ]
+        if relevant
+        else [],
+    }
 
 
 def score_cap(
@@ -295,40 +365,38 @@ def activity_level(recent_total_posts_count: int | None, last_post_at: str | Non
     return "unknown"
 
 
+def first_available_int(*values: int | None) -> int | None:
+    for value in values:
+        if value is not None:
+            return value
+    return None
+
+
 def creator_evidence_from_item(item: dict[str, Any], fit: dict[str, Any] | None = None) -> dict[str, Any]:
     fit = fit or {}
     raw = raw_creator_evidence(item)
     text = "\n".join([evidence_text(item), str(fit.get("fit_reason") or ""), str(fit.get("talks_about") or "")])
-    history_vr_count, history_total_count, history_last_post = recent_relevant_posts_from_history(raw, text)
-    observed_vr_count, observed_total_count, observed_last_post = observed_post_evidence(item)
+    history = recent_relevant_posts_from_history(raw, text)
+    observed = observed_post_evidence(item)
     fit_vr_count = int_value(fit.get("recent_vr_posts_count"))
     fit_total_count = int_value(fit.get("recent_total_posts_count"))
     raw_vr_count = int_value(raw.get("recent_vr_posts_count"))
     raw_total_count = int_value(raw.get("recent_total_posts_count"))
-    recent_vr_posts_count = (
-        fit_vr_count
-        if fit_vr_count is not None
-        else history_vr_count
-        if history_vr_count is not None
-        else raw_vr_count
-        if raw_vr_count is not None
-        else observed_vr_count
-    )
-    recent_total_posts_count = (
-        fit_total_count
-        if fit_total_count is not None
-        else history_total_count
-        if history_total_count is not None
-        else raw_total_count
-        if raw_total_count is not None
-        else observed_total_count
-    )
-    last_post_at = fit.get("last_post_at") or raw.get("last_post_at")
-    if not last_post_at:
-        last_post_at = history_last_post or observed_last_post
+
+    history_vr_count = int_value(history.get("vr_count")) if history["available"] else None
+    history_total_count = int_value(history.get("total_count")) if history["available"] else None
+    observed_vr_count = int_value(observed.get("vr_count")) if observed["available"] else None
+    observed_total_count = int_value(observed.get("total_count")) if observed["available"] else None
+
+    # Source-derived post history is authoritative. LLM fit counts are only a last resort.
+    recent_vr_posts_count = first_available_int(history_vr_count, raw_vr_count, observed_vr_count, fit_vr_count)
+    recent_total_posts_count = first_available_int(history_total_count, raw_total_count, observed_total_count, fit_total_count)
+    last_post_at = history.get("last_post_at") or raw.get("last_post_at") or observed.get("last_post_at") or fit.get("last_post_at")
     if not isinstance(last_post_at, str):
         last_post_at = None
-    level = str(fit.get("activity_level") or raw.get("activity_level") or activity_level(recent_total_posts_count, last_post_at))
+
+    computed_level = activity_level(recent_total_posts_count, last_post_at)
+    level = computed_level if computed_level != "unknown" else str(raw.get("activity_level") or fit.get("activity_level") or "unknown")
     headset_confidence = str(fit.get("headset_confidence") or raw.get("headset_confidence") or ("medium" if has_term(text, HEADSET_TERMS) else "unknown"))
     public_contact = fit.get("public_contact") or raw.get("public_contact")
     follower_count = int_value(item.get("follower_count")) or int_value(raw.get("follower_count"))
@@ -345,9 +413,11 @@ def creator_evidence_from_item(item: dict[str, Any], fit: dict[str, Any] | None 
         engagement_available=engagement_available,
     )
     evidence_quality = str(
-        fit.get("lead_source_type")
+        "profile_history"
+        if history["available"]
+        else fit.get("lead_source_type")
         or raw.get("history_quality")
-        or ("profile_history" if history_total_count is not None else "observed_post" if observed_total_count is not None else "unknown")
+        or ("observed_post" if observed["available"] else "unknown")
     )
     cap = score_cap(
         has_vr=(recent_vr_posts_count or 0) > 0 or has_term(text, VR_TERMS),
@@ -362,6 +432,8 @@ def creator_evidence_from_item(item: dict[str, Any], fit: dict[str, Any] | None 
     )
     llm_score = int_value(fit.get("creator_quality_score"))
     score = min(cap, deterministic_score if llm_score is None else max(deterministic_score, llm_score))
+    relevant_posts = history.get("relevant_posts") if history["available"] else observed.get("relevant_posts")
+    relevant_posts = relevant_posts if isinstance(relevant_posts, list) else []
 
     return {
         "creator_quality_score": score,
@@ -376,5 +448,13 @@ def creator_evidence_from_item(item: dict[str, Any], fit: dict[str, Any] | None 
         "engagement_evidence": fit.get("engagement_evidence") or raw.get("engagement_evidence") or "",
         "contactability_evidence": fit.get("contactability_evidence") or raw.get("contactability_evidence") or ("Public email found." if isinstance(public_contact, str) and "@" in public_contact else ""),
         "safety_notes": fit.get("safety_notes") or raw.get("safety_notes") or "",
-        "evidence_json": {**raw, "computed_score_cap": cap, "computed_evidence_quality": evidence_quality, **({"llm_fit": fit} if fit else {})},
+        "evidence_json": {
+            **raw,
+            "computed_score_cap": cap,
+            "computed_evidence_quality": evidence_quality,
+            "computed_recent_relevant_posts": relevant_posts,
+            "computed_recent_vr_posts_count": recent_vr_posts_count or 0,
+            "computed_recent_total_posts_count": recent_total_posts_count or 0,
+            **({"llm_fit": fit} if fit else {}),
+        },
     }

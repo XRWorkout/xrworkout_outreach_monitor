@@ -127,3 +127,57 @@ def test_creator_evidence_caps_llm_score_for_post_only_incidental_match():
     assert evidence["recent_total_posts_count"] == 1
     assert evidence["creator_quality_score"] < 70
     assert evidence["evidence_json"]["computed_evidence_quality"] == "observed_post"
+
+
+
+def test_creator_evidence_counts_apify_date_key_variants_in_90_day_window():
+    item = {
+        "source": "apify_tiktok",
+        "title": "Quest workouts",
+        "body": "VR fitness channel",
+        "author_name": "Quest Coach",
+        "follower_count": 12_000,
+        "raw_json": {
+            "creator_evidence": {
+                "history_quality": "profile_history",
+                "headset_confidence": "high",
+                "recent_posts": [
+                    {"caption": "Quest 3 VR boxing workout", "publishedAt": days_ago(3), "webVideoUrl": "https://example.com/quest-boxing"},
+                    {"caption": "FitXR cardio in mixed reality", "createdAt": days_ago(18), "url": "https://example.com/fitxr"},
+                    {"caption": "Beat Saber workout challenge", "createTimeISO": days_ago(42), "url": "https://example.com/beat-saber"},
+                    {"caption": "Old Quest workout", "publishedAt": days_ago(130), "url": "https://example.com/old"},
+                ],
+            },
+        },
+    }
+
+    evidence = creator_evidence_from_item(item)
+
+    assert evidence["recent_vr_posts_count"] == 3
+    assert evidence["recent_total_posts_count"] == 3
+    assert evidence["evidence_json"]["computed_recent_relevant_posts"][0]["url"] == "https://example.com/quest-boxing"
+
+
+def test_creator_evidence_ignores_placeholder_fit_zero_when_observed_post_exists():
+    item = {
+        "source": "apify_tiktok",
+        "source_url": "https://www.tiktok.com/@creator/video/1",
+        "title": "Quest 3 VR boxing workout",
+        "body": "Trying a VR fitness routine today",
+        "author_name": "Quest Coach",
+        "published_at": days_ago(2),
+        "raw_json": {"source_type": "social_post"},
+    }
+    fit = {
+        "lead_source_type": "conversation_author",
+        "recent_vr_posts_count": 0,
+        "recent_total_posts_count": 0,
+        "activity_level": "unknown",
+    }
+
+    evidence = creator_evidence_from_item(item, fit)
+
+    assert evidence["recent_vr_posts_count"] == 1
+    assert evidence["recent_total_posts_count"] == 1
+    assert evidence["activity_level"] == "low"
+    assert evidence["evidence_json"]["computed_recent_relevant_posts"][0]["url"] == "https://www.tiktok.com/@creator/video/1"
