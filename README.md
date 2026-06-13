@@ -187,6 +187,7 @@ Install and verify locally:
 ```bash
 cd dashboard
 npm install
+npx playwright install chromium
 npm exec vitest run -- --pool=threads --maxWorkers=1
 npm run lint
 npm run typecheck
