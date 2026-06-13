@@ -9,6 +9,14 @@ from supabase import Client, create_client
 from xroutreach.config import Settings, require
 
 
+def normalize_creator_platform(value: Any) -> str:
+    return str(value or "").strip().lower().replace("-", "_").replace(" ", "_")
+
+
+def normalize_creator_profile_url(value: Any) -> str:
+    return str(value or "").strip().lower().rstrip("/")
+
+
 class OutreachDB:
     def __init__(self, settings: Settings):
         require(
@@ -114,7 +122,36 @@ class OutreachDB:
         return result.data or []
 
     def upsert_creator(self, row: dict[str, Any]) -> None:
-        self.client.table("creators").upsert(row, on_conflict="platform,profile_url").execute()
+        payload = dict(row)
+        payload["platform"] = normalize_creator_platform(payload.get("platform"))
+        payload["profile_url"] = normalize_creator_profile_url(payload.get("profile_url"))
+
+        existing = (
+            self.client.table("creators")
+            .select("id, platform, profile_url")
+            .ilike("profile_url", payload["profile_url"])
+            .execute()
+        )
+        matching = [
+            candidate
+            for candidate in existing.data or []
+            if normalize_creator_platform(candidate.get("platform")) == payload["platform"]
+        ]
+        exact = next(
+            (
+                candidate
+                for candidate in matching
+                if normalize_creator_profile_url(candidate.get("profile_url")) == payload["profile_url"]
+                and normalize_creator_platform(candidate.get("platform")) == candidate.get("platform")
+            ),
+            None,
+        )
+        target = exact or (matching[0] if matching else None)
+        if target:
+            self.client.table("creators").update(payload).eq("id", target["id"]).execute()
+            return
+
+        self.client.table("creators").upsert(payload, on_conflict="platform,profile_url").execute()
 
     def fetch_creator_source_items(self, limit: int) -> list[dict[str, Any]]:
         result = (

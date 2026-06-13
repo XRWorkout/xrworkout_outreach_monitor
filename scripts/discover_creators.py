@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import re
+from collections import defaultdict
 from typing import Any
 
 from xroutreach.config import settings
@@ -94,6 +95,32 @@ def canonical_profile_url(item: dict[str, Any], fit: dict[str, Any]) -> str | No
     return None
 
 
+
+
+def creator_profile_key(item: dict[str, Any], fit: dict[str, Any] | None = None) -> tuple[str, str] | None:
+    fit = fit or {}
+    platform = normalize_platform(fit.get("platform") or item.get("source"))
+    profile_url = canonical_profile_url(item, fit)
+    if not profile_url and isinstance(item.get("author_url"), str) and item.get("author_url").strip():
+        profile_url = item.get("author_url").strip()
+    if not profile_url:
+        return None
+    normalized_url = profile_url.strip().lower().rstrip("/")
+    return platform, normalized_url
+
+
+def group_items_by_creator(items: list[dict[str, Any]]) -> dict[tuple[str, str], list[dict[str, Any]]]:
+    grouped: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
+    for item in items:
+        key = creator_profile_key(item)
+        if key:
+            grouped[key].append(item)
+    return grouped
+
+
+def normalize_profile_url_for_storage(value: str | None) -> str | None:
+    return value.strip().lower().rstrip("/") if isinstance(value, str) and value.strip() else None
+
 def public_contact_from_item(item: dict[str, Any]) -> str | None:
     raw_json = item.get("raw_json") if isinstance(item.get("raw_json"), dict) else {}
     public_contact = raw_json.get("public_contact")
@@ -160,7 +187,7 @@ def has_creator_signal(text: str) -> bool:
     return has_vr_context and has_movement_context
 
 
-def fallback_creator_fit(item: dict[str, Any]) -> dict[str, Any] | None:
+def fallback_creator_fit(item: dict[str, Any], related_items: list[dict[str, Any]] | None = None) -> dict[str, Any] | None:
     profile_url = item.get("author_url") or item.get("source_url")
     name = item.get("author_name")
     if not name or not profile_url:
@@ -178,7 +205,7 @@ def fallback_creator_fit(item: dict[str, Any]) -> dict[str, Any] | None:
     if not has_creator_signal(haystack):
         return None
 
-    evidence = creator_evidence_from_item(item)
+    evidence = creator_evidence_from_item(item, related_items=related_items)
     return {
         "raw_item_id": item.get("id"),
         "name": name,
@@ -208,7 +235,7 @@ def fallback_creator_fit(item: dict[str, Any]) -> dict[str, Any] | None:
     }
 
 
-def conversation_author_lead_fit(item: dict[str, Any]) -> dict[str, Any] | None:
+def conversation_author_lead_fit(item: dict[str, Any], related_items: list[dict[str, Any]] | None = None) -> dict[str, Any] | None:
     if not is_apify_conversation_author_lead(item):
         return None
 
@@ -228,7 +255,7 @@ def conversation_author_lead_fit(item: dict[str, Any]) -> dict[str, Any] | None:
     source_type = str(raw_json.get("source_type") or "social_post").replace("_", " ")
     engagement = raw_json.get("engagement") if isinstance(raw_json.get("engagement"), dict) else {}
     engagement_bits = ", ".join(f"{key}: {value}" for key, value in engagement.items() if value is not None)
-    evidence = creator_evidence_from_item(item)
+    evidence = creator_evidence_from_item(item, related_items=related_items)
     score = min(int(evidence["creator_quality_score"]), 69)
     return {
         "raw_item_id": item.get("id"),
@@ -264,13 +291,13 @@ def conversation_author_lead_fit(item: dict[str, Any]) -> dict[str, Any] | None:
     }
 
 
-def creator_row(item: dict[str, Any], fit: dict[str, Any]) -> dict[str, Any]:
+def creator_row(item: dict[str, Any], fit: dict[str, Any], related_items: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     fit_reason = fit.get("fit_reason", "")
     talks_about = fit.get("talks_about")
     if talks_about:
         fit_reason = f"Talks about: {talks_about}. Fit: {fit_reason}"
 
-    evidence = creator_evidence_from_item(item, fit)
+    evidence = creator_evidence_from_item(item, fit, related_items=related_items)
     priority = fit.get("priority") or priority_for_creator_score(evidence["creator_quality_score"])
     if evidence["creator_quality_score"] < 85 and priority == "high":
         priority = priority_for_creator_score(evidence["creator_quality_score"])
@@ -278,7 +305,7 @@ def creator_row(item: dict[str, Any], fit: dict[str, Any]) -> dict[str, Any]:
     return {
         "name": fit.get("name") or item.get("author_name") or "Unknown",
         "platform": normalize_platform(fit.get("platform") or item["source"]),
-        "profile_url": canonical_profile_url(item, fit),
+        "profile_url": normalize_profile_url_for_storage(canonical_profile_url(item, fit)),
         "public_contact": fit.get("public_contact") or public_contact_from_item(item),
         "niche": fit.get("niche", ""),
         "follower_count": follower_count_from_item(item),
@@ -317,34 +344,46 @@ def fit_source_item(items_by_id: dict[str, dict[str, Any]], fit: dict[str, Any])
     return None
 
 
-def promote_fallback_items(db: OutreachDB, items: list[dict[str, Any]], used_item_ids: set[str]) -> tuple[int, int]:
+def promote_fallback_items(
+    db: OutreachDB,
+    items: list[dict[str, Any]],
+    used_item_ids: set[str],
+    related_items_by_creator: dict[tuple[str, str], list[dict[str, Any]]] | None = None,
+) -> tuple[int, int]:
     created = 0
     skipped = 0
     for item in items:
         if item.get("id") in used_item_ids:
             continue
-        fallback_fit = fallback_creator_fit(item)
+        related_items = (related_items_by_creator or {}).get(creator_profile_key(item) or ("", ""), [])
+        fallback_fit = fallback_creator_fit(item, related_items=related_items)
         if not fallback_fit:
             skipped += 1
             continue
-        db.upsert_creator(creator_row(item, fallback_fit))
+        db.upsert_creator(creator_row(item, fallback_fit, related_items=related_items))
         created += 1
         if item.get("id"):
             used_item_ids.add(item["id"])
     return created, skipped
 
 
-def promote_conversation_author_leads(db: OutreachDB, items: list[dict[str, Any]], used_item_ids: set[str]) -> tuple[int, int]:
+def promote_conversation_author_leads(
+    db: OutreachDB,
+    items: list[dict[str, Any]],
+    used_item_ids: set[str],
+    related_items_by_creator: dict[tuple[str, str], list[dict[str, Any]]] | None = None,
+) -> tuple[int, int]:
     created = 0
     skipped = 0
     for item in items:
         if item.get("id") in used_item_ids:
             continue
-        lead_fit = conversation_author_lead_fit(item)
+        related_items = (related_items_by_creator or {}).get(creator_profile_key(item) or ("", ""), [])
+        lead_fit = conversation_author_lead_fit(item, related_items=related_items)
         if not lead_fit:
             skipped += 1
             continue
-        db.upsert_creator(creator_row(item, lead_fit))
+        db.upsert_creator(creator_row(item, lead_fit, related_items=related_items))
         created += 1
         if item.get("id"):
             used_item_ids.add(item["id"])
@@ -363,7 +402,8 @@ def main() -> None:
     skipped = 0
     fallback_created = 0
     lead_created = 0
-    source_items = db.fetch_creator_source_items(args.limit * 4)
+    source_items = db.fetch_creator_source_items(max(1000, args.limit * 20))
+    related_items_by_creator = group_items_by_creator(source_items)
     items = [item for item in source_items if has_reliable_creator_history(item)][: args.limit]
     lead_items = [item for item in source_items if is_apify_conversation_author_lead(item)][: args.limit]
     if not items and not lead_items:
@@ -380,13 +420,15 @@ def main() -> None:
             if not item:
                 skipped += 1
                 continue
-            db.upsert_creator(creator_row(item, fit))
+            related_items = related_items_by_creator.get(creator_profile_key(item, fit) or ("", ""), [])
+            db.upsert_creator(creator_row(item, fit, related_items=related_items))
             if item.get("id"):
                 used_item_ids.add(item["id"])
             created += 1
 
-    fallback_created, fallback_skipped = promote_fallback_items(db, items, used_item_ids)
-    lead_created, lead_skipped = promote_conversation_author_leads(db, lead_items, used_item_ids)
+    fallback_items = [item for item in source_items if has_reliable_creator_history(item)]
+    fallback_created, fallback_skipped = promote_fallback_items(db, fallback_items, used_item_ids, related_items_by_creator)
+    lead_created, lead_skipped = promote_conversation_author_leads(db, lead_items, used_item_ids, related_items_by_creator)
     created += fallback_created + lead_created
     skipped += fallback_skipped + lead_skipped
 

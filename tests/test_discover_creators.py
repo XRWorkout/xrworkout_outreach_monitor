@@ -8,6 +8,7 @@ from scripts.discover_creators import (
     creator_row,
     fallback_creator_fit,
     fit_source_item,
+    group_items_by_creator,
     has_reliable_creator_history,
     is_apify_conversation_author_lead,
     normalize_platform,
@@ -145,6 +146,16 @@ def test_creator_row_uses_quality_score_and_headset_evidence():
         "source_url": "https://instagram.com/questcoach",
         "author_name": "Quest Coach",
         "author_url": "https://instagram.com/questcoach",
+        "raw_json": {
+            "creator_evidence": {
+                "history_quality": "profile_history",
+                "recent_posts": [
+                    {"caption": "Quest 3 boxing workout", "published_at": "2026-06-01T00:00:00+00:00"},
+                    {"caption": "FitXR cardio routine", "published_at": "2026-05-20T00:00:00+00:00"},
+                    {"caption": "Beat Saber workout", "published_at": "2026-05-05T00:00:00+00:00"},
+                ],
+            }
+        },
     }
     fit = {
         "name": "Quest Coach",
@@ -308,3 +319,23 @@ def test_creator_row_normalizes_platform_and_prefers_author_profile_url():
     assert row["platform"] == "apify_tiktok"
     assert row["profile_url"] == "https://www.tiktok.com/@creator"
     assert canonical_profile_url(item, fit) == "https://www.tiktok.com/@creator"
+
+
+def test_group_items_by_creator_uses_author_profile_for_accumulation():
+    rows = [
+        {
+            "source": "youtube",
+            "source_url": "https://www.youtube.com/watch?v=1",
+            "author_url": "https://www.youtube.com/channel/creator",
+        },
+        {
+            "source": "youtube",
+            "source_url": "https://www.youtube.com/watch?v=2",
+            "author_url": "https://www.youtube.com/channel/creator",
+        },
+    ]
+
+    grouped = group_items_by_creator(rows)
+
+    assert len(grouped) == 1
+    assert len(next(iter(grouped.values()))) == 2

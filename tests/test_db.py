@@ -41,6 +41,14 @@ class FakeTable:
         self.filters.append(("eq", name, value))
         return self
 
+    def ilike(self, name, value):
+        self.filters.append(("ilike", name, value))
+        return self
+
+    def update(self, payload):
+        self.payload = payload
+        return self
+
     def lte(self, name, value):
         self.filters.append(("lte", name, value))
         return self
@@ -149,3 +157,18 @@ def test_delete_operational_data_deletes_dependency_order():
     for table in ["followups", "offers", "drafts", "opportunities", "creators", "raw_items"]:
         assert db.client.tables[table].deleted
         assert ("filter", "id", "not.is", "null") in db.client.tables[table].filters
+
+
+def test_upsert_creator_normalizes_identity_and_updates_case_variant():
+    db = OutreachDB.__new__(OutreachDB)
+    db.client = FakeClient()
+    creators = db.client.tables.setdefault("creators", FakeTable())
+    creators.data = [{"id": "creator-1", "platform": "YouTube", "profile_url": "https://www.youtube.com/channel/UCABC"}]
+
+    db.upsert_creator({"platform": "YouTube", "profile_url": "https://www.youtube.com/channel/UCABC/", "name": "Creator"})
+
+    assert creators.selected == "id, platform, profile_url"
+    assert ("ilike", "profile_url", "https://www.youtube.com/channel/ucabc") in creators.filters
+    assert creators.payload["platform"] == "youtube"
+    assert creators.payload["profile_url"] == "https://www.youtube.com/channel/ucabc"
+    assert ("eq", "id", "creator-1") in creators.filters

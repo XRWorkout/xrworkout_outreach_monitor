@@ -39,7 +39,7 @@ Drafts should only be generated for high-priority opportunities that pass safety
 
 ## Creator Quality Score
 
-Use this 100-point model when reviewing creator candidates. The deterministic scorer computes evidence from profile-history posts when available, uses a single observed source post only as weaker evidence, and caps any LLM-provided score when the collected evidence is weak.
+Use this 100-point model when reviewing creator candidates. The deterministic scorer computes evidence from profile-history posts when available, accumulates observed source posts for the same normalized creator when full history is missing, treats a single observed source post as weaker evidence, and caps any LLM-provided score when the collected evidence is weak.
 
 | Factor | Weight | High-Quality Signal |
 |---|---:|---|
@@ -180,4 +180,4 @@ Current database fields already support the review model:
 - `creators.status`
 - `creators.public_contact`
 
-The current implementation stores deterministic score caps and evidence quality in `creators.evidence_json`, so the dashboard can distinguish profile-history evidence, observed single-post evidence, and review-only conversation-author leads.
+The current implementation stores deterministic score caps, evidence quality, confidence, source observation counts, profile-history counts, and observed-post counts in `creators.evidence_json`, so the dashboard can distinguish full profile history, accumulated observed posts, observed single-post evidence, partial/no history, failed enrichment, and review-only conversation-author leads.

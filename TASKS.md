@@ -155,6 +155,9 @@ Updated on 2026-06-13.
 - [x] Verified creator hardening locally: backend tests passed, dashboard lint passed, dashboard typecheck passed, dashboard tests passed, dashboard production build passed, and a representative scoring smoke check separated strong VR fitness, incidental VR, and irrelevant fitness examples.
 - [x] Repaired creator activity accuracy on 2026-06-13: source post history now drives 90-day VR/XR counts, Apify timestamp variants are parsed, placeholder fit zeros no longer override observed/source posts, and conversation-author leads keep observed source-post activity without pretending full profile history exists.
 - [x] Simplified creator review on 2026-06-13: dashboard Creators is now a drag-and-drop board with Review, Qualified, Contact Ready, Contacted, and Rejected lanes; cards and the creator workspace show explicit inclusion reasons, strongest evidence, recent-post counts, clickable profile/source/evidence links, and persisted status changes.
+- [x] Implemented creator evidence accumulation on 2026-06-13: discovery now merges observed source posts for the same normalized creator across stored raw records, separates full profile history from accumulated observations/single observed posts/partial or failed enrichment, and stores confidence/provenance fields in `evidence_json`.
+- [x] Fixed additional 90-day count root causes on 2026-06-13: observed-post relevance no longer counts `author_name` as post text, deterministic fallback promotion scans the wider reliable source window instead of only the LLM slice, creator persistence normalizes profile URLs and handles case-variant duplicates safely, and the dashboard creator API dedupes stale duplicate rows by strongest evidence.
+- [x] Verified live representative creator evidence on 2026-06-13 after the fix: reviewer-facing counts matched accumulated source evidence for four multi-post YouTube creator profiles (`7/7`, `5/12`, `3/3`, and `3/3` VR/XR/total 90-day counts); live Supabase had `raw_items: 940`, `opportunities: 434`, `creators: 145`, `drafts: 35`, `followups: 0`, `offers: 0`, and `creators_with_contact: 0`.
 - [ ] Validate max-efficiency `APIFY_CONVERSATION_ACTORS_JSON` for X/Twitter, TikTok, Instagram hashtags/reels, Discord server discovery, and public Facebook groups in the dashboard.
 - [ ] Use Automation > Run Missing Source to validate Apify conversations and forums individually before relying on Clean Start for full refreshes.
 - [ ] Decide whether TikTok and Instagram should remain supplemental social-listening/opportunity sources only, or whether a later profile-history actor can support creator scoring.
@@ -162,7 +165,7 @@ Updated on 2026-06-13.
 - [ ] Deploy the latest dashboard update with follower filters, cleaned conversation review, the Run Monitor interface, and the new Export tab.
 - [ ] Keep `SEND_AUTOMATION_ENABLED=false` so scheduled approved sends remain disabled.
 - [ ] Keep `DRY_RUN_SEND=true` so dashboard send workflow dispatches remain dry-run only.
-- [ ] Review the current 77 creator rows for contact validity and mark valid prospects `contact_ready`; all 77 currently lack public contact.
+- [ ] Review the current 142 deduped reviewer-facing creator rows for contact validity and mark valid prospects `contact_ready`; all 145 raw creator rows currently lack public contact.
 - [ ] Review the 5 `needs_review` drafts with the improved source/opportunity context; reject weak targets and approve only safe email drafts.
 - [ ] Add deeper route-handler tests for the dashboard API write paths if the current schema/helper coverage is not enough.
 - [ ] Treat Reddit API credentials as a future upgrade only if RSS collection becomes unreliable.

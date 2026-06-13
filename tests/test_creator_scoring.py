@@ -181,3 +181,78 @@ def test_creator_evidence_ignores_placeholder_fit_zero_when_observed_post_exists
     assert evidence["recent_total_posts_count"] == 1
     assert evidence["activity_level"] == "low"
     assert evidence["evidence_json"]["computed_recent_relevant_posts"][0]["url"] == "https://www.tiktok.com/@creator/video/1"
+
+
+def test_creator_evidence_accumulates_observed_posts_for_same_creator():
+    primary = {
+        "id": "raw-1",
+        "source": "youtube",
+        "source_url": "https://www.youtube.com/watch?v=1",
+        "author_name": "Quest Coach",
+        "author_url": "https://www.youtube.com/channel/questcoach",
+        "title": "Quest 3 VR boxing workout",
+        "body": "VR fitness cardio today",
+        "published_at": days_ago(4),
+        "raw_json": {},
+    }
+    related = [
+        primary,
+        {
+            "id": "raw-2",
+            "source": "youtube",
+            "source_url": "https://www.youtube.com/watch?v=2",
+            "author_name": "Quest Coach",
+            "author_url": "https://www.youtube.com/channel/questcoach",
+            "title": "FitXR cardio routine on Quest",
+            "body": "Another VR workout",
+            "published_at": days_ago(18),
+            "raw_json": {},
+        },
+        {
+            "id": "raw-3",
+            "source": "youtube",
+            "source_url": "https://www.youtube.com/watch?v=3",
+            "author_name": "Quest Coach",
+            "author_url": "https://www.youtube.com/channel/questcoach",
+            "title": "Channel update",
+            "body": "General channel post",
+            "published_at": days_ago(25),
+            "raw_json": {},
+        },
+    ]
+
+    evidence = creator_evidence_from_item(primary, related_items=related)
+
+    assert evidence["recent_vr_posts_count"] == 2
+    assert evidence["recent_total_posts_count"] == 3
+    assert evidence["activity_level"] == "medium"
+    assert evidence["evidence_json"]["computed_evidence_quality"] == "accumulated_observed_posts"
+    assert evidence["evidence_json"]["computed_evidence_confidence"] == "medium"
+    assert evidence["evidence_json"]["computed_source_observation_count"] == 3
+
+
+def test_partial_history_zero_counts_do_not_override_observed_source_posts():
+    item = {
+        "id": "raw-1",
+        "source": "apify_tiktok",
+        "source_url": "https://www.tiktok.com/@creator/video/1",
+        "author_name": "Quest Coach",
+        "author_url": "https://www.tiktok.com/@creator",
+        "title": "Quest 3 VR boxing workout",
+        "body": "VR fitness cardio",
+        "published_at": days_ago(6),
+        "raw_json": {
+            "creator_evidence": {
+                "history_quality": "profile_only",
+                "recent_vr_posts_count": 0,
+                "recent_total_posts_count": 0,
+            }
+        },
+    }
+
+    evidence = creator_evidence_from_item(item)
+
+    assert evidence["recent_vr_posts_count"] == 1
+    assert evidence["recent_total_posts_count"] == 1
+    assert evidence["evidence_json"]["computed_evidence_quality"] == "observed_post"
+    assert evidence["evidence_json"]["computed_observed_source_posts_count"] == 1
