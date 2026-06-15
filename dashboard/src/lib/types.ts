@@ -57,6 +57,7 @@ export type Creator = {
   contactability_evidence?: string | null;
   safety_notes?: string | null;
   evidence_json?: Record<string, unknown> | null;
+  duplicate_row_count?: number | null;
   priority: string;
   status: string;
   created_at: string;
