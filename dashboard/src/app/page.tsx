@@ -1265,7 +1265,7 @@ export default function Page() {
     void loadDashboard(session.token);
   }
 
-  async function updateVariable(name: "AUTOMATION_ENABLED" | "SEND_AUTOMATION_ENABLED" | "DRY_RUN_SEND" | "APIFY_ENABLED", value: string) {
+  async function updateVariable(name: "AUTOMATION_ENABLED" | "SEND_AUTOMATION_ENABLED" | "DRY_RUN_SEND" | "APIFY_ENABLED" | "PROFILE_ENRICHMENT_ENABLED", value: string) {
     if (!session) return;
     await fetchJson(`/api/dashboard/automation/variables`, session.token, {
       method: "PATCH",
@@ -2882,7 +2882,7 @@ function AutomationsView({
 }: {
   automation: AutomationData | null;
   agents: ReturnType<typeof workflowAgents>;
-  updateVariable: (name: "AUTOMATION_ENABLED" | "SEND_AUTOMATION_ENABLED" | "DRY_RUN_SEND" | "APIFY_ENABLED", value: string) => void;
+  updateVariable: (name: "AUTOMATION_ENABLED" | "SEND_AUTOMATION_ENABLED" | "DRY_RUN_SEND" | "APIFY_ENABLED" | "PROFILE_ENRICHMENT_ENABLED", value: string) => void;
   dispatch: (workflow: string) => void;
   dispatchSourceCollection: (source: string, classify?: boolean) => void;
   cleanAutomaticStart: () => void;
@@ -2893,6 +2893,7 @@ function AutomationsView({
   const sourceCollectors = [
     { source: "all", title: "All Sources", detail: "Runs Reddit, YouTube, Twitch, Apify conversations, forums, blogs, then classification." },
     { source: "apify_conversations", title: "Apify Conversations", detail: "Runs configured X, Facebook, Discord discovery, TikTok, or other Apify public conversation actors." },
+    { source: "profile_enrichment", title: "Profile Enrichment", detail: "Enriches all known creator profiles with trusted recent-post history when PROFILE_ENRICHMENT_ENABLED is true." },
     { source: "forums", title: "VR Forums", detail: "Runs public Discourse/forum sources from FORUM_SOURCES_JSON." },
     { source: "blogs", title: "VR Blogs", detail: "Runs RSS/Atom feeds from BLOG_FEEDS_JSON." },
     { source: "reddit", title: "Reddit", detail: "Runs low-volume Reddit RSS collection." },
@@ -2959,7 +2960,7 @@ function AutomationsView({
             <div key={collector.source} className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
               <h4 className="text-sm font-semibold text-white">{collector.title}</h4>
               <p className="mt-2 min-h-12 text-xs leading-5 text-zinc-500">{collector.detail}</p>
-              <Button className="mt-3 w-full" variant={collector.source === "all" ? "primary" : "secondary"} onClick={() => dispatchSourceCollection(collector.source)}>
+              <Button className="mt-3 w-full" variant={collector.source === "all" ? "primary" : "secondary"} onClick={() => dispatchSourceCollection(collector.source, collector.source !== "profile_enrichment")}>
                 <Play size={14} /> Run
               </Button>
             </div>
@@ -2967,7 +2968,7 @@ function AutomationsView({
         </div>
       </Card>
       <section className="grid gap-4 xl:grid-cols-3">
-        {(["AUTOMATION_ENABLED", "APIFY_ENABLED", "SEND_AUTOMATION_ENABLED", "DRY_RUN_SEND"] as const).map((name) => {
+        {(["AUTOMATION_ENABLED", "APIFY_ENABLED", "PROFILE_ENRICHMENT_ENABLED", "SEND_AUTOMATION_ENABLED", "DRY_RUN_SEND"] as const).map((name) => {
           const value = automation?.variables[name] || (name === "DRY_RUN_SEND" ? "true" : "false");
           return (
             <Card key={name} className="p-4">
@@ -3176,7 +3177,7 @@ function AnalyticsView({ summary, opportunities, creators, drafts, rawItems }: {
   );
 }
 
-function SettingsView({ session, automation, nodes, updateVariable }: { session: SessionState; automation: AutomationData | null; nodes: ReturnType<typeof platformNodes>; updateVariable: (name: "AUTOMATION_ENABLED" | "SEND_AUTOMATION_ENABLED" | "DRY_RUN_SEND" | "APIFY_ENABLED", value: string) => void }) {
+function SettingsView({ session, automation, nodes, updateVariable }: { session: SessionState; automation: AutomationData | null; nodes: ReturnType<typeof platformNodes>; updateVariable: (name: "AUTOMATION_ENABLED" | "SEND_AUTOMATION_ENABLED" | "DRY_RUN_SEND" | "APIFY_ENABLED" | "PROFILE_ENRICHMENT_ENABLED", value: string) => void }) {
   return (
     <div className="grid gap-5 xl:grid-cols-2">
       <Card className="p-5">
@@ -3187,7 +3188,7 @@ function SettingsView({ session, automation, nodes, updateVariable }: { session:
       <Card className="p-5">
         <h3 className="font-semibold text-white">Safety State</h3>
         <div className="mt-4 grid gap-3">
-          {(["AUTOMATION_ENABLED", "SEND_AUTOMATION_ENABLED", "DRY_RUN_SEND"] as const).map((name) => {
+          {(["AUTOMATION_ENABLED", "APIFY_ENABLED", "PROFILE_ENRICHMENT_ENABLED", "SEND_AUTOMATION_ENABLED", "DRY_RUN_SEND"] as const).map((name) => {
             const value = automation?.variables[name] || (name === "DRY_RUN_SEND" ? "true" : "false");
             return (
               <div key={name} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white/10 bg-white/[0.03] p-3">

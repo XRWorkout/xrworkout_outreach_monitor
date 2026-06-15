@@ -7,6 +7,7 @@ describe("GitHub automation guards", () => {
     expect(() => assertAutomationVariableName("SEND_AUTOMATION_ENABLED")).not.toThrow();
     expect(() => assertAutomationVariableName("DRY_RUN_SEND")).not.toThrow();
     expect(() => assertAutomationVariableName("APIFY_ENABLED")).not.toThrow();
+    expect(() => assertAutomationVariableName("PROFILE_ENRICHMENT_ENABLED")).not.toThrow();
     expect(() => assertAutomationVariableName("BREVO_API_KEY")).toThrow("Unsupported automation variable");
   });
 
