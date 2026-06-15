@@ -1,8 +1,77 @@
 # XRWorkout Outreach Monitor
 
-Agentic outreach infrastructure for XRWorkout: a scheduled Python system that finds relevant VR fitness conversations, scores real opportunities, drafts personalized outreach, and sends only emails that a human has approved.
+> Agentic outreach infrastructure that turns public VR fitness creator and community signals into a human-approved XRWorkout outreach queue.
 
-The goal is simple: turn scattered creator and community signals into a reliable outreach queue without losing human judgment.
+---
+
+## 🚀 Core Features
+
+- **Signal collection:** Collects relevant public signals from Reddit RSS, YouTube, Twitch, public forums/blogs, and controlled Apify actors.
+- **Opportunity scoring:** Classifies raw source items into outreach opportunities with Ollama Cloud primary models and Codex fallback.
+- **Creator pipeline:** Promotes creator prospects, enriches creator profile history, and separates full profile-history evidence from observed-only conversation signals.
+- **Human-approved outreach:** Generates drafts for review and sends only approved email drafts; public comments and DMs remain manual.
+- **Operator dashboard:** Provides review queues, creator status management, source analytics, workflow controls, and run monitoring.
+
+## 🛠️ Architecture & Tech Stack
+
+- **Core Languages:** Python 3.11+ for collectors, scoring, enrichment, drafting, sending, and reporting; TypeScript for the dashboard.
+- **Frameworks/Tools:** GitHub Actions, Supabase Postgres, Next.js, Tailwind CSS, Supabase Auth, GitHub API, Ollama Cloud, Codex CLI, Brevo, Apify, YouTube Data API, and Twitch Helix API.
+- **Security/Integrity Layer:** Deduped raw ingestion, deterministic creator qualification gates, explicit automation safety switches, dry-run email sending, dashboard audit logs, and a no-auto-DM/no-auto-comment v1 policy.
+
+## ⚙️ Getting Started
+
+### Prerequisites
+
+- Python 3.11 or newer.
+- Node.js and npm for the dashboard.
+- Supabase project with `supabase/schema.sql` applied.
+- GitHub repository secrets for Supabase, YouTube, Twitch, Brevo, Ollama, and optional Apify access.
+- Authenticated Codex CLI on the self-hosted runner account used for draft/fallback jobs.
+
+### Installation & Local Setup
+
+1. Clone the repository:
+
+```bash
+git clone git@github.com:yorgobekaii/xr_workout_outreach_monitor.git
+cd xr_workout_outreach_monitor
+```
+
+2. Configure environment variables:
+
+```bash
+cp .env.example .env
+```
+
+Fill `.env` with local credentials. Never commit real credentials, `.env` files, keys, tokens, or local runner secrets.
+
+3. Install backend dependencies:
+
+```bash
+python -m venv .venv
+. .venv/bin/activate
+pip install -e ".[dev]"
+```
+
+4. Install dashboard dependencies:
+
+```bash
+cd dashboard
+npm install
+npx playwright install chromium
+```
+
+## 🧪 Running Tests & Validation
+
+```bash
+. .venv/bin/activate
+pytest
+cd dashboard
+npm test -- --run
+npm run lint
+npx tsc --noEmit
+npm run build
+```
 
 ## Why This Exists
 
@@ -14,6 +83,7 @@ Doing that manually is slow and inconsistent. This repo builds the operating lay
 - Deduplicate source items before they enter the pipeline.
 - Use Codex CLI to classify, score, and summarize opportunities.
 - Promote promising creators and public conversation-author leads into a reviewable prospect table.
+- Enrich known creator profiles with trusted recent-post history when `PROFILE_ENRICHMENT_ENABLED=true`, so `last_post_at`, recent activity, and 90-day VR/XR counts can move from unknown/observed-only to profile-history evidence.
 - Apply deterministic creator-quality scoring and qualification gating with source-history-derived or accumulated-observation 90-day VR/XR counts, evidence-quality labels for full history, partial history, observed posts, and failed enrichment, plus caps for weak history, one-off VR mentions, stale activity, missing VR proof, contactability, safety, and review priority. Observed-only or unknown evidence cannot mark a creator Qualified.
 - Generate outreach drafts for high-fit opportunities.
 - Require human approval before any email is sent.
@@ -45,6 +115,9 @@ LLM classification creates opportunities
 Creator discovery creates creator prospects
         |
         v
+Optional profile enrichment fetches recent creator history
+        |
+        v
 Draft generation creates needs_review drafts
         |
         v
@@ -68,15 +141,16 @@ Dashboard presents conversations, opportunity feeds, creator pipeline, outreach 
 - YouTube collector using the YouTube Data API.
 - Twitch collector using the Twitch Helix API.
 - Apify creator, social, and public conversation collectors with item/run caps, currently used for controlled dashboard validation.
+- Disabled-by-default profile enrichment stage for upgrading known creators from unknown/observed-only activity to trusted profile-history evidence through YouTube API or configured Apify profile actors.
 - Codex CLI wrapper for classification, creator discovery, and draft generation.
 - Brevo email sender with dry-run support.
 - Approval-only sending logic.
 - Follow-up task creation after sent emails.
-- Weekly report script with action queues, creator-quality evidence counts, source-quality ranking, and creator conversion counts by source.
+- Weekly report script with action queues, creator-quality evidence counts, profile-history/observed-only/unknown enrichment basis, source-quality ranking, and creator conversion counts by source.
 - Clean reset script for deleting operational outreach rows before a fresh run.
 - GitHub Actions schedules for collection, drafts, approved sends, and weekly reporting.
 - Manual clean automatic start workflow that resets outreach data, runs Reddit, YouTube, Twitch, Apify conversations when enabled, public forums, blogs, classification, creator discovery, draft generation, then reports counts.
-- Manual source collection workflow for rerunning one missing source from the Automation tab without wiping the whole dataset.
+- Manual source collection workflow for rerunning one missing source or profile enrichment from the Automation tab without wiping the whole dataset.
 - Scheduled collection, draft, and report jobs are gated by `AUTOMATION_ENABLED`; scheduled approved sends are gated by `SEND_AUTOMATION_ENABLED`; manual runs still work for validation.
 - Next.js dashboard under `dashboard/` with Supabase login, operator allowlist, dark-mode Outreach OS navigation, Dashboard, Conversations, Conversation Map, Creators, Outreach, Export, Automations, Run Monitor, Analytics, and Settings views.
 - Dashboard product surfaces include presentation-layer labels, KPI cards, live opportunity feed, AI-style recommendations, social listening filters, interactive source radar with native/Apify source alias aggregation, a drag-and-drop creator review board, explicit creator inclusion reasons, clickable profile/source/evidence links, a workspace-style creator detail panel, multi-source prospect export builder, automation agent cards, workflow controls, live run monitoring, and source attribution charts.
@@ -85,7 +159,7 @@ Dashboard presents conversations, opportunity feeds, creator pipeline, outreach 
 - Manual dashboard dispatch from selected opportunities into the LLM draft generator.
 - Dashboard clean automatic start control for wiping outreach rows, launching the fresh pipeline, enabling scheduled collection/drafts, and keeping sends disabled in dry-run mode.
 - Dry-run-only dashboard send dispatch while `DRY_RUN_SEND=true`.
-- Unit tests for deduplication, scoring rules, Apify normalization, creator quality scoring, follow-up timing/context, database batch dedupe, public contact extraction, source-quality reporting, and sender recipient extraction.
+- Unit tests for deduplication, scoring rules, Apify normalization, profile enrichment selection/normalization, creator quality scoring, follow-up timing/context, database batch dedupe, public contact extraction, source-quality reporting, and sender recipient extraction.
 
 ## What Is Planned
 
@@ -138,6 +212,7 @@ Dashboard presents conversations, opportunity feeds, creator pipeline, outreach 
 | `scripts/collect_blogs.py` | Collects VR/XR blog and news RSS/Atom feed articles. |
 | `scripts/classify_opportunities.py` | Scores raw items and creates outreach opportunities. |
 | `scripts/discover_creators.py` | Promotes creator prospects into `creators`, computes profile-history-backed or accumulated-observed 90-day VR/XR activity metrics, applies deterministic creator-quality evidence caps, normalizes creator platform/profile identity before persistence, preserves existing manual review status/contact during evidence refreshes, and also creates capped review-only conversation-author leads from Apify rows with usable public author profiles. Observed-only leads remain Review, not Qualified. |
+| `scripts/enrich_creator_profiles.py` | Reads known creators with profile URLs, skips recently enriched profiles unless forced, enriches YouTube via the YouTube API and TikTok/Instagram/X through configured profile-history actors, writes deduped profile-history raw rows, and records enrichment provenance without changing sending behavior. |
 | `scripts/generate_drafts.py` | Creates outreach drafts for high-priority safe opportunities. |
 | `scripts/generate_draft_for_opportunity.py` | Creates one LLM-generated `needs_review` draft for an operator-selected opportunity. |
 | `scripts/check_ollama_cloud.py` | Verifies Ollama Cloud auth, configured model tags, and a small JSON smoke response. |
@@ -233,6 +308,11 @@ Optional settings:
 - `APIFY_CONVERSATION_ACTORS_JSON`, JSON array of public conversation actor configs
 - `APIFY_MAX_ITEMS_PER_RUN`, defaults to `100`
 - `APIFY_MAX_RUNS_PER_DAY`, defaults to `4`; current max-efficiency validation uses `6`
+- `PROFILE_ENRICHMENT_ENABLED`, defaults to `false`; required for non-dry-run creator profile enrichment
+- `PROFILE_ENRICHMENT_MAX_CREATORS_PER_RUN`, defaults to `25`
+- `PROFILE_ENRICHMENT_MAX_POSTS_PER_CREATOR`, defaults to `25`
+- `PROFILE_ENRICHMENT_REFRESH_HOURS`, defaults to `168`
+- `PROFILE_ENRICHMENT_ACTORS_JSON`, JSON array of platform-specific profile-history actor configs with optional `{{profile_url}}`, `{{username}}`, `{{channel_id}}`, and `{{max_posts}}` input placeholders
 - `FORUM_SOURCES_JSON`, JSON array of public Discourse/forum sources
 - `BLOG_FEEDS_JSON`, JSON array of RSS/Atom feed sources
 
@@ -254,6 +334,10 @@ python scripts/check_ollama_cloud.py
 python scripts/check_codex_cli.py
 python scripts/classify_opportunities.py --limit 10
 python scripts/discover_creators.py --limit 10
+# dry-run first; set PROFILE_ENRICHMENT_ENABLED=true before non-dry-run enrichment
+python scripts/enrich_creator_profiles.py --dry-run --limit 10
+python scripts/enrich_creator_profiles.py --limit 10 --max-posts 25
+python scripts/discover_creators.py --limit 10
 python scripts/generate_drafts.py --limit 10
 python scripts/send_approved.py --dry-run
 python scripts/list_due_followups.py --as-of 2026-06-01
@@ -274,7 +358,7 @@ Keep `DRY_RUN_SEND=true` during setup. The send script can also be run with `--d
 8. When an opportunity is worth outreach, use `Generate LLM draft` from the opportunity review pane.
 9. Mark only safe, useful email drafts as `approved`; comments and DMs remain manual.
 10. Run approved-send only as a dry-run while `DRY_RUN_SEND=true`.
-11. Use Automations for Clean start, source-specific collection runs, workflow dispatches, and safety variables.
+11. Use Automations for Clean start, source-specific collection runs, profile enrichment, workflow dispatches, and safety variables.
 12. Use Run Monitor to inspect workflow progress, step status, and failed-step guidance.
 13. Use Analytics to identify which source is producing the best opportunities before adding more sources.
 
@@ -289,7 +373,7 @@ The repo includes four scheduled workflows plus manual workflows for selected-op
 | `daily-collection.yml` | Daily 14:00 UTC | Collects source items, classifies opportunities, and discovers creators. |
 | `daily-drafts.yml` | Daily 16:00 UTC | Generates outreach drafts for high-priority opportunities. |
 | `manual-opportunity-draft.yml` | Manual only | Generates one LLM draft for an operator-selected opportunity. |
-| `manual-source-collection.yml` | Manual only | Runs one selected collector or all collectors, then classifies new rows by default. |
+| `manual-source-collection.yml` | Manual only | Runs one selected collector, all collectors, or profile enrichment; enrichment refreshes creator discovery after writing profile-history rows. |
 | `clean-automatic-start.yml` | Manual only | Deletes operational outreach rows, runs collection/classification/creator discovery/draft generation, and reports counts. |
 | `daily-send.yml` | Daily 17:00 UTC | Processes approved email drafts; scheduled runs require `SEND_AUTOMATION_ENABLED=true`. |
 | `weekly-report.yml` | Friday 18:00 UTC | Prints operational counts, action queues, and source-quality ranking. |
@@ -306,7 +390,7 @@ Launch control:
 - Keep `APIFY_ENABLED` controlled by the operator; current validation enables it for manual source runs while scheduled approved sending remains disabled.
 - Keep `DRY_RUN_SEND=true` as the separate email safety switch; dashboard send dispatch is dry-run only.
 - The dashboard `Clean start` action sets `AUTOMATION_ENABLED=true`, `SEND_AUTOMATION_ENABLED=false`, and `DRY_RUN_SEND=true` before dispatching `clean-automatic-start.yml`.
-- The dashboard `Run Missing Source` controls dispatch `manual-source-collection.yml` for all sources, Apify conversations, forums, blogs, Reddit, YouTube, or Twitch.
+- The dashboard `Run Missing Source` controls dispatch `manual-source-collection.yml` for all sources, Apify conversations, profile enrichment, forums, blogs, Reddit, YouTube, or Twitch.
 
 ## Dashboard
 
@@ -323,8 +407,8 @@ Current views:
 - Follow-up queue for due and overdue follow-ups with original draft, creator contact, creator profile, linked opportunity, and source link.
 - Export builder for dynamic prospect and conversation requests, follower-range parsing, score/priority thresholds, result previews, sample outreach messages, and downloadable CSV, JSON, or readable text files. Exports combine creator records, high-fit opportunity authors, public conversation-author leads, and high-scoring conversation records, then dedupe and rank them while clearly labeling public contacts, manual contact paths, source-review records, and missing contact data.
 - Offer tracking for the 3-month-free creator offer and content outcomes.
-- Automation status showing schedule state, last workflow runs, failures, `AUTOMATION_ENABLED`, `APIFY_ENABLED`, `SEND_AUTOMATION_ENABLED`, and `DRY_RUN_SEND`.
-- Automation controls for toggling automation variables, starting a clean automatic pipeline, rerunning a specific missing source, and manually dispatching collection, draft, approved-send dry runs, and reports.
+- Automation status showing schedule state, last workflow runs, failures, `AUTOMATION_ENABLED`, `APIFY_ENABLED`, `PROFILE_ENRICHMENT_ENABLED`, `SEND_AUTOMATION_ENABLED`, and `DRY_RUN_SEND`.
+- Automation controls for toggling automation variables, starting a clean automatic pipeline, rerunning a specific missing source or profile enrichment, and manually dispatching collection, draft, approved-send dry runs, and reports.
 - Run Monitor showing live GitHub Actions run status, step timing, failed-step guidance, and run links.
 
 Discord handling is intentionally limited to public server discovery metadata. Message ingestion requires an explicit future authorized bot path for servers XRWorkout owns or has permission to monitor.

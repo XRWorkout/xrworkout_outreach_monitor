@@ -90,6 +90,19 @@ def source_quality(raw_items: list[dict], opportunities: list[dict], drafts: lis
     )
 
 
+def creator_evidence_basis(creator: dict) -> str:
+    evidence = creator.get("evidence_json") if isinstance(creator.get("evidence_json"), dict) else {}
+    quality = str(evidence.get("computed_evidence_quality") or "").lower()
+    enrichment = evidence.get("profile_enrichment") if isinstance(evidence.get("profile_enrichment"), dict) else {}
+    if quality in {"profile_history", "profile_history_plus_observed"}:
+        return "profile_history"
+    if quality in {"accumulated_observed_posts", "observed_post", "conversation_author"}:
+        return "observed_only"
+    if enrichment.get("status") == "failure":
+        return "enrichment_failed"
+    return "unknown"
+
+
 def due_followup_count(followups: list[dict], as_of: date) -> int:
     return sum(
         1
@@ -105,7 +118,7 @@ def main() -> None:
     raw_items = rows(db, "raw_items", "source")
     opportunities = rows(db, "opportunities", "platform, priority, score, status")
     drafts = rows(db, "drafts", "status, channel, opportunities(platform, raw_items(source))")
-    creators = rows(db, "creators", "platform, status, public_contact, creator_quality_score, headset_confidence, activity_level")
+    creators = rows(db, "creators", "platform, status, public_contact, creator_quality_score, headset_confidence, activity_level, evidence_json")
     followups = rows(db, "followups", "status, due_date")
     llm_events = optional_rows(db, "llm_usage_events", "task, provider, model, status, fallback_used")
     quality = source_quality(raw_items, opportunities, drafts, creators)
@@ -127,6 +140,10 @@ def main() -> None:
     print(f"creators A-score: {sum(1 for row in creators if int(row.get('creator_quality_score') or 0) >= 85)}")
     print(f"creators with headset evidence: {sum(1 for row in creators if row.get('headset_confidence') in {'high', 'medium'})}")
     print(f"active creators: {sum(1 for row in creators if row.get('activity_level') in {'high', 'medium'})}")
+    evidence_counts: dict[str, int] = defaultdict(int)
+    for row in creators:
+        evidence_counts[creator_evidence_basis(row)] += 1
+    print(f"creator evidence basis: {dict(sorted(evidence_counts.items()))}")
     print(f"due or overdue follow-ups: {due_followup_count(followups, today)}")
     print(f"LLM events: {len(llm_events)}")
     print(f"LLM fallbacks to Codex: {sum(1 for row in llm_events if row.get('fallback_used'))}")

@@ -12,13 +12,14 @@ export const workflowFiles: Record<WorkflowKey, string> = {
   cleanStart: "clean-automatic-start.yml"
 };
 
-export type AutomationVariableName = "AUTOMATION_ENABLED" | "SEND_AUTOMATION_ENABLED" | "DRY_RUN_SEND" | "APIFY_ENABLED";
+export type AutomationVariableName = "AUTOMATION_ENABLED" | "SEND_AUTOMATION_ENABLED" | "DRY_RUN_SEND" | "APIFY_ENABLED" | "PROFILE_ENRICHMENT_ENABLED";
 
 const automationVariables = new Set<AutomationVariableName>([
   "AUTOMATION_ENABLED",
   "SEND_AUTOMATION_ENABLED",
   "DRY_RUN_SEND",
-  "APIFY_ENABLED"
+  "APIFY_ENABLED",
+  "PROFILE_ENRICHMENT_ENABLED"
 ]);
 
 type GitHubRequestOptions = {
@@ -148,11 +149,12 @@ function likelyFixForStep(stepName: string, conclusion?: string | null) {
   if (name.includes("collect_reddit")) return "Reddit RSS may be rate-limited or unavailable. Rerun later or reduce feed volume.";
   if (name.includes("collect_youtube")) return "Check YouTube API key, quota, and whether the follower_count schema column exists.";
   if (name.includes("collect_twitch")) return "Check Twitch client credentials and API access for channel follower totals.";
+  if (name.includes("enrich_creator_profiles")) return "Check PROFILE_ENRICHMENT_ENABLED, YouTube API quota, APIFY_TOKEN, profile actor JSON variables, and actor input shape.";
   if (name.includes("collect_apify")) return "Check APIFY_TOKEN, actor JSON variables, Starter-plan usage, and actor input shape.";
   if (name.includes("collect_forums")) return "Check FORUM_SOURCES_JSON and whether the target forum exposes public Discourse JSON endpoints.";
   if (name.includes("collect_blogs")) return "Check BLOG_FEEDS_JSON and whether the feed URL returns valid RSS or Atom XML.";
   if (name.includes("classify_opportunities")) return "Check Codex CLI availability, model timeout, and raw item volume. Rerun with a lower limit if needed.";
-  if (name.includes("discover_creators")) return "Check Codex CLI output and creator schema fields, especially follower_count and public contact fields.";
+  if (name.includes("discover_creators")) return "Check Codex or Ollama output and creator schema fields, especially follower_count, evidence_json, and public contact fields.";
   if (name.includes("generate_drafts")) return "Check draft eligibility, Codex CLI output, and safety-rule validation errors.";
   if (name.includes("send_approved")) return "Keep DRY_RUN_SEND=true unless intentionally sending; check Brevo credentials if email sending is expected.";
   if (name.includes("weekly_report")) return "Check Supabase connectivity and table access for report queries.";

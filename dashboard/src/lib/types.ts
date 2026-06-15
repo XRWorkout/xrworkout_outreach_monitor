@@ -146,6 +146,7 @@ export type AutomationData = {
     SEND_AUTOMATION_ENABLED: string;
     DRY_RUN_SEND: string;
     APIFY_ENABLED: string;
+    PROFILE_ENRICHMENT_ENABLED: string;
   };
   workflows: Record<
     "collection" | "sourceCollection" | "drafts" | "manualDraft" | "send" | "report" | "cleanStart",
