@@ -2142,17 +2142,17 @@ function CreatorsView(props: {
         ))}
       </section>
 
-      <section className="grid gap-3 xl:grid-cols-5">
+      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
         {creatorsByColumn.map((column) => (
           <Card
             key={column.name}
-            className={cn("min-h-[620px] p-3 transition", draggingCreatorId ? "border-cyan-300/25 bg-cyan-300/[0.03]" : "")}
+            className={cn("min-h-[620px] min-w-0 p-3 transition", draggingCreatorId ? "border-cyan-300/25 bg-cyan-300/[0.03]" : "")}
             onDragOver={(event) => event.preventDefault()}
             onDrop={(event) => handleDrop(event, column.status)}
           >
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <div>
-                <h3 className="text-sm font-semibold text-white">{column.name}</h3>
+            <div className="mb-3 flex min-w-0 flex-wrap items-start justify-between gap-2">
+              <div className="min-w-0">
+                <h3 className="break-words text-sm font-semibold text-white">{column.name}</h3>
                 <p className="text-xs text-zinc-500">Drop here to request {labelFor(column.status)}</p>
               </div>
               <SoftBadge>{column.creators.length}</SoftBadge>
@@ -2174,27 +2174,27 @@ function CreatorsView(props: {
                     }}
                     onDragEnd={() => setDraggingCreatorId(null)}
                     className={cn(
-                      "rounded-lg border border-white/10 bg-white/[0.035] p-3 transition hover:border-cyan-300/30",
+                      "min-w-0 rounded-lg border border-white/10 bg-white/[0.035] p-3 transition hover:border-cyan-300/30",
                       draggingCreatorId === creator.id ? "opacity-50" : ""
                     )}
                   >
-                    <button className="block w-full text-left" onClick={() => props.reviewCreator(creator)}>
-                      <div className="flex min-w-0 items-start justify-between gap-3">
+                    <button className="block w-full min-w-0 text-left" onClick={() => props.reviewCreator(creator)}>
+                      <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
                         <div className="min-w-0">
                           <p className="truncate text-sm font-semibold text-white">{creator.name}</p>
-                          <p className="mt-1 text-xs text-zinc-500">{platformLabel(creator.platform)} • {creatorFitCategory(creator)}</p>
+                          <p className="mt-1 break-words text-xs leading-5 text-zinc-500">{platformLabel(creator.platform)} • {creatorFitCategory(creator)}</p>
                         </div>
-                        <div className="flex shrink-0 flex-col items-end gap-1">
+                        <div className="flex max-w-full shrink-0 flex-col items-end gap-1">
                           <SoftBadge tone={fit.tone}>{creator.creator_quality_score ?? "--"}</SoftBadge>
                           {(creator.duplicate_row_count || 0) > 1 ? <SoftBadge tone="warn">{creator.duplicate_row_count} rows</SoftBadge> : null}
                         </div>
                       </div>
-                      <p className="mt-3 text-sm font-medium leading-5 text-zinc-200">{creatorInclusionReason(creator)}</p>
+                      <p className="mt-3 break-words text-sm font-medium leading-5 text-zinc-200">{creatorInclusionReason(creator)}</p>
                       <p className="mt-2 line-clamp-3 text-xs leading-5 text-zinc-500">{strongestCreatorEvidence(creator)}</p>
-                      <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs">
-                        <span className="rounded-md border border-white/10 bg-black/20 p-2"><strong className="block text-zinc-100">{activityMetricValue(creator, creator.recent_vr_posts_count)}</strong>{activityMetricLabel(creator, "vr")}</span>
-                        <span className="rounded-md border border-white/10 bg-black/20 p-2"><strong className="block text-zinc-100">{activityMetricValue(creator, creator.recent_total_posts_count)}</strong>{activityMetricLabel(creator, "total")}</span>
-                        <span className="rounded-md border border-white/10 bg-black/20 p-2"><strong className="block text-zinc-100">{labelFor(creator.headset_confidence || "unknown")}</strong>Headset</span>
+                      <div className="mt-3 grid grid-cols-1 gap-2 text-center text-xs">
+                        <span className="min-w-0 break-words rounded-md border border-white/10 bg-black/20 p-2 leading-4"><strong className="block break-words text-zinc-100">{activityMetricValue(creator, creator.recent_vr_posts_count)}</strong>{activityMetricLabel(creator, "vr")}</span>
+                        <span className="min-w-0 break-words rounded-md border border-white/10 bg-black/20 p-2 leading-4"><strong className="block break-words text-zinc-100">{activityMetricValue(creator, creator.recent_total_posts_count)}</strong>{activityMetricLabel(creator, "total")}</span>
+                        <span className="min-w-0 break-words rounded-md border border-white/10 bg-black/20 p-2 leading-4"><strong className="block break-words text-zinc-100">{labelFor(creator.headset_confidence || "unknown")}</strong>Headset</span>
                       </div>
                     </button>
                     <div className="mt-3 flex flex-wrap gap-2 border-t border-white/10 pt-3">
@@ -2350,7 +2350,7 @@ function CreatorFloatingTab({
             </div>
             <p className="mt-2 line-clamp-2 text-sm leading-5 text-zinc-300">{creatorInclusionReason(selectedCreator)}</p>
           </div>
-          <div className="grid grid-cols-3 gap-2 sm:flex">
+          <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:justify-end">
             <Button variant="secondary" onClick={() => updateCreator("reviewed")} title="Move to Review">
               <CheckCircle2 size={15} /> Review
             </Button>
