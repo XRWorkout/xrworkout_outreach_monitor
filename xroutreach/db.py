@@ -159,6 +159,30 @@ class OutreachDB:
 
         self.client.table("creators").upsert(payload, on_conflict="platform,profile_url").execute()
 
+    def fetch_creators_for_profile_enrichment(self, limit: int) -> list[dict[str, Any]]:
+        result = (
+            self.client.table("creators")
+            .select("*")
+            .order("created_at", desc=True)
+            .limit(limit)
+            .execute()
+        )
+        return result.data or []
+
+    def update_creator_enrichment_metadata(self, creator: dict[str, Any], metadata: dict[str, Any]) -> None:
+        creator_id = creator.get("id")
+        if not creator_id:
+            return
+        evidence_json = creator.get("evidence_json") if isinstance(creator.get("evidence_json"), dict) else {}
+        updated = dict(evidence_json)
+        updated["profile_enrichment"] = metadata
+        self.client.table("creators").update(
+            {
+                "evidence_json": updated,
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }
+        ).eq("id", creator_id).execute()
+
     def fetch_creator_source_items(self, limit: int) -> list[dict[str, Any]]:
         result = (
             self.client.table("raw_items")

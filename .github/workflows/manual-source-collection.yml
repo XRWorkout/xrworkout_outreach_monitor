@@ -11,6 +11,7 @@ on:
         options:
           - all
           - apify_conversations
+          - profile_enrichment
           - forums
           - blogs
           - reddit
@@ -74,6 +75,11 @@ jobs:
           APIFY_MAX_ITEMS_PER_RUN: ${{ vars.APIFY_MAX_ITEMS_PER_RUN || '100' }}
           APIFY_MAX_RUNS_PER_DAY: ${{ vars.APIFY_MAX_RUNS_PER_DAY || '4' }}
           APIFY_ENABLED: ${{ vars.APIFY_ENABLED || 'false' }}
+          PROFILE_ENRICHMENT_ENABLED: ${{ vars.PROFILE_ENRICHMENT_ENABLED || 'false' }}
+          PROFILE_ENRICHMENT_MAX_CREATORS_PER_RUN: ${{ vars.PROFILE_ENRICHMENT_MAX_CREATORS_PER_RUN || '25' }}
+          PROFILE_ENRICHMENT_MAX_POSTS_PER_CREATOR: ${{ vars.PROFILE_ENRICHMENT_MAX_POSTS_PER_CREATOR || '25' }}
+          PROFILE_ENRICHMENT_REFRESH_HOURS: ${{ vars.PROFILE_ENRICHMENT_REFRESH_HOURS || '168' }}
+          PROFILE_ENRICHMENT_ACTORS_JSON: ${{ vars.PROFILE_ENRICHMENT_ACTORS_JSON || '[]' }}
           FORUM_SOURCES_JSON: ${{ vars.FORUM_SOURCES_JSON || '[]' }}
           BLOG_FEEDS_JSON: ${{ vars.BLOG_FEEDS_JSON || '[]' }}
       - name: Collect YouTube
@@ -88,6 +94,14 @@ jobs:
         if: ${{ inputs.source == 'all' || inputs.source == 'apify_conversations' }}
         run: python scripts/collect_apify_conversations.py --limit "${APIFY_MAX_ITEMS_PER_RUN:-100}"
         env: *env
+      - name: Enrich creator profiles
+        if: ${{ inputs.source == 'profile_enrichment' }}
+        run: python scripts/enrich_creator_profiles.py --limit "${PROFILE_ENRICHMENT_MAX_CREATORS_PER_RUN:-25}" --max-posts "${PROFILE_ENRICHMENT_MAX_POSTS_PER_CREATOR:-25}"
+        env: *env
+      - name: Refresh creators after enrichment
+        if: ${{ inputs.source == 'profile_enrichment' }}
+        run: python scripts/discover_creators.py --limit "${PROFILE_ENRICHMENT_MAX_CREATORS_PER_RUN:-25}"
+        env: *env
       - name: Collect forums
         if: ${{ inputs.source == 'all' || inputs.source == 'forums' }}
         run: python scripts/collect_forums.py --limit 10
@@ -97,7 +111,7 @@ jobs:
         run: python scripts/collect_blogs.py --limit 10
         env: *env
       - name: Classify collected rows
-        if: ${{ inputs.classify == 'true' }}
+        if: ${{ inputs.classify == 'true' && inputs.source != 'profile_enrichment' }}
         run: python scripts/classify_opportunities.py --limit 50
         env: *env
       - name: Weekly source report

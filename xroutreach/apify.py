@@ -266,7 +266,8 @@ def recent_posts(item: dict[str, Any]) -> list[dict[str, Any]]:
 def creator_evidence(item: dict[str, Any], now: datetime | None = None) -> dict[str, Any]:
     current = now or datetime.now(timezone.utc)
     posts = recent_posts(item)
-    history_quality = "profile_history" if posts else "profile_only"
+    dated_posts = [post for post in posts if post_date(post)]
+    history_quality = "profile_history" if dated_posts else "profile_only"
     recent = []
     newest: datetime | None = None
     for post in posts:

@@ -66,6 +66,11 @@ class Settings:
     apify_max_items_per_run: int
     apify_max_runs_per_day: int
     apify_enabled: bool
+    profile_enrichment_enabled: bool
+    profile_enrichment_max_creators_per_run: int
+    profile_enrichment_max_posts_per_creator: int
+    profile_enrichment_refresh_hours: int
+    profile_enrichment_actors_json: str
     forum_sources_json: str
     blog_feeds_json: str
     email_provider: str
@@ -118,6 +123,12 @@ def settings() -> Settings:
         apify_max_items_per_run=env_int("APIFY_MAX_ITEMS_PER_RUN", 100),
         apify_max_runs_per_day=env_int("APIFY_MAX_RUNS_PER_DAY", 4),
         apify_enabled=env("APIFY_ENABLED", "false").lower() in {"1", "true", "yes"},
+        profile_enrichment_enabled=env("PROFILE_ENRICHMENT_ENABLED", "false").lower()
+        in {"1", "true", "yes"},
+        profile_enrichment_max_creators_per_run=env_int("PROFILE_ENRICHMENT_MAX_CREATORS_PER_RUN", 25),
+        profile_enrichment_max_posts_per_creator=env_int("PROFILE_ENRICHMENT_MAX_POSTS_PER_CREATOR", 25),
+        profile_enrichment_refresh_hours=env_int("PROFILE_ENRICHMENT_REFRESH_HOURS", 168),
+        profile_enrichment_actors_json=env("PROFILE_ENRICHMENT_ACTORS_JSON", "[]"),
         forum_sources_json=env("FORUM_SOURCES_JSON", "[]"),
         blog_feeds_json=env("BLOG_FEEDS_JSON", "[]"),
         email_provider=env("EMAIL_PROVIDER", "brevo").lower(),
