@@ -318,6 +318,32 @@ function creatorEvidenceConfidence(creator: Creator) {
   return typeof value === "string" && value.trim() ? labelFor(value) : "Confidence unknown";
 }
 
+function hasComputedActivityEvidence(creator: Creator) {
+  const value = creator.evidence_json?.computed_evidence_quality;
+  return [
+    "profile_history",
+    "profile_history_plus_observed",
+    "accumulated_observed_posts",
+    "observed_post",
+    "conversation_author"
+  ].includes(typeof value === "string" ? value : "");
+}
+
+function activityMetricLabel(creator: Creator, metric: "vr" | "total") {
+  const quality = creator.evidence_json?.computed_evidence_quality;
+  if (quality === "profile_history" || quality === "profile_history_plus_observed") {
+    return metric === "vr" ? "VR/XR 90d" : "Posts 90d";
+  }
+  if (hasComputedActivityEvidence(creator)) {
+    return metric === "vr" ? "VR/XR observed" : "Posts observed";
+  }
+  return metric === "vr" ? "VR/XR 90d" : "Posts 90d";
+}
+
+function activityMetricValue(creator: Creator, value?: number | null) {
+  return hasComputedActivityEvidence(creator) ? value ?? 0 : "Unknown";
+}
+
 function numericEvidenceField(creator: Creator, key: string) {
   const value = creator.evidence_json?.[key];
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
@@ -343,6 +369,7 @@ function creatorFitCategory(creator: Creator) {
   const vrCount = creator.recent_vr_posts_count ?? 0;
   const movement = Boolean(creator.movement_fit_evidence?.trim());
   const quality = creator.evidence_json?.computed_evidence_quality;
+  if (!hasComputedActivityEvidence(creator)) return "Evidence needs validation";
   if (vrCount >= 2 && movement) return "Consistent VR fitness creator";
   if (vrCount >= 2) return "Recurring VR/XR creator";
   if (vrCount === 1 && quality === "observed_post") return "Single-post VR/XR lead";
@@ -368,7 +395,11 @@ function creatorInclusionReason(creator: Creator) {
   const latest = creatorLatestRelevantPost(creator);
   const latestDate = stringField(latest, "published_at") || creator.last_post_at;
   const recent = latestDate ? `Most recent relevant post ${shortDate(latestDate)}.` : "No relevant post date captured.";
-  return `${creatorFitCategory(creator)}. ${vrCount} VR/XR post${vrCount === 1 ? "" : "s"} in the last 90 days. ${recent}`;
+  if (!hasComputedActivityEvidence(creator)) {
+    return `${creatorFitCategory(creator)}. Computed 90-day post counts are not available from source evidence. ${recent}`;
+  }
+  const basis = activityMetricLabel(creator, "vr") === "VR/XR observed" ? "observed in stored source records" : "in the last 90 days";
+  return `${creatorFitCategory(creator)}. ${vrCount} VR/XR post${vrCount === 1 ? "" : "s"} ${basis}. ${recent}`;
 }
 
 function activityEvidenceLabel(creator: Creator) {
@@ -400,6 +431,9 @@ function activityEvidenceLabel(creator: Creator) {
   }
   if (quality === "failed_enrichment") {
     return `Creator enrichment failed for post history. ${observedPosts ? `${observedPosts} observed source post${observedPosts === 1 ? "" : "s"} remains available for manual qualification.` : "Retry enrichment or inspect the profile manually."}`;
+  }
+  if (!hasComputedActivityEvidence(creator)) {
+    return `No computed activity evidence is available. Do not treat stored 90-day counts as measured until source history or observed-post evidence is captured.`;
   }
   if (total > 0 && level !== "unknown") {
     return `${labelFor(level)} - ${total} observed post${total === 1 ? "" : "s"} in last 90 days`;
@@ -2148,8 +2182,8 @@ function CreatorsView(props: {
                       <p className="mt-3 text-sm font-medium leading-5 text-zinc-200">{creatorInclusionReason(creator)}</p>
                       <p className="mt-2 line-clamp-3 text-xs leading-5 text-zinc-500">{strongestCreatorEvidence(creator)}</p>
                       <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs">
-                        <span className="rounded-md border border-white/10 bg-black/20 p-2"><strong className="block text-zinc-100">{creator.recent_vr_posts_count ?? 0}</strong>VR/XR 90d</span>
-                        <span className="rounded-md border border-white/10 bg-black/20 p-2"><strong className="block text-zinc-100">{creator.recent_total_posts_count ?? 0}</strong>Posts 90d</span>
+                        <span className="rounded-md border border-white/10 bg-black/20 p-2"><strong className="block text-zinc-100">{activityMetricValue(creator, creator.recent_vr_posts_count)}</strong>{activityMetricLabel(creator, "vr")}</span>
+                        <span className="rounded-md border border-white/10 bg-black/20 p-2"><strong className="block text-zinc-100">{activityMetricValue(creator, creator.recent_total_posts_count)}</strong>{activityMetricLabel(creator, "total")}</span>
                         <span className="rounded-md border border-white/10 bg-black/20 p-2"><strong className="block text-zinc-100">{labelFor(creator.headset_confidence || "unknown")}</strong>Headset</span>
                       </div>
                     </button>
@@ -2347,8 +2381,8 @@ function CreatorFloatingTab({
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <MiniStat label="VR/XR 90d" value={selectedCreator.recent_vr_posts_count ?? 0} />
-                  <MiniStat label="Posts 90d" value={selectedCreator.recent_total_posts_count ?? 0} />
+                  <MiniStat label={activityMetricLabel(selectedCreator, "vr")} value={activityMetricValue(selectedCreator, selectedCreator.recent_vr_posts_count)} />
+                  <MiniStat label={activityMetricLabel(selectedCreator, "total")} value={activityMetricValue(selectedCreator, selectedCreator.recent_total_posts_count)} />
                   <MiniStat label="Last post" value={selectedCreator.last_post_at ? shortDate(selectedCreator.last_post_at) : "Unknown"} />
                   <MiniStat label="Headset" value={labelFor(selectedCreator.headset_confidence || "unknown")} />
                 </div>

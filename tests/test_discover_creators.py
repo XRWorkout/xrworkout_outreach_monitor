@@ -6,6 +6,7 @@ from scripts.discover_creators import (
     canonical_profile_url,
     conversation_author_lead_fit,
     creator_row,
+    creator_source_slices,
     fallback_creator_fit,
     fit_source_item,
     group_items_by_creator,
@@ -339,3 +340,37 @@ def test_group_items_by_creator_uses_author_profile_for_accumulation():
 
     assert len(grouped) == 1
     assert len(next(iter(grouped.values()))) == 2
+
+
+def test_creator_source_slices_limits_llm_items_but_not_deterministic_leads():
+    rows = [
+        {
+            "source": "youtube",
+            "source_url": "https://www.youtube.com/watch?v=1",
+            "author_url": "https://www.youtube.com/channel/1",
+        },
+        {
+            "source": "youtube",
+            "source_url": "https://www.youtube.com/watch?v=2",
+            "author_url": "https://www.youtube.com/channel/2",
+        },
+        {
+            "source": "apify_tiktok",
+            "source_url": "https://www.tiktok.com/@creator/video/1",
+            "author_name": "Creator One",
+            "author_url": "https://www.tiktok.com/@creator",
+            "raw_json": {"source_type": "social_post"},
+        },
+        {
+            "source": "apify_tiktok",
+            "source_url": "https://www.tiktok.com/@creator/video/2",
+            "author_name": "Creator One",
+            "author_url": "https://www.tiktok.com/@creator",
+            "raw_json": {"source_type": "social_post"},
+        },
+    ]
+
+    llm_items, lead_items = creator_source_slices(rows, 1)
+
+    assert len(llm_items) == 1
+    assert len(lead_items) == 2

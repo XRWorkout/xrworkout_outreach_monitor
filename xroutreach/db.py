@@ -128,7 +128,7 @@ class OutreachDB:
 
         existing = (
             self.client.table("creators")
-            .select("id, platform, profile_url")
+            .select("id, platform, profile_url, status, public_contact")
             .ilike("profile_url", payload["profile_url"])
             .execute()
         )
@@ -141,14 +141,20 @@ class OutreachDB:
             (
                 candidate
                 for candidate in matching
-                if normalize_creator_profile_url(candidate.get("profile_url")) == payload["profile_url"]
-                and normalize_creator_platform(candidate.get("platform")) == candidate.get("platform")
+                if candidate.get("platform") == payload["platform"]
+                and candidate.get("profile_url") == payload["profile_url"]
             ),
             None,
         )
         target = exact or (matching[0] if matching else None)
         if target:
-            self.client.table("creators").update(payload).eq("id", target["id"]).execute()
+            update_payload = dict(payload)
+            existing_status = str(target.get("status") or "").strip()
+            if existing_status and existing_status != "new":
+                update_payload.pop("status", None)
+            if target.get("public_contact") and not update_payload.get("public_contact"):
+                update_payload.pop("public_contact", None)
+            self.client.table("creators").update(update_payload).eq("id", target["id"]).execute()
             return
 
         self.client.table("creators").upsert(payload, on_conflict="platform,profile_url").execute()

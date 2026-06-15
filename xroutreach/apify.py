@@ -4,7 +4,6 @@ import json
 import re
 import time
 from datetime import datetime, timezone
-from email.utils import parsedate_to_datetime
 from typing import Any
 from urllib.parse import quote
 
@@ -178,25 +177,81 @@ def conversation_source_url(item: dict[str, Any]) -> str | None:
     )
 
 
-def conversation_author_url(item: dict[str, Any]) -> str | None:
-    return first_string(item, ["authorUrl", "author_url", "profileUrl", "userUrl", "twitterUrl", "channelUrl"])
+def cleaned_username(value: str | None) -> str | None:
+    if not isinstance(value, str):
+        return None
+    username = value.strip().lstrip("@")
+    if not username or not re.match(r"^[A-Za-z0-9_.-]{2,80}$", username):
+        return None
+    return username
+
+
+def canonical_social_profile_url(value: str | None, platform: str | None = None) -> str | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    url = value.strip()
+    normalized_platform = str(platform or "").lower()
+    lower = url.lower()
+
+    if "tiktok.com" in lower or normalized_platform == "tiktok":
+        match = re.search(r"https?://(?:www\.)?tiktok\.com/@[^/?#]+", url, re.IGNORECASE)
+        return match.group(0).rstrip("/") if match else None
+
+    if "x.com" in lower or "twitter.com" in lower or normalized_platform in {"x", "twitter"}:
+        match = re.search(r"https?://(?:www\.)?(?:x|twitter)\.com/([^/?#]+)", url, re.IGNORECASE)
+        if match:
+            username = cleaned_username(match.group(1))
+            if username and username.lower() not in {"home", "i", "intent", "search", "share"}:
+                return f"https://x.com/{username}"
+        return None
+
+    if "instagram.com" in lower or normalized_platform == "instagram":
+        match = re.search(r"https?://(?:www\.)?instagram\.com/([^/?#]+)", url, re.IGNORECASE)
+        if match:
+            username = cleaned_username(match.group(1))
+            if username and username.lower() not in {"p", "reel", "reels", "stories", "explore"}:
+                return f"https://www.instagram.com/{username}"
+        return None
+
+    return url.rstrip("/")
+
+
+def profile_url_from_username(item: dict[str, Any], platform: str | None = None) -> str | None:
+    username = cleaned_username(
+        first_string(item, ["authorUsername", "username", "screenName", "ownerUsername", "channelName"])
+    )
+    if not username:
+        return None
+    normalized_platform = str(platform or "").lower()
+    if normalized_platform == "tiktok":
+        return f"https://www.tiktok.com/@{username}"
+    if normalized_platform == "instagram":
+        return f"https://www.instagram.com/{username}"
+    if normalized_platform in {"x", "twitter"}:
+        return f"https://x.com/{username}"
+    return None
+
+
+def conversation_author_url(item: dict[str, Any], platform: str | None = None) -> str | None:
+    direct = first_string(item, ["authorUrl", "author_url", "profileUrl", "userUrl", "twitterUrl", "channelUrl"])
+    return (
+        canonical_social_profile_url(direct, platform)
+        or profile_url_from_username(item, platform)
+        or canonical_social_profile_url(conversation_source_url(item), platform)
+    )
 
 
 def post_date(post: dict[str, Any]) -> str | None:
     value = first_string(post, ["timestamp", "publishedAt", "published_at", "createdAt", "created_at", "createTimeISO", "date"])
     if value:
-        try:
-            return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(timezone.utc).isoformat()
-        except ValueError:
-            try:
-                return parsedate_to_datetime(value).astimezone(timezone.utc).isoformat()
-            except (TypeError, ValueError):
-                return None
+        parsed = parse_datetime(value)
+        if parsed:
+            return parsed.isoformat()
     timestamp = first_int(post, ["createTime", "timestamp"])
-    if timestamp:
-        if timestamp > 10_000_000_000:
-            timestamp = timestamp // 1000
-        return datetime.fromtimestamp(timestamp, timezone.utc).isoformat()
+    if timestamp is not None:
+        parsed = parse_datetime(timestamp)
+        if parsed:
+            return parsed.isoformat()
     return None
 
 
@@ -283,7 +338,7 @@ def normalize_conversation_item(item: dict[str, Any], config: dict[str, Any], ru
     title = first_string(item, ["title", "full_text", "text", "caption", "name", "serverName", "groupName"]) or "Public conversation signal"
     body = first_string(item, ["full_text", "text", "caption", "description", "body", "summary", "about"]) or ""
     author_name = first_string(item, ["authorName", "username", "screenName", "name", "ownerUsername", "channelName", "serverName", "groupName"])
-    author_url = conversation_author_url(item)
+    author_url = conversation_author_url(item, platform)
     engagement = engagement_payload(item)
     return {
         "source": source,
@@ -362,7 +417,7 @@ def normalize_social_item(item: dict[str, Any], config: dict[str, Any], run: dic
     if not url:
         return None
     external_id = first_string(item, ["id", "postId", "shortCode", "url"]) or url
-    author_url = profile_url(item) or first_string(item, ["authorUrl", "author_url"])
+    author_url = conversation_author_url(item, platform)
     title = first_string(item, ["title", "caption", "text"]) or "Apify social signal"
     body = first_string(item, ["text", "caption", "description", "body"]) or ""
     return {
