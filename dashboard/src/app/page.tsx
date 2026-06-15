@@ -37,6 +37,7 @@ import { Button, Card, EmptyState, Field, Select, SoftBadge, TextArea, TextInput
 import { clientSupabase, hasClientSupabaseConfig } from "@/lib/client-supabase";
 import { cn } from "@/lib/utils";
 import { labelFor, percentage, platformLabel, shortDate, toneFor } from "@/lib/presentation";
+import { activityMetricLabel, activityMetricValue, hasComputedActivityEvidence, qualificationDecision, qualificationSummary } from "@/lib/creator-qualification";
 import {
   buildKpis,
   buildOpportunityFeed,
@@ -189,11 +190,26 @@ function initials(name?: string | null) {
 }
 
 function creatorStage(creator: Creator) {
+  const decision = qualificationDecision(creator);
   if (creator.status === "contacted") return "Contacted";
-  if (creator.status === "contact_ready") return "Contact Ready";
-  if (creator.status === "qualified") return "Qualified";
+  if (creator.status === "contact_ready" && decision.canContactReady) return "Contact Ready";
+  if (creator.status === "qualified" && decision.canQualify) return "Qualified";
   if (creator.status === "rejected") return "Rejected";
   return "Review";
+}
+
+function creatorStatusLabel(creator: Creator) {
+  const decision = qualificationDecision(creator);
+  if (creator.status === "qualified" && !decision.canQualify) return "Review Required";
+  if (creator.status === "contact_ready" && !decision.canContactReady) return "Review Required";
+  return labelFor(creator.status);
+}
+
+function creatorStatusTone(creator: Creator) {
+  const decision = qualificationDecision(creator);
+  if (["qualified", "contact_ready"].includes(creator.status) && !decision.canQualify) return "warn" as const;
+  if (creator.status === "contact_ready" && !decision.canContactReady) return "warn" as const;
+  return toneFor(creator.status);
 }
 
 function responseRate(drafts: Draft[]) {
@@ -340,14 +356,18 @@ function creatorLatestRelevantPost(creator: Creator) {
 }
 
 function creatorFitCategory(creator: Creator) {
+  const decision = qualificationDecision(creator);
   const vrCount = creator.recent_vr_posts_count ?? 0;
   const movement = Boolean(creator.movement_fit_evidence?.trim());
   const quality = creator.evidence_json?.computed_evidence_quality;
-  if (vrCount >= 2 && movement) return "Consistent VR fitness creator";
-  if (vrCount >= 2) return "Recurring VR/XR creator";
-  if (vrCount === 1 && quality === "observed_post") return "Single-post VR/XR lead";
-  if (vrCount === 1) return "Limited VR/XR evidence";
-  return "Needs stronger VR/XR proof";
+  if (decision.canQualify) return "Qualified by profile history";
+  if (decision.state === "observed_only") return "Observed-only review lead";
+  if (decision.state === "unknown") return "Unknown evidence";
+  if (vrCount >= 2 && movement) return "Review - recurring VR fitness evidence";
+  if (vrCount >= 2) return "Review - recurring VR/XR evidence";
+  if (vrCount === 1 && quality === "observed_post") return "Single-post review lead";
+  if (vrCount === 1) return "Review - limited VR/XR evidence";
+  return "Review - needs stronger VR/XR proof";
 }
 
 function strongestCreatorEvidence(creator: Creator) {
@@ -368,7 +388,13 @@ function creatorInclusionReason(creator: Creator) {
   const latest = creatorLatestRelevantPost(creator);
   const latestDate = stringField(latest, "published_at") || creator.last_post_at;
   const recent = latestDate ? `Most recent relevant post ${shortDate(latestDate)}.` : "No relevant post date captured.";
-  return `${creatorFitCategory(creator)}. ${vrCount} VR/XR post${vrCount === 1 ? "" : "s"} in the last 90 days. ${recent}`;
+  const decision = qualificationDecision(creator);
+  if (!hasComputedActivityEvidence(creator)) {
+    return `${creatorFitCategory(creator)}. Computed 90-day post counts are not available from source evidence. ${recent}`;
+  }
+  const basis = activityMetricLabel(creator, "vr") === "VR/XR observed" ? "observed in stored source records" : "in the last 90 days";
+  const summary = decision.canQualify ? "Meets deterministic qualification rules." : `Not qualified: ${decision.reasons[0] || "needs review."}`;
+  return `${creatorFitCategory(creator)}. ${vrCount} VR/XR post${vrCount === 1 ? "" : "s"} ${basis}. ${recent} ${summary}`;
 }
 
 function activityEvidenceLabel(creator: Creator) {
@@ -400,6 +426,9 @@ function activityEvidenceLabel(creator: Creator) {
   }
   if (quality === "failed_enrichment") {
     return `Creator enrichment failed for post history. ${observedPosts ? `${observedPosts} observed source post${observedPosts === 1 ? "" : "s"} remains available for manual qualification.` : "Retry enrichment or inspect the profile manually."}`;
+  }
+  if (!hasComputedActivityEvidence(creator)) {
+    return `No computed activity evidence is available. Do not treat stored 90-day counts as measured until source history or observed-post evidence is captured.`;
   }
   if (total > 0 && level !== "unknown") {
     return `${labelFor(level)} - ${total} observed post${total === 1 ? "" : "s"} in last 90 days`;
@@ -1186,10 +1215,20 @@ export default function Page() {
   async function updateCreator(nextStatus = creatorStatus, targetCreator = selectedCreator) {
     if (!session || !targetCreator) return;
     const isEditingSelected = selectedCreator?.id === targetCreator.id;
+    const decision = qualificationDecision(targetCreator);
+    let statusToSave = nextStatus;
+    if (nextStatus === "qualified" && !decision.canQualify) {
+      statusToSave = "reviewed";
+      setNotice(`Moved to Review. ${qualificationSummary(targetCreator)}`);
+    }
+    if (nextStatus === "contact_ready" && !decision.canContactReady) {
+      statusToSave = "reviewed";
+      setNotice(`Moved to Review. ${decision.canQualify ? "Add a validated contact path before Contact Ready." : qualificationSummary(targetCreator)}`);
+    }
     const result = await fetchJson<{ creator: Creator }>(`/api/dashboard/creators/${targetCreator.id}`, session.token, {
       method: "PATCH",
       body: JSON.stringify({
-        status: nextStatus,
+        status: statusToSave,
         public_contact: (isEditingSelected ? creatorContact : targetCreator.public_contact) || null,
         priority: isEditingSelected ? creatorPriority : targetCreator.priority,
         fit_reason: (isEditingSelected ? creatorFitReason : targetCreator.fit_reason) || null,
@@ -1204,7 +1243,9 @@ export default function Page() {
       setSelectedCreator(result.creator);
       setCreatorStatus(result.creator.status || nextStatus);
     }
-    setNotice(`${result.creator.name} moved to ${labelFor(result.creator.status)}.`);
+    if (statusToSave === nextStatus) {
+      setNotice(`${result.creator.name} moved to ${labelFor(result.creator.status)}.`);
+    }
   }
 
   async function updateFollowup(nextStatus = followupStatus) {
@@ -2052,9 +2093,9 @@ function CreatorsView(props: {
   );
   const stats = [
     ["Total", props.creators.length],
-    ["Strong Fit", props.creators.filter((creator) => (creator.creator_quality_score || 0) >= 85).length],
-    ["Qualified", props.creators.filter((creator) => ["qualified", "contact_ready"].includes(creator.status)).length],
-    ["Ready", props.creators.filter((creator) => creator.status === "contact_ready").length]
+    ["Qualifiable", props.creators.filter((creator) => qualificationDecision(creator).canQualify).length],
+    ["Observed-only", props.creators.filter((creator) => qualificationDecision(creator).state === "observed_only").length],
+    ["Unknown", props.creators.filter((creator) => qualificationDecision(creator).state === "unknown").length]
   ];
 
   function handleDrop(event: DragEvent<HTMLElement>, status: string) {
@@ -2101,18 +2142,18 @@ function CreatorsView(props: {
         ))}
       </section>
 
-      <section className="grid gap-3 xl:grid-cols-5">
+      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
         {creatorsByColumn.map((column) => (
           <Card
             key={column.name}
-            className={cn("min-h-[620px] p-3 transition", draggingCreatorId ? "border-cyan-300/25 bg-cyan-300/[0.03]" : "")}
+            className={cn("min-h-[620px] min-w-0 p-3 transition", draggingCreatorId ? "border-cyan-300/25 bg-cyan-300/[0.03]" : "")}
             onDragOver={(event) => event.preventDefault()}
             onDrop={(event) => handleDrop(event, column.status)}
           >
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <div>
-                <h3 className="text-sm font-semibold text-white">{column.name}</h3>
-                <p className="text-xs text-zinc-500">Drop here to mark {labelFor(column.status)}</p>
+            <div className="mb-3 flex min-w-0 flex-wrap items-start justify-between gap-2">
+              <div className="min-w-0">
+                <h3 className="break-words text-sm font-semibold text-white">{column.name}</h3>
+                <p className="text-xs text-zinc-500">Drop here to request {labelFor(column.status)}</p>
               </div>
               <SoftBadge>{column.creators.length}</SoftBadge>
             </div>
@@ -2133,24 +2174,27 @@ function CreatorsView(props: {
                     }}
                     onDragEnd={() => setDraggingCreatorId(null)}
                     className={cn(
-                      "rounded-lg border border-white/10 bg-white/[0.035] p-3 transition hover:border-cyan-300/30",
+                      "min-w-0 rounded-lg border border-white/10 bg-white/[0.035] p-3 transition hover:border-cyan-300/30",
                       draggingCreatorId === creator.id ? "opacity-50" : ""
                     )}
                   >
-                    <button className="block w-full text-left" onClick={() => props.reviewCreator(creator)}>
-                      <div className="flex min-w-0 items-start justify-between gap-3">
+                    <button className="block w-full min-w-0 text-left" onClick={() => props.reviewCreator(creator)}>
+                      <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
                         <div className="min-w-0">
                           <p className="truncate text-sm font-semibold text-white">{creator.name}</p>
-                          <p className="mt-1 text-xs text-zinc-500">{platformLabel(creator.platform)} • {creatorFitCategory(creator)}</p>
+                          <p className="mt-1 break-words text-xs leading-5 text-zinc-500">{platformLabel(creator.platform)} • {creatorFitCategory(creator)}</p>
                         </div>
-                        <SoftBadge tone={fit.tone}>{creator.creator_quality_score ?? "--"}</SoftBadge>
+                        <div className="flex max-w-full shrink-0 flex-col items-end gap-1">
+                          <SoftBadge tone={fit.tone}>{creator.creator_quality_score ?? "--"}</SoftBadge>
+                          {(creator.duplicate_row_count || 0) > 1 ? <SoftBadge tone="warn">{creator.duplicate_row_count} rows</SoftBadge> : null}
+                        </div>
                       </div>
-                      <p className="mt-3 text-sm font-medium leading-5 text-zinc-200">{creatorInclusionReason(creator)}</p>
+                      <p className="mt-3 break-words text-sm font-medium leading-5 text-zinc-200">{creatorInclusionReason(creator)}</p>
                       <p className="mt-2 line-clamp-3 text-xs leading-5 text-zinc-500">{strongestCreatorEvidence(creator)}</p>
-                      <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs">
-                        <span className="rounded-md border border-white/10 bg-black/20 p-2"><strong className="block text-zinc-100">{creator.recent_vr_posts_count ?? 0}</strong>VR/XR 90d</span>
-                        <span className="rounded-md border border-white/10 bg-black/20 p-2"><strong className="block text-zinc-100">{creator.recent_total_posts_count ?? 0}</strong>Posts 90d</span>
-                        <span className="rounded-md border border-white/10 bg-black/20 p-2"><strong className="block text-zinc-100">{labelFor(creator.headset_confidence || "unknown")}</strong>Headset</span>
+                      <div className="mt-3 grid grid-cols-1 gap-2 text-center text-xs">
+                        <span className="min-w-0 break-words rounded-md border border-white/10 bg-black/20 p-2 leading-4"><strong className="block break-words text-zinc-100">{activityMetricValue(creator, creator.recent_vr_posts_count)}</strong>{activityMetricLabel(creator, "vr")}</span>
+                        <span className="min-w-0 break-words rounded-md border border-white/10 bg-black/20 p-2 leading-4"><strong className="block break-words text-zinc-100">{activityMetricValue(creator, creator.recent_total_posts_count)}</strong>{activityMetricLabel(creator, "total")}</span>
+                        <span className="min-w-0 break-words rounded-md border border-white/10 bg-black/20 p-2 leading-4"><strong className="block break-words text-zinc-100">{labelFor(creator.headset_confidence || "unknown")}</strong>Headset</span>
                       </div>
                     </button>
                     <div className="mt-3 flex flex-wrap gap-2 border-t border-white/10 pt-3">
@@ -2298,20 +2342,22 @@ function CreatorFloatingTab({
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <SoftBadge tone={fit.tone}>{selectedCreator.creator_quality_score ?? "--"}/100</SoftBadge>
-              <SoftBadge tone={toneFor(selectedCreator.status)}>{labelFor(selectedCreator.status)}</SoftBadge>
+              <SoftBadge tone={creatorStatusTone(selectedCreator)}>{creatorStatusLabel(selectedCreator)}</SoftBadge>
               <SoftBadge>{platformLabel(selectedCreator.platform)}</SoftBadge>
               <SoftBadge>{creatorEvidenceQuality(selectedCreator)}</SoftBadge>
+              <SoftBadge tone={qualificationDecision(selectedCreator).canQualify ? "good" : qualificationDecision(selectedCreator).state === "unknown" ? "warn" : "info"}>{qualificationDecision(selectedCreator).label}</SoftBadge>
+              {(selectedCreator.duplicate_row_count || 0) > 1 ? <SoftBadge tone="warn">Duplicate rows: {selectedCreator.duplicate_row_count}</SoftBadge> : null}
             </div>
             <p className="mt-2 line-clamp-2 text-sm leading-5 text-zinc-300">{creatorInclusionReason(selectedCreator)}</p>
           </div>
-          <div className="grid grid-cols-3 gap-2 sm:flex">
-            <Button variant="secondary" onClick={() => updateCreator("reviewed")}>
-              <CheckCircle2 size={15} /> Reviewed
+          <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:justify-end">
+            <Button variant="secondary" onClick={() => updateCreator("reviewed")} title="Move to Review">
+              <CheckCircle2 size={15} /> Review
             </Button>
-            <Button variant="success" onClick={() => updateCreator("qualified")}>
+            <Button variant="success" disabled={!qualificationDecision(selectedCreator).canQualify} title={qualificationSummary(selectedCreator)} onClick={() => updateCreator("qualified")}>
               <Target size={15} /> Qualify
             </Button>
-            <Button variant="primary" onClick={() => updateCreator("contact_ready")}>
+            <Button variant="primary" disabled={!qualificationDecision(selectedCreator).canContactReady} title={qualificationDecision(selectedCreator).canQualify ? "Requires a validated contact path" : qualificationSummary(selectedCreator)} onClick={() => updateCreator("contact_ready")}>
               <MailCheck size={15} /> Contact
             </Button>
           </div>
@@ -2347,8 +2393,8 @@ function CreatorFloatingTab({
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <MiniStat label="VR/XR 90d" value={selectedCreator.recent_vr_posts_count ?? 0} />
-                  <MiniStat label="Posts 90d" value={selectedCreator.recent_total_posts_count ?? 0} />
+                  <MiniStat label={activityMetricLabel(selectedCreator, "vr")} value={activityMetricValue(selectedCreator, selectedCreator.recent_vr_posts_count)} />
+                  <MiniStat label={activityMetricLabel(selectedCreator, "total")} value={activityMetricValue(selectedCreator, selectedCreator.recent_total_posts_count)} />
                   <MiniStat label="Last post" value={selectedCreator.last_post_at ? shortDate(selectedCreator.last_post_at) : "Unknown"} />
                   <MiniStat label="Headset" value={labelFor(selectedCreator.headset_confidence || "unknown")} />
                 </div>

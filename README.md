@@ -14,7 +14,7 @@ Doing that manually is slow and inconsistent. This repo builds the operating lay
 - Deduplicate source items before they enter the pipeline.
 - Use Codex CLI to classify, score, and summarize opportunities.
 - Promote promising creators and public conversation-author leads into a reviewable prospect table.
-- Apply deterministic creator-quality scoring with source-history-derived or accumulated-observation 90-day VR/XR counts, evidence-quality labels for full history, partial history, observed posts, and failed enrichment, plus caps for weak history, one-off VR mentions, stale activity, missing VR proof, contactability, safety, and review priority.
+- Apply deterministic creator-quality scoring and qualification gating with source-history-derived or accumulated-observation 90-day VR/XR counts, evidence-quality labels for full history, partial history, observed posts, and failed enrichment, plus caps for weak history, one-off VR mentions, stale activity, missing VR proof, contactability, safety, and review priority. Observed-only or unknown evidence cannot mark a creator Qualified.
 - Generate outreach drafts for high-fit opportunities.
 - Require human approval before any email is sent.
 - Track sent drafts, follow-ups, and creator offers in Supabase.
@@ -137,7 +137,7 @@ Dashboard presents conversations, opportunity feeds, creator pipeline, outreach 
 | `scripts/collect_forums.py` | Collects public Discourse-style VR/forum threads through public JSON endpoints. |
 | `scripts/collect_blogs.py` | Collects VR/XR blog and news RSS/Atom feed articles. |
 | `scripts/classify_opportunities.py` | Scores raw items and creates outreach opportunities. |
-| `scripts/discover_creators.py` | Promotes creator prospects into `creators`, computes profile-history-backed or accumulated-observed 90-day VR/XR activity metrics, applies deterministic creator-quality evidence caps, normalizes creator platform/profile identity before persistence, updates case-variant duplicate rows safely, and also creates capped review-only conversation-author leads from Apify rows with usable public author profiles. |
+| `scripts/discover_creators.py` | Promotes creator prospects into `creators`, computes profile-history-backed or accumulated-observed 90-day VR/XR activity metrics, applies deterministic creator-quality evidence caps, normalizes creator platform/profile identity before persistence, preserves existing manual review status/contact during evidence refreshes, and also creates capped review-only conversation-author leads from Apify rows with usable public author profiles. Observed-only leads remain Review, not Qualified. |
 | `scripts/generate_drafts.py` | Creates outreach drafts for high-priority safe opportunities. |
 | `scripts/generate_draft_for_opportunity.py` | Creates one LLM-generated `needs_review` draft for an operator-selected opportunity. |
 | `scripts/check_ollama_cloud.py` | Verifies Ollama Cloud auth, configured model tags, and a small JSON smoke response. |
@@ -319,7 +319,7 @@ Current views:
 - Conversation Map and Conversations filters for platform, source type, intent, relevance, date, and follower range across X/Twitter, TikTok, Instagram, YouTube, Reddit, Facebook groups, Discord discovery, VR forums, and VR blogs. Radar nodes light up from either native sources or matching Apify source aliases.
 - Opportunity queue with filters for platform, priority, score, age, safety status, and recommended action.
 - Draft review view with editable subject/body, recipient contact, creator profile, linked opportunity, original source link, and approve/reject/edit-needed actions.
-- Creator pipeline with contact availability, profile URL, quality score band, evidence quality/confidence, strongest relevance proof, recent VR/activity counts, source provenance for full profile history versus accumulated observed posts, headset confidence, movement evidence, engagement/contactability evidence, safety notes, recent relevant content, niche, fit reason, offer angle, reviewed/qualified/contact-ready actions, status, and priority.
+- Creator pipeline with contact availability, profile URL, quality score band, deterministic qualification eligibility, evidence quality/confidence, strongest relevance proof, recent VR/activity counts, source provenance for full profile history versus accumulated observed posts, `Unknown` count labels when computed evidence is missing, duplicate-row count warnings, headset confidence, movement evidence, engagement/contactability evidence, safety notes, recent relevant content, niche, fit reason, offer angle, reviewed/qualified/contact-ready actions, status, and priority.
 - Follow-up queue for due and overdue follow-ups with original draft, creator contact, creator profile, linked opportunity, and source link.
 - Export builder for dynamic prospect and conversation requests, follower-range parsing, score/priority thresholds, result previews, sample outreach messages, and downloadable CSV, JSON, or readable text files. Exports combine creator records, high-fit opportunity authors, public conversation-author leads, and high-scoring conversation records, then dedupe and rank them while clearly labeling public contacts, manual contact paths, source-review records, and missing contact data.
 - Offer tracking for the 3-month-free creator offer and content outcomes.

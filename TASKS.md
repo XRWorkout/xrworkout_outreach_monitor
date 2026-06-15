@@ -160,7 +160,7 @@ Updated on 2026-06-13.
 - [x] Verified live representative creator evidence on 2026-06-13 after the fix: reviewer-facing counts matched accumulated source evidence for four multi-post YouTube creator profiles (`7/7`, `5/12`, `3/3`, and `3/3` VR/XR/total 90-day counts); live Supabase had `raw_items: 940`, `opportunities: 434`, `creators: 145`, `drafts: 35`, `followups: 0`, `offers: 0`, and `creators_with_contact: 0`.
 - [ ] Validate max-efficiency `APIFY_CONVERSATION_ACTORS_JSON` for X/Twitter, TikTok, Instagram hashtags/reels, Discord server discovery, and public Facebook groups in the dashboard.
 - [ ] Use Automation > Run Missing Source to validate Apify conversations and forums individually before relying on Clean Start for full refreshes.
-- [ ] Decide whether TikTok and Instagram should remain supplemental social-listening/opportunity sources only, or whether a later profile-history actor can support creator scoring.
+- [x] Decided TikTok and Instagram remain supplemental post-only/partial-evidence social-listening and opportunity sources unless a later validated profile-history actor supports creator scoring.
 - [ ] Test a better profile-history actor or actor input before using Apify for creator scoring, activity filters, or recent VR-post counts.
 - [ ] Deploy the latest dashboard update with follower filters, cleaned conversation review, the Run Monitor interface, and the new Export tab.
 - [ ] Keep `SEND_AUTOMATION_ENABLED=false` so scheduled approved sends remain disabled.

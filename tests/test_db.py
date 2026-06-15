@@ -167,8 +167,52 @@ def test_upsert_creator_normalizes_identity_and_updates_case_variant():
 
     db.upsert_creator({"platform": "YouTube", "profile_url": "https://www.youtube.com/channel/UCABC/", "name": "Creator"})
 
-    assert creators.selected == "id, platform, profile_url"
+    assert creators.selected == "id, platform, profile_url, status, public_contact"
     assert ("ilike", "profile_url", "https://www.youtube.com/channel/ucabc") in creators.filters
     assert creators.payload["platform"] == "youtube"
     assert creators.payload["profile_url"] == "https://www.youtube.com/channel/ucabc"
     assert ("eq", "id", "creator-1") in creators.filters
+
+
+def test_upsert_creator_preserves_manual_status_and_existing_contact():
+    db = OutreachDB.__new__(OutreachDB)
+    db.client = FakeClient()
+    creators = db.client.tables.setdefault("creators", FakeTable())
+    creators.data = [
+        {
+            "id": "creator-1",
+            "platform": "youtube",
+            "profile_url": "https://www.youtube.com/channel/ucabc",
+            "status": "contact_ready",
+            "public_contact": "validated@example.com",
+        }
+    ]
+
+    db.upsert_creator(
+        {
+            "platform": "YouTube",
+            "profile_url": "https://www.youtube.com/channel/UCABC",
+            "name": "Creator",
+            "status": "new",
+            "public_contact": None,
+            "recent_vr_posts_count": 3,
+        }
+    )
+
+    assert "status" not in creators.payload
+    assert "public_contact" not in creators.payload
+    assert creators.payload["recent_vr_posts_count"] == 3
+
+
+def test_upsert_creator_prefers_exact_normalized_duplicate_target():
+    db = OutreachDB.__new__(OutreachDB)
+    db.client = FakeClient()
+    creators = db.client.tables.setdefault("creators", FakeTable())
+    creators.data = [
+        {"id": "case-variant", "platform": "youtube", "profile_url": "https://www.youtube.com/channel/UCABC"},
+        {"id": "normalized", "platform": "youtube", "profile_url": "https://www.youtube.com/channel/ucabc"},
+    ]
+
+    db.upsert_creator({"platform": "YouTube", "profile_url": "https://www.youtube.com/channel/UCABC/", "name": "Creator"})
+
+    assert ("eq", "id", "normalized") in creators.filters

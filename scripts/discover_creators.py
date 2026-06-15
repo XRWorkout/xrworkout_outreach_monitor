@@ -390,6 +390,14 @@ def promote_conversation_author_leads(
     return created, skipped
 
 
+def creator_source_slices(source_items: list[dict[str, Any]], limit: int) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    llm_items = [item for item in source_items if has_reliable_creator_history(item)][:limit]
+    # Lead promotion is deterministic and refreshes accumulated evidence across stored source rows.
+    # Keep the LLM-bound profile-history slice limited, but scan the fetched source window for leads.
+    lead_items = [item for item in source_items if is_apify_conversation_author_lead(item)]
+    return llm_items, lead_items
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--limit", type=int, default=50)
@@ -404,8 +412,7 @@ def main() -> None:
     lead_created = 0
     source_items = db.fetch_creator_source_items(max(1000, args.limit * 20))
     related_items_by_creator = group_items_by_creator(source_items)
-    items = [item for item in source_items if has_reliable_creator_history(item)][: args.limit]
-    lead_items = [item for item in source_items if is_apify_conversation_author_lead(item)][: args.limit]
+    items, lead_items = creator_source_slices(source_items, args.limit)
     if not items and not lead_items:
         print("Creator discovery: scanned=0 upserted=0 fallback=0 skipped=0")
         return

@@ -11,13 +11,14 @@ type CreatorRow = {
   recent_total_posts_count?: number | null;
   evidence_json?: Record<string, unknown> | null;
   created_at?: string | null;
+  duplicate_row_count?: number | null;
 };
 
-function normalizedCreatorKey(row: CreatorRow) {
+export function normalizedCreatorKey(row: CreatorRow) {
   return `${(row.platform || "").toLowerCase().replace(/[-\s]+/g, "_")}:${(row.profile_url || "").toLowerCase().replace(/\/$/, "")}`;
 }
 
-function evidenceRank(row: CreatorRow) {
+export function evidenceRank(row: CreatorRow) {
   const quality = row.evidence_json?.computed_evidence_quality;
   const qualityScore =
     quality === "profile_history" || quality === "profile_history_plus_observed"
@@ -35,24 +36,24 @@ function evidenceRank(row: CreatorRow) {
   );
 }
 
-function dedupeCreators(rows: CreatorRow[]) {
-  const byKey = new Map<string, CreatorRow>();
+export function dedupeCreators(rows: CreatorRow[]) {
+  const groups = new Map<string, CreatorRow[]>();
   for (const row of rows) {
     const key = normalizedCreatorKey(row);
-    if (!row.profile_url || key === ":") {
-      byKey.set(row.id || `${key}:${byKey.size}`, row);
-      continue;
-    }
-    const existing = byKey.get(key);
-    if (!existing || evidenceRank(row) > evidenceRank(existing)) {
-      byKey.set(key, row);
-    }
+    const groupKey = !row.profile_url || key === ":" ? row.id || `${key}:${groups.size}` : key;
+    groups.set(groupKey, [...(groups.get(groupKey) || []), row]);
   }
-  return Array.from(byKey.values()).sort(
-    (a, b) =>
-      new Date(b.created_at || 0).getTime() -
-      new Date(a.created_at || 0).getTime(),
-  );
+
+  return Array.from(groups.values())
+    .map((group) => {
+      const strongest = group.reduce((best, row) => (evidenceRank(row) > evidenceRank(best) ? row : best), group[0]);
+      return { ...strongest, duplicate_row_count: group.length };
+    })
+    .sort(
+      (a, b) =>
+        new Date(b.created_at || 0).getTime() -
+        new Date(a.created_at || 0).getTime(),
+    );
 }
 
 export async function GET(request: Request) {

@@ -54,11 +54,17 @@ def test_normalize_social_item_builds_raw_item_payload():
     assert row is not None
     assert row["source"] == "apify_tiktok"
     assert row["external_id"] == "apify_tiktok_post-1"
+    assert row["author_url"] == "https://www.tiktok.com/@creator"
+    assert row["source_url"] == "https://www.tiktok.com/@creator/video/1"
     assert row["raw_json"]["actor_id"] == "user/tiktok"
 
 
 def test_post_date_accepts_tiktok_millisecond_timestamps():
     assert post_date({"createTime": 1780272000000}).startswith("2026-06-01")
+
+
+def test_post_date_accepts_numeric_string_timestamps():
+    assert post_date({"timestamp": "1780272000000"}).startswith("2026-06-01")
 
 
 def test_post_date_accepts_twitter_style_dates():
@@ -83,6 +89,8 @@ def test_normalize_x_conversation_item_preserves_source_type_and_engagement():
 
     assert row is not None
     assert row["source"] == "apify_x"
+    assert row["source_url"] == "https://x.com/creator/status/1"
+    assert row["author_url"] == "https://x.com/creator"
     assert row["raw_json"]["source_type"] == "social_post"
     assert row["raw_json"]["engagement"]["likes"] == 12
     assert row["raw_json"]["public_contact"] == "creator@example.com"

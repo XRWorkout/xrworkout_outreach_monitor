@@ -29,7 +29,7 @@ export function Button({
   return (
     <button
       className={cn(
-        "inline-flex min-h-9 items-center justify-center gap-2 rounded-md border px-3 text-sm font-medium transition disabled:pointer-events-none disabled:opacity-45",
+        "inline-flex min-h-9 max-w-full items-center justify-center gap-2 rounded-md border px-3 text-center text-sm font-medium leading-5 whitespace-normal transition disabled:pointer-events-none disabled:opacity-45",
         variants[variant],
         className
       )}
@@ -91,7 +91,7 @@ export function SoftBadge({
     info: "border-cyan-300/20 bg-cyan-300/8 text-cyan-200"
   };
   return (
-    <span className={cn("inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium", tones[tone], className)}>
+    <span className={cn("inline-flex min-w-0 max-w-full items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium leading-4 whitespace-normal break-words", tones[tone], className)}>
       {children}
     </span>
   );

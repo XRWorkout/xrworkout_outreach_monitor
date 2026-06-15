@@ -1,4 +1,5 @@
 import { dayKey, isToday, platformLabel, scoreLabel } from "@/lib/presentation";
+import { qualificationDecision } from "@/lib/creator-qualification";
 import type { AutomationData, Creator, Draft, Followup, Opportunity, RawItem, SummaryData } from "@/lib/types";
 
 export type Recommendation = {
@@ -85,19 +86,22 @@ export function buildRecommendations(opportunities: Opportunity[], creators: Cre
       })
     );
   creators
-    .filter((row) => row.priority === "high" || row.status === "qualified" || row.status === "contact_ready")
+    .filter((row) => qualificationDecision(row).canQualify || row.status === "contact_ready")
     .slice(0, 2)
-    .forEach((row) =>
+    .forEach((row) => {
+      const decision = qualificationDecision(row);
       recommendations.push({
         id: `creator-${row.id}`,
-        title: row.public_contact ? "Prepare creator outreach" : "Validate creator contact",
-        rationale: row.fit_reason || row.offer_angle || "Creator profile looks relevant for XRWorkout outreach.",
-        confidence: row.priority === "high" ? 82 : 68,
+        title: decision.canContactReady ? "Prepare creator outreach" : "Validate creator contact",
+        rationale: decision.canQualify
+          ? row.fit_reason || row.offer_angle || "Creator meets deterministic qualification rules."
+          : decision.reasons.join(" "),
+        confidence: decision.canQualify ? 84 : 62,
         action: "Open creator",
         kind: "creator",
         targetId: row.id
-      })
-    );
+      });
+    });
   drafts
     .filter((row) => row.status === "needs_review")
     .slice(0, 2)
