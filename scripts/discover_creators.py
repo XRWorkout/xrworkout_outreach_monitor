@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import re
 from collections import defaultdict
+from dataclasses import replace
 from typing import Any
 
 from xroutreach.config import settings
@@ -401,9 +402,14 @@ def creator_source_slices(source_items: list[dict[str, Any]], limit: int) -> tup
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--limit", type=int, default=50)
+    parser.add_argument(
+        "--allow-codex-fallback",
+        action="store_true",
+        help="Allow creator discovery to spend Codex tokens if Ollama fails.",
+    )
     args = parser.parse_args()
 
-    cfg = settings()
+    cfg = replace(settings(), cheap_llm_enabled=True, codex_fallback_enabled=args.allow_codex_fallback)
     db = OutreachDB(cfg)
 
     created = 0

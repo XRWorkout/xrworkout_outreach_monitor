@@ -211,7 +211,7 @@ Dashboard presents conversations, opportunity feeds, creator pipeline, outreach 
 | `scripts/collect_forums.py` | Collects public Discourse-style VR/forum threads through public JSON endpoints. |
 | `scripts/collect_blogs.py` | Collects VR/XR blog and news RSS/Atom feed articles. |
 | `scripts/classify_opportunities.py` | Scores raw items and creates outreach opportunities. |
-| `scripts/discover_creators.py` | Promotes creator prospects into `creators`, computes profile-history-backed or accumulated-observed 90-day VR/XR activity metrics, applies deterministic creator-quality evidence caps, normalizes creator platform/profile identity before persistence, preserves existing manual review status/contact during evidence refreshes, and also creates capped review-only conversation-author leads from Apify rows with usable public author profiles. Observed-only leads remain Review, not Qualified. |
+| `scripts/discover_creators.py` | Promotes creator prospects into `creators` using Ollama for LLM review by default, computes profile-history-backed or accumulated-observed 90-day VR/XR activity metrics, applies deterministic creator-quality evidence caps, normalizes creator platform/profile identity before persistence, preserves existing manual review status/contact during evidence refreshes, and also creates capped review-only conversation-author leads from Apify rows with usable public author profiles. Observed-only leads remain Review, not Qualified. Pass `--allow-codex-fallback` only when Codex fallback spend is acceptable. |
 | `scripts/enrich_creator_profiles.py` | Reads known creators with profile URLs, skips recently enriched profiles unless forced, enriches YouTube via the YouTube API and TikTok/Instagram/X through configured profile-history actors, writes deduped profile-history raw rows, and records enrichment provenance without changing sending behavior. |
 | `scripts/generate_drafts.py` | Creates outreach drafts for high-priority safe opportunities. |
 | `scripts/generate_draft_for_opportunity.py` | Creates one LLM-generated `needs_review` draft for an operator-selected opportunity. |
@@ -293,6 +293,7 @@ Optional settings:
 - `CODEX_BIN`, defaults to `codex`
 - `CODEX_MODEL`, optional; when empty, Codex CLI uses its configured default model
 - `CODEX_TIMEOUT_SECONDS`, defaults to `300`
+- `CODEX_FALLBACK_ENABLED`, defaults to `true`; `scripts/discover_creators.py` overrides this to `false` unless `--allow-codex-fallback` is passed
 - `CHEAP_LLM_ENABLED`, enables Ollama Cloud for classification and creator scoring
 - `OLLAMA_BASE_URL`, defaults to `https://ollama.com/api`
 - `LLM_POLICY_PATH`, defaults to `llm_policy.json`

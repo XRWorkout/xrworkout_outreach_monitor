@@ -255,6 +255,32 @@ def test_llm_falls_back_to_codex_after_ollama_auth_and_rate_errors(monkeypatch):
     assert result["summary"] == "Fallback after HTTP errors"
 
 
+def test_llm_can_disable_codex_fallback_for_ollama_tasks(monkeypatch):
+    commands = []
+
+    def fake_run(*args, **kwargs):
+        commands.append(args)
+        raise AssertionError("Codex fallback should be disabled")
+
+    def fake_post(url, headers, json, timeout):
+        return FakeResponse(200, {"message": {"content": "not json"}})
+
+    monkeypatch.setattr("xroutreach.llm.subprocess.run", fake_run)
+    monkeypatch.setattr("xroutreach.llm.requests.post", fake_post)
+
+    cfg = _settings(cheap_llm_enabled=True)
+    cfg = Settings(**{**cfg.__dict__, "codex_fallback_enabled": False})
+
+    try:
+        LLM(cfg).classify({"source": "youtube", "title": "VR fitness"})
+    except RuntimeError as exc:
+        assert "failed without Codex fallback" in str(exc)
+    else:
+        raise AssertionError("Expected Ollama failure without Codex fallback")
+
+    assert commands == []
+
+
 def test_llm_uses_codex_default_model_when_cheap_llm_disabled(monkeypatch):
     commands = []
 
@@ -324,6 +350,7 @@ def _settings(cheap_llm_enabled: bool = False) -> Settings:
         codex_bin="codex",
         codex_model="",
         codex_timeout_seconds=300,
+        codex_fallback_enabled=True,
         cheap_llm_enabled=cheap_llm_enabled,
         ollama_base_url="https://ollama.com/api",
         ollama_api_key="ollama-secret" if cheap_llm_enabled else "",
