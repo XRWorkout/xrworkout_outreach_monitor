@@ -424,7 +424,7 @@ class LLM:
                     exc,
                 )
 
-        if provider.provider_name != "codex":
+        if provider.provider_name != "codex" and self.settings.codex_fallback_enabled:
             fallback_policy = DEFAULT_POLICY[task]
             fallback_policy = TaskPolicy(
                 provider="codex",
@@ -469,6 +469,9 @@ class LLM:
                     exc,
                 )
                 raise
+
+        if provider.provider_name != "codex":
+            raise RuntimeError(f"LLM task {task} failed without Codex fallback: {last_error}") from last_error
 
         raise RuntimeError(f"LLM task {task} failed: {last_error}") from last_error
 

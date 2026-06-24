@@ -49,6 +49,7 @@ def test_emailer_sends_brevo_api_key_header():
         codex_bin="codex",
         codex_model="",
         codex_timeout_seconds=300,
+        codex_fallback_enabled=True,
         cheap_llm_enabled=False,
         ollama_base_url="https://ollama.com/api",
         ollama_api_key="",
