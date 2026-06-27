@@ -169,6 +169,22 @@ Dashboard presents conversations, opportunity feeds, creator pipeline, outreach 
 - Track replies through safer channel-native systems where appropriate, such as Manychat for Instagram and HubSpot for email.
 - Move the dashboard/site to the official XRWorkout domain when production DNS and hosting access are ready.
 
+## Recommended Screenshots
+
+Screenshots are worth adding once the final dashboard deployment is available. This is operational software, so a few real product images will explain the review workflow faster than more prose.
+
+Suggested placements:
+
+- Dashboard overview after `## Why This Exists`.
+- Creator board and outreach review after `## Dashboard`.
+- Run Monitor or automation controls after `## GitHub Actions`.
+
+Store images under `docs/images/` and reference them with Markdown, for example:
+
+```markdown
+![Dashboard overview](docs/images/dashboard-overview.png)
+```
+
 ## Tech Stack
 
 | Layer | Choice |
@@ -434,18 +450,12 @@ Automation must not:
 
 ## Current Launch Status
 
-The core system is implemented and tested locally. YouTube and Twitch collection have been validated against Supabase, the approved-send dry run has been validated, the dashboard is deployed, and the repository is configured for GitHub push access.
+The core system is implemented and tested locally. YouTube and Twitch collection have been validated against Supabase, approved-send dry runs have been validated, the dashboard has been deployed, and the repository is configured for GitHub push access.
 
 Remaining launch blockers:
 
 - Reddit API app credentials are optional future fallback work if RSS becomes unreliable.
-- Deploy the latest dashboard update, then review real Supabase rows and generated drafts through the improved dashboard context.
+- Validate the latest dashboard deployment after each production push, then review real Supabase rows and generated drafts through the improved dashboard context.
 - Keep scheduled automation disabled until the project is ready for production operation.
 - Keep follow-up sending operator-handled in v1.
-- Keep Apify disabled until schema deployment, actor choice, low-limit validation, and Starter-plan usage are reviewed.
-
-## Maintenance
-
-Keep this README current when setup steps, scripts, required secrets, workflow schedules, providers, or safety assumptions change.
-
-Meaningful changes should be committed with clear messages and pushed to the configured `origin/main` remote after verification.
+- Use Apify only through controlled, low-limit source validation until actor quality, schema coverage, and Starter-plan usage are proven reliable.
