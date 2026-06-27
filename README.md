@@ -164,6 +164,10 @@ Dashboard presents conversations, opportunity feeds, creator pipeline, outreach 
 
 - Expand dashboard outcome tracking after the first controlled send loop is complete.
 - Validate higher-volume Apify conversation actors for X/Twitter, TikTok, Instagram hashtags/reels, Discord discovery, and public Facebook groups before relying on them in scheduled refreshes.
+- Add a feedback-learning loop so `disqualified` reasons, contact failures, replies, and manual outcomes improve future scoring, exports, and draft eligibility.
+- Add tier-aware outreach playbooks: Tier A receives high-touch comment, curiosity hook, and offer steps; Tier B receives a shortened direct pitch; Tier C receives a simple collaboration offer.
+- Track replies through safer channel-native systems where appropriate, such as Manychat for Instagram and HubSpot for email.
+- Move the dashboard/site to the official XRWorkout domain when production DNS and hosting access are ready.
 
 ## Tech Stack
 
