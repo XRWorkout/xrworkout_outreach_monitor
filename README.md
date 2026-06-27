@@ -227,7 +227,7 @@ Dashboard presents conversations, opportunity feeds, creator pipeline, outreach 
 3. Copy `.env.example` to `.env`.
 4. Fill the required credentials in `.env`.
 5. Add `OLLAMA_API_KEY` for the XRWorkout Ollama Pro account and verify it with `python scripts/check_ollama_cloud.py`.
-7. Install the project locally:
+6. Install the project locally:
 
 ```bash
 python -m venv .venv
@@ -235,7 +235,7 @@ python -m venv .venv
 pip install -e ".[dev]"
 ```
 
-8. Run the tests:
+7. Run the tests:
 
 ```bash
 pytest
