@@ -75,7 +75,7 @@ Manual `workflow_dispatch` runs remain available even when scheduled automation 
 
 ## Opportunity Detection
 
-`scripts/classify_opportunities.py` reads unprocessed rows from `raw_items` and asks the LLM router to classify each item. With `CHEAP_LLM_ENABLED=true`, the primary model is Ollama Cloud `gemma3:12b`; after one failed retry, the router falls back to Codex and logs the fallback.
+`scripts/classify_opportunities.py` reads unprocessed rows from `raw_items` and asks the LLM router to classify each item. The active model is Ollama Cloud `gemma3:12b`; failures retry once and are logged for review.
 
 The classifier considers:
 
@@ -112,7 +112,7 @@ Each classified opportunity gets:
 
 ## Creator Detection
 
-`scripts/discover_creators.py` reviews YouTube, Twitch, and reliable creator-history source items and promotes strong creator prospects into `creators`. With `CHEAP_LLM_ENABLED=true`, the primary model is Ollama Cloud `gpt-oss:120b`; after one failed retry, the router falls back to Codex.
+`scripts/discover_creators.py` reviews YouTube, Twitch, and reliable creator-history source items and promotes strong creator prospects into `creators`. The active model is Ollama Cloud `gpt-oss:120b`; failures retry once and are logged for review.
 
 Creator records track:
 
@@ -315,4 +315,4 @@ Current and recommended agent steps:
 - Follow-up sending is not automated.
 - Reddit API credentials are not configured and should stay a future upgrade unless RSS becomes unreliable.
 - Public comments and DMs are manual in v1.
-- XRWorkout-owned Codex CLI authentication should replace personal server authentication when the XRWorkout account is available.
+- Ollama Cloud is the active LLM path for classification, creator review, and draft generation.

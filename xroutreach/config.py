@@ -45,10 +45,6 @@ SUBREDDITS = [
 class Settings:
     supabase_url: str
     supabase_service_role_key: str
-    codex_bin: str
-    codex_model: str
-    codex_timeout_seconds: int
-    codex_fallback_enabled: bool
     cheap_llm_enabled: bool
     ollama_base_url: str
     ollama_api_key: str
@@ -102,11 +98,6 @@ def settings() -> Settings:
     return Settings(
         supabase_url=env("SUPABASE_URL"),
         supabase_service_role_key=env("SUPABASE_SERVICE_ROLE_KEY"),
-        codex_bin=env("CODEX_BIN", "codex"),
-        codex_model=env("CODEX_MODEL"),
-        codex_timeout_seconds=env_int("CODEX_TIMEOUT_SECONDS", 300),
-        codex_fallback_enabled=env("CODEX_FALLBACK_ENABLED", "true").lower()
-        in {"1", "true", "yes"},
         cheap_llm_enabled=env("CHEAP_LLM_ENABLED", "false").lower() in {"1", "true", "yes"},
         ollama_base_url=env("OLLAMA_BASE_URL", "https://ollama.com/api"),
         ollama_api_key=env("OLLAMA_API_KEY"),

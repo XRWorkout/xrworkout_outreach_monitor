@@ -7,7 +7,7 @@
 ## 🚀 Core Features
 
 - **Signal collection:** Collects relevant public signals from Reddit RSS, YouTube, Twitch, public forums/blogs, and controlled Apify actors.
-- **Opportunity scoring:** Classifies raw source items into outreach opportunities with Ollama Cloud primary models and Codex fallback.
+- **Opportunity scoring:** Classifies raw source items into outreach opportunities with Ollama Cloud.
 - **Creator pipeline:** Promotes creator prospects, enriches creator profile history, and separates full profile-history evidence from observed-only conversation signals.
 - **Human-approved outreach:** Generates drafts for review and sends only approved email drafts; public comments and DMs remain manual.
 - **Operator dashboard:** Provides review queues, creator status management, source analytics, workflow controls, and run monitoring.
@@ -15,7 +15,7 @@
 ## 🛠️ Architecture & Tech Stack
 
 - **Core Languages:** Python 3.11+ for collectors, scoring, enrichment, drafting, sending, and reporting; TypeScript for the dashboard.
-- **Frameworks/Tools:** GitHub Actions, Supabase Postgres, Next.js, Tailwind CSS, Supabase Auth, GitHub API, Ollama Cloud, Codex CLI, Brevo, Apify, YouTube Data API, and Twitch Helix API.
+- **Frameworks/Tools:** GitHub Actions, Supabase Postgres, Next.js, Tailwind CSS, Supabase Auth, GitHub API, Ollama Cloud, Brevo, Apify, YouTube Data API, and Twitch Helix API.
 - **Security/Integrity Layer:** Deduped raw ingestion, deterministic creator qualification gates, explicit automation safety switches, dry-run email sending, dashboard audit logs, and a no-auto-DM/no-auto-comment v1 policy.
 
 ## ⚙️ Getting Started
@@ -26,7 +26,6 @@
 - Node.js and npm for the dashboard.
 - Supabase project with `supabase/schema.sql` applied.
 - GitHub repository secrets for Supabase, YouTube, Twitch, Brevo, Ollama, and optional Apify access.
-- Authenticated Codex CLI on the self-hosted runner account used for draft/fallback jobs.
 
 ### Installation & Local Setup
 
@@ -81,14 +80,14 @@ Doing that manually is slow and inconsistent. This repo builds the operating lay
 
 - Collect relevant signals from Reddit RSS, YouTube, Twitch, and disabled-by-default Apify creator/social actors.
 - Deduplicate source items before they enter the pipeline.
-- Use Codex CLI to classify, score, and summarize opportunities.
+- Use Ollama Cloud to classify, score, summarize opportunities, and generate review drafts.
 - Promote promising creators and public conversation-author leads into a reviewable prospect table.
 - Enrich known creator profiles with trusted recent-post history when `PROFILE_ENRICHMENT_ENABLED=true`, so `last_post_at`, recent activity, and 90-day VR/XR counts can move from unknown/observed-only to profile-history evidence.
 - Apply deterministic creator-quality scoring and qualification gating with source-history-derived or accumulated-observation 90-day VR/XR counts, evidence-quality labels for full history, partial history, observed posts, and failed enrichment, plus caps for weak history, one-off VR mentions, stale activity, missing VR proof, contactability, safety, and review priority. Observed-only or unknown evidence cannot mark a creator Qualified.
 - Generate outreach drafts for high-fit opportunities.
 - Require human approval before any email is sent.
 - Track sent drafts, follow-ups, and creator offers in Supabase.
-- Run on GitHub Actions, with LLM-dependent jobs on a self-hosted server runner that has Codex CLI installed and Ollama Cloud credentials configured.
+- Run on GitHub Actions, with LLM-dependent jobs on a self-hosted server runner that has Ollama Cloud credentials configured.
 - Use explicit automation switches before treating scheduled jobs as always-on production automation.
 - Provide a Next.js XRWorkout Outreach OS dashboard for review queues, social listening, contact validation, draft editing, approval, follow-ups, source-quality reporting, automation controls, and analytics.
 
@@ -142,7 +141,7 @@ Dashboard presents conversations, opportunity feeds, creator pipeline, outreach 
 - Twitch collector using the Twitch Helix API.
 - Apify creator, social, and public conversation collectors with item/run caps, currently used for controlled dashboard validation.
 - Disabled-by-default profile enrichment stage for upgrading known creators from unknown/observed-only activity to trusted profile-history evidence through YouTube API or configured Apify profile actors.
-- Codex CLI wrapper for classification, creator discovery, and draft generation.
+- Ollama Cloud routing for classification, creator discovery, and draft generation.
 - Brevo email sender with dry-run support.
 - Approval-only sending logic.
 - Follow-up task creation after sent emails.
@@ -174,7 +173,7 @@ Dashboard presents conversations, opportunity feeds, creator pipeline, outreach 
 | Scheduler | GitHub Actions cron, with LLM jobs on a self-hosted runner and scheduled jobs disabled by repository variables until launch |
 | Database | Supabase Postgres |
 | Review UI | Deployed dashboard, with Supabase Studio as fallback |
-| LLM | Ollama Cloud for classification/creator scoring; Codex CLI for drafts and fallback |
+| LLM | Ollama Cloud for classification, creator scoring, and draft generation |
 | Reddit | Reddit RSS for v1, PRAW / Reddit Data API as a future fallback |
 | YouTube | YouTube Data API |
 | Twitch | Twitch Helix API |
@@ -211,7 +210,7 @@ Dashboard presents conversations, opportunity feeds, creator pipeline, outreach 
 | `scripts/collect_forums.py` | Collects public Discourse-style VR/forum threads through public JSON endpoints. |
 | `scripts/collect_blogs.py` | Collects VR/XR blog and news RSS/Atom feed articles. |
 | `scripts/classify_opportunities.py` | Scores raw items and creates outreach opportunities. |
-| `scripts/discover_creators.py` | Promotes creator prospects into `creators` using Ollama for LLM review by default, computes profile-history-backed or accumulated-observed 90-day VR/XR activity metrics, applies deterministic creator-quality evidence caps, normalizes creator platform/profile identity before persistence, preserves existing manual review status/contact during evidence refreshes, and also creates capped review-only conversation-author leads from Apify rows with usable public author profiles. Observed-only leads remain Review, not Qualified. Pass `--allow-codex-fallback` only when Codex fallback spend is acceptable. |
+| `scripts/discover_creators.py` | Promotes creator prospects into `creators` using Ollama for LLM review, computes profile-history-backed or accumulated-observed 90-day VR/XR activity metrics, applies deterministic creator-quality evidence caps, normalizes creator platform/profile identity before persistence, preserves existing manual review status/contact during evidence refreshes, and also creates capped review-only conversation-author leads from Apify rows with usable public author profiles. Observed-only leads remain Review, not Qualified. |
 | `scripts/enrich_creator_profiles.py` | Reads known creators with profile URLs, skips recently enriched profiles unless forced, enriches YouTube via the YouTube API and TikTok/Instagram/X through configured profile-history actors, writes deduped profile-history raw rows, and records enrichment provenance without changing sending behavior. |
 | `scripts/generate_drafts.py` | Creates outreach drafts for high-priority safe opportunities. |
 | `scripts/generate_draft_for_opportunity.py` | Creates one LLM-generated `needs_review` draft for an operator-selected opportunity. |
@@ -227,8 +226,7 @@ Dashboard presents conversations, opportunity feeds, creator pipeline, outreach 
 2. Run `supabase/schema.sql` in the Supabase SQL editor.
 3. Copy `.env.example` to `.env`.
 4. Fill the required credentials in `.env`.
-5. Install and authenticate Codex CLI on the server account that will run draft/fallback jobs.
-6. Add `OLLAMA_API_KEY` for the XRWorkout Ollama Pro account and verify it with `python scripts/check_ollama_cloud.py`.
+5. Add `OLLAMA_API_KEY` for the XRWorkout Ollama Pro account and verify it with `python scripts/check_ollama_cloud.py`.
 7. Install the project locally:
 
 ```bash
@@ -290,14 +288,10 @@ Optional settings:
 
 - `AUTOMATION_ENABLED`, switch for scheduled collection, draft, and report workflows; keep `false` until schedules should run
 - `SEND_AUTOMATION_ENABLED`, switch for scheduled approved-send workflow; keep `false`
-- `CODEX_BIN`, defaults to `codex`
-- `CODEX_MODEL`, optional; when empty, Codex CLI uses its configured default model
-- `CODEX_TIMEOUT_SECONDS`, defaults to `300`
-- `CODEX_FALLBACK_ENABLED`, defaults to `true`; `scripts/discover_creators.py` overrides this to `false` unless `--allow-codex-fallback` is passed
-- `CHEAP_LLM_ENABLED`, enables Ollama Cloud for classification and creator scoring
+- `CHEAP_LLM_ENABLED`, enables Ollama Cloud LLM routing
 - `OLLAMA_BASE_URL`, defaults to `https://ollama.com/api`
 - `LLM_POLICY_PATH`, defaults to `llm_policy.json`
-- `LLM_NOTIFY_FALLBACKS`, prints and logs Codex fallback events
+- `LLM_NOTIFY_FALLBACKS`, retained for historical fallback-event reporting
 - `XRWORKOUT_FOUNDER_NAME`
 - `XRWORKOUT_SITE`, defaults to `https://xrworkout.ai`
 - `EMAIL_PROVIDER`, defaults to `brevo`
@@ -332,7 +326,6 @@ python scripts/collect_apify_conversations.py --limit 25
 python scripts/collect_forums.py --limit 3
 python scripts/collect_blogs.py --limit 3
 python scripts/check_ollama_cloud.py
-python scripts/check_codex_cli.py
 python scripts/classify_opportunities.py --limit 10
 python scripts/discover_creators.py --limit 10
 # dry-run first; set PROFILE_ENRICHMENT_ENABLED=true before non-dry-run enrichment

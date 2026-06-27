@@ -38,28 +38,19 @@ jobs:
           python-version: "3.11"
       - run: pip install -e .
       - run: python scripts/check_ollama_cloud.py
-        if: ${{ inputs.classify == 'true' && vars.CHEAP_LLM_ENABLED == 'true' }}
+        if: ${{ inputs.classify == 'true' }}
         env:
-          CHEAP_LLM_ENABLED: ${{ vars.CHEAP_LLM_ENABLED || 'false' }}
+          CHEAP_LLM_ENABLED: "true"
           OLLAMA_BASE_URL: ${{ vars.OLLAMA_BASE_URL || 'https://ollama.com/api' }}
           OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
           LLM_POLICY_PATH: ${{ vars.LLM_POLICY_PATH || 'llm_policy.json' }}
-      - run: python scripts/check_codex_cli.py
-        if: ${{ inputs.classify == 'true' }}
-        env:
-          CODEX_BIN: ${{ vars.CODEX_BIN || 'codex' }}
-          CODEX_MODEL: ${{ vars.CODEX_MODEL }}
-          CODEX_TIMEOUT_SECONDS: ${{ vars.CODEX_TIMEOUT_SECONDS || '300' }}
       - name: Collect Reddit
         if: ${{ inputs.source == 'all' || inputs.source == 'reddit' }}
         run: python scripts/collect_reddit_rss.py --limit 5 --max-total 25 --sleep-seconds 2
         env: &env
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          CODEX_BIN: ${{ vars.CODEX_BIN || 'codex' }}
-          CODEX_MODEL: ${{ vars.CODEX_MODEL }}
-          CODEX_TIMEOUT_SECONDS: ${{ vars.CODEX_TIMEOUT_SECONDS || '300' }}
-          CHEAP_LLM_ENABLED: ${{ vars.CHEAP_LLM_ENABLED || 'false' }}
+          CHEAP_LLM_ENABLED: "true"
           OLLAMA_BASE_URL: ${{ vars.OLLAMA_BASE_URL || 'https://ollama.com/api' }}
           OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
           LLM_POLICY_PATH: ${{ vars.LLM_POLICY_PATH || 'llm_policy.json' }}

@@ -123,7 +123,7 @@ function stepEstimateSeconds(stepName: string) {
   const name = stepName.toLowerCase();
   if (name.includes("setup-python") || name.includes("checkout") || name.includes("set up job")) return 20;
   if (name.includes("pip install")) return 90;
-  if (name.includes("check_codex")) return 30;
+  if (name.includes("check_ollama")) return 30;
   if (name.includes("reset_outreach")) return 60;
   if (name.includes("collect_reddit")) return 180;
   if (name.includes("collect_youtube")) return 60;
@@ -144,7 +144,7 @@ function likelyFixForStep(stepName: string, conclusion?: string | null) {
   if (conclusion && conclusion !== "failure" && conclusion !== "timed_out") return "No action needed.";
   if (name.includes("checkout")) return "Confirm the GitHub token can read the repository and the branch still exists.";
   if (name.includes("setup-python") || name.includes("pip install")) return "Check Python dependency installation in pyproject.toml and rerun after package errors are fixed.";
-  if (name.includes("check_codex")) return "Restart or re-authenticate Codex CLI on the self-hosted runner account.";
+  if (name.includes("check_ollama")) return "Check OLLAMA_API_KEY, Ollama Cloud model access, and the configured LLM policy.";
   if (name.includes("reset_outreach")) return "Confirm Supabase schema is up to date and the service role key can delete operational rows.";
   if (name.includes("collect_reddit")) return "Reddit RSS may be rate-limited or unavailable. Rerun later or reduce feed volume.";
   if (name.includes("collect_youtube")) return "Check YouTube API key, quota, and whether the follower_count schema column exists.";
@@ -153,9 +153,9 @@ function likelyFixForStep(stepName: string, conclusion?: string | null) {
   if (name.includes("collect_apify")) return "Check APIFY_TOKEN, actor JSON variables, Starter-plan usage, and actor input shape.";
   if (name.includes("collect_forums")) return "Check FORUM_SOURCES_JSON and whether the target forum exposes public Discourse JSON endpoints.";
   if (name.includes("collect_blogs")) return "Check BLOG_FEEDS_JSON and whether the feed URL returns valid RSS or Atom XML.";
-  if (name.includes("classify_opportunities")) return "Check Codex CLI availability, model timeout, and raw item volume. Rerun with a lower limit if needed.";
-  if (name.includes("discover_creators")) return "Check Codex or Ollama output and creator schema fields, especially follower_count, evidence_json, and public contact fields.";
-  if (name.includes("generate_drafts")) return "Check draft eligibility, Codex CLI output, and safety-rule validation errors.";
+  if (name.includes("classify_opportunities")) return "Check Ollama Cloud availability, model timeout, and raw item volume. Rerun with a lower limit if needed.";
+  if (name.includes("discover_creators")) return "Check Ollama output and creator schema fields, especially follower_count, evidence_json, and public contact fields.";
+  if (name.includes("generate_drafts")) return "Check draft eligibility, Ollama output, and safety-rule validation errors.";
   if (name.includes("send_approved")) return "Keep DRY_RUN_SEND=true unless intentionally sending; check Brevo credentials if email sending is expected.";
   if (name.includes("weekly_report")) return "Check Supabase connectivity and table access for report queries.";
   return "Open the GitHub job log, inspect the failed command, fix the failing secret/schema/API input, then rerun.";

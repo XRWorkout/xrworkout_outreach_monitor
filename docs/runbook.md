@@ -48,9 +48,9 @@ Follow-ups remain operator-handled in v1. The system does not auto-send follow-u
 
 ## Self-hosted runner LLM checks
 
-The LLM-dependent workflows must run on a self-hosted runner whose service account can run Codex CLI non-interactively and can reach Ollama Cloud with `OLLAMA_API_KEY`.
+The LLM-dependent workflows must run on a self-hosted runner whose service account can reach Ollama Cloud with `OLLAMA_API_KEY`.
 
-Use XRWorkout-owned accounts for production automation. The personal development account can commit and push code to `yorgobekaii/xr_workout_outreach_monitor`, but GitHub Actions should run from `XRWorkout/xrworkout_outreach_monitor`. The GitHub runner, Codex CLI auth, Ollama Pro account, Reddit app, Supabase, and email provider credentials should belong to XRWorkout.
+Use XRWorkout-owned accounts for production automation. The personal development account can commit and push code to `yorgobekaii/xr_workout_outreach_monitor`, but GitHub Actions should run from `XRWorkout/xrworkout_outreach_monitor`. The GitHub runner, Ollama Pro account, Reddit app, Supabase, and email provider credentials should belong to XRWorkout.
 
 ## GitHub remotes
 
@@ -70,16 +70,15 @@ To push the current branch to both remotes:
 scripts/push_remotes.sh
 ```
 
-On the server, install and configure the GitHub runner from `XRWorkout/xrworkout_outreach_monitor` repository settings, then start it from the XRWorkout-owned server account that has Codex CLI authentication. Verify from that account:
+On the server, install and configure the GitHub runner from `XRWorkout/xrworkout_outreach_monitor` repository settings, then start it from the XRWorkout-owned server account. Verify from that account:
 
 ```bash
 cd /home/yorgobekaii/xrworkout-outreach
 . .venv/bin/activate
-python scripts/check_codex_cli.py
 python scripts/check_ollama_cloud.py
 ```
 
-The daily collection, clean start, manual source collection, and self-hosted smoke workflows run the Ollama check when `CHEAP_LLM_ENABLED=true`. Draft-only workflows still check Codex because final outreach copy stays on Codex.
+The daily collection, clean start, manual source collection, self-hosted smoke, and draft workflows use the Ollama check instead of a Codex check.
 
 ## Weekly review
 

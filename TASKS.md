@@ -173,10 +173,6 @@ Updated on 2026-06-13.
 - [ ] Treat Reddit API credentials as a future upgrade only if RSS collection becomes unreliable.
 - [ ] Decide when the project is complete enough to enable schedules; do not enable them yet.
 
-## Last Touches / Non-Immediate
-
-- [ ] Authenticate Codex CLI on the server using XRWorkout's Codex/OpenAI account, not the personal `yorgobekaii` account, when that account is available.
-
 ## Completed Setup
 
 - [x] Created a Supabase project for the outreach system.

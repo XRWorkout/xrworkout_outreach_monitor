@@ -14,10 +14,10 @@
     "temperature": 0
   },
   "draft_outreach": {
-    "provider": "codex",
-    "model": "",
+    "provider": "ollama",
+    "model": "gpt-oss:120b",
     "timeout_seconds": 300,
-    "retries": 0,
+    "retries": 1,
     "temperature": 0
   }
 }

@@ -19,17 +19,20 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install -e .
-      - run: python scripts/check_codex_cli.py
+      - run: python scripts/check_ollama_cloud.py
         env:
-          CODEX_BIN: ${{ vars.CODEX_BIN || 'codex' }}
-          CODEX_MODEL: ${{ vars.CODEX_MODEL }}
-          CODEX_TIMEOUT_SECONDS: ${{ vars.CODEX_TIMEOUT_SECONDS || '300' }}
+          CHEAP_LLM_ENABLED: "true"
+          OLLAMA_BASE_URL: ${{ vars.OLLAMA_BASE_URL || 'https://ollama.com/api' }}
+          OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
+          LLM_POLICY_PATH: ${{ vars.LLM_POLICY_PATH || 'llm_policy.json' }}
       - run: python scripts/generate_draft_for_opportunity.py --opportunity-id "${{ inputs.opportunity_id }}"
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          CODEX_BIN: ${{ vars.CODEX_BIN || 'codex' }}
-          CODEX_MODEL: ${{ vars.CODEX_MODEL }}
-          CODEX_TIMEOUT_SECONDS: ${{ vars.CODEX_TIMEOUT_SECONDS || '300' }}
+          CHEAP_LLM_ENABLED: "true"
+          OLLAMA_BASE_URL: ${{ vars.OLLAMA_BASE_URL || 'https://ollama.com/api' }}
+          OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
+          LLM_POLICY_PATH: ${{ vars.LLM_POLICY_PATH || 'llm_policy.json' }}
+          LLM_NOTIFY_FALLBACKS: ${{ vars.LLM_NOTIFY_FALLBACKS || 'true' }}
           XRWORKOUT_FOUNDER_NAME: ${{ vars.XRWORKOUT_FOUNDER_NAME }}
           XRWORKOUT_SITE: https://xrworkout.ai

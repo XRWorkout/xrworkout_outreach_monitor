@@ -17,11 +17,7 @@ Configure these in GitHub repository secrets:
 
 Optional repository variables:
 
-- `CODEX_BIN`: defaults to `codex`.
-- `CODEX_MODEL`: optional; when empty, Codex CLI uses its configured default model.
-- `CODEX_TIMEOUT_SECONDS`: defaults to `300`.
-- `CODEX_FALLBACK_ENABLED`: defaults to `true`; creator discovery disables it by default to avoid accidental Codex token spend.
-- `CHEAP_LLM_ENABLED`: set `true` to route classification and creator scoring through Ollama Cloud.
+- `CHEAP_LLM_ENABLED`: set `true` to route LLM tasks through Ollama Cloud.
 - `OLLAMA_BASE_URL`: defaults to `https://ollama.com/api`.
 - `LLM_POLICY_PATH`: defaults to `llm_policy.json`.
 - `LLM_NOTIFY_FALLBACKS`: defaults to `true`.

@@ -146,7 +146,7 @@ def main() -> None:
     print(f"creator evidence basis: {dict(sorted(evidence_counts.items()))}")
     print(f"due or overdue follow-ups: {due_followup_count(followups, today)}")
     print(f"LLM events: {len(llm_events)}")
-    print(f"LLM fallbacks to Codex: {sum(1 for row in llm_events if row.get('fallback_used'))}")
+    print(f"LLM fallback events: {sum(1 for row in llm_events if row.get('fallback_used'))}")
     print(f"LLM failures: {sum(1 for row in llm_events if row.get('status') == 'failure')}")
     if llm_events:
         by_provider: dict[str, int] = defaultdict(int)

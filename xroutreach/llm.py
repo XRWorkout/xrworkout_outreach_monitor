@@ -2,9 +2,6 @@ from __future__ import annotations
 
 import json
 import re
-import shutil
-import subprocess
-import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -58,10 +55,10 @@ DEFAULT_POLICY: dict[str, TaskPolicy] = {
         temperature=0,
     ),
     "draft_outreach": TaskPolicy(
-        provider="codex",
-        model="",
+        provider="ollama",
+        model="gpt-oss:120b",
         timeout_seconds=300,
-        retries=0,
+        retries=1,
         temperature=0,
     ),
 }
@@ -82,79 +79,6 @@ class LLMProvider:
         policy: TaskPolicy,
     ) -> dict[str, Any]:
         raise NotImplementedError
-
-
-class CodexProvider(LLMProvider):
-    provider_name = "codex"
-
-    def __init__(self, settings: Settings):
-        self.codex_bin = settings.codex_bin
-        if not shutil.which(self.codex_bin):
-            raise RuntimeError(f"Codex CLI not found on PATH: {self.codex_bin}")
-        self.model = settings.codex_model
-        self.timeout_seconds = settings.codex_timeout_seconds
-
-    def json_completion(
-        self,
-        system: str,
-        payload: dict[str, Any],
-        schema: dict[str, Any],
-        policy: TaskPolicy,
-    ) -> dict[str, Any]:
-        prompt = completion_prompt(system, payload, schema)
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            schema_path = f"{tmpdir}/schema.json"
-            output_path = f"{tmpdir}/last-message.json"
-            with open(schema_path, "w", encoding="utf-8") as handle:
-                json.dump(schema, handle)
-
-            command = [self.codex_bin, "-a", "never"]
-            model = policy.model or self.model
-            if model:
-                command.extend(["--model", model])
-            command.extend(
-                [
-                    "exec",
-                    "--skip-git-repo-check",
-                    "--ephemeral",
-                    "--sandbox",
-                    "read-only",
-                    "--output-schema",
-                    schema_path,
-                    "--output-last-message",
-                    output_path,
-                    "--color",
-                    "never",
-                    "-",
-                ]
-            )
-
-            try:
-                result = subprocess.run(
-                    command,
-                    input=prompt,
-                    capture_output=True,
-                    text=True,
-                    timeout=policy.timeout_seconds or self.timeout_seconds,
-                    check=False,
-                )
-            except subprocess.TimeoutExpired as exc:
-                raise RuntimeError(
-                    f"Codex CLI timed out after {policy.timeout_seconds or self.timeout_seconds} seconds"
-                ) from exc
-
-            if result.returncode != 0:
-                details = summarize_error(result.stderr or result.stdout)
-                raise RuntimeError(
-                    f"Codex CLI failed with exit code {result.returncode}: {details}"
-                )
-
-            with open(output_path, encoding="utf-8") as handle:
-                content = handle.read().strip()
-        data = json.loads(content or "{}")
-        validate_schema(data, schema)
-        return data
 
 
 class OllamaProvider(LLMProvider):
@@ -217,7 +141,6 @@ class LLM:
         self.policy = load_policy(settings.llm_policy_path)
         self.founder_name = settings.founder_name
         self.site = settings.xrworkout_site
-        self.codex = CodexProvider(settings)
         self.ollama = None
         if settings.cheap_llm_enabled:
             self.ollama = OllamaProvider(settings)
@@ -424,73 +347,18 @@ class LLM:
                     exc,
                 )
 
-        if provider.provider_name != "codex" and self.settings.codex_fallback_enabled:
-            fallback_policy = DEFAULT_POLICY[task]
-            fallback_policy = TaskPolicy(
-                provider="codex",
-                model="",
-                timeout_seconds=self.settings.codex_timeout_seconds,
-                retries=0,
-                temperature=0,
-            )
-            started = time.monotonic()
-            if self.settings.llm_notify_fallbacks:
-                print(
-                    "LLM fallback: "
-                    f"task={task} primary={provider.provider_name}/{runtime_policy.model or 'default'} "
-                    f"fallback=codex reason={summarize_error(str(last_error or 'unknown'))}"
-                )
-            try:
-                data = self.codex.json_completion(system, payload, schema, fallback_policy)
-                self._log_event(
-                    task,
-                    fallback_policy,
-                    "codex",
-                    "success",
-                    1,
-                    True,
-                    started,
-                    context_table,
-                    context_id,
-                    None,
-                )
-                return data
-            except Exception as exc:
-                self._log_event(
-                    task,
-                    fallback_policy,
-                    "codex",
-                    "failure",
-                    1,
-                    True,
-                    started,
-                    context_table,
-                    context_id,
-                    exc,
-                )
-                raise
-
-        if provider.provider_name != "codex":
-            raise RuntimeError(f"LLM task {task} failed without Codex fallback: {last_error}") from last_error
-
         raise RuntimeError(f"LLM task {task} failed: {last_error}") from last_error
 
     def _provider(self, policy: TaskPolicy) -> LLMProvider:
-        if policy.provider == "ollama" and self.settings.cheap_llm_enabled:
+        if policy.provider == "ollama":
+            if self.ollama is None:
+                self.ollama = OllamaProvider(self.settings)
             if not self.ollama:
                 raise RuntimeError("Ollama provider was not initialized")
             return self.ollama
-        return self.codex
+        raise RuntimeError(f"Unsupported LLM provider: {policy.provider}")
 
     def _runtime_policy(self, policy: TaskPolicy, provider: LLMProvider) -> TaskPolicy:
-        if provider.provider_name == "codex" and policy.provider != "codex":
-            return TaskPolicy(
-                provider="codex",
-                model=self.settings.codex_model,
-                timeout_seconds=self.settings.codex_timeout_seconds,
-                retries=0,
-                temperature=0,
-            )
         return policy
 
     def _log_event(
