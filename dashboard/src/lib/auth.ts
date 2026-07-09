@@ -14,10 +14,13 @@ export class AuthError extends Error {
   }
 }
 
+// Core XRWorkout operators are always allowed, so an incomplete or missing
+// DASHBOARD_OPERATOR_EMAILS env value can never lock the owner out of the dashboard.
+const DEFAULT_OPERATOR_EMAILS = ["team@xrworkout.ai", "yorgobekaiiprofessional@gmail.com"];
+
 export function parseOperatorEmails(value: string | undefined): Set<string> {
   return new Set(
-    (value || "")
-      .split(",")
+    [...DEFAULT_OPERATOR_EMAILS, ...(value || "").split(",")]
       .map((email) => email.trim().toLowerCase())
       .filter(Boolean)
   );
