@@ -53,7 +53,9 @@ class ApifyClient:
         self.token = settings.apify_token
 
     def run_actor(self, actor_id: str, actor_input: dict[str, Any], timeout_seconds: int = 900) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-        encoded_actor = quote(actor_id, safe="")
+        # Apify's REST API addresses actors as "username~actorname"; a raw "/"
+        # (even percent-encoded to %2F) is rejected with 403.
+        encoded_actor = quote(actor_id.replace("/", "~"), safe="~")
         response = requests.post(
             f"https://api.apify.com/v2/acts/{encoded_actor}/runs",
             params={"token": self.token},
