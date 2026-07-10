@@ -24,6 +24,7 @@ jobs:
           OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
           LLM_POLICY_PATH: ${{ vars.LLM_POLICY_PATH || 'llm_policy.json' }}
       - run: python scripts/collect_reddit_rss.py --limit 10 --max-total 75 --sleep-seconds 10
+        continue-on-error: true
         env: &env
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
@@ -46,18 +47,25 @@ jobs:
           FORUM_SOURCES_JSON: ${{ vars.FORUM_SOURCES_JSON || '[]' }}
           BLOG_FEEDS_JSON: ${{ vars.BLOG_FEEDS_JSON || '[]' }}
       - run: python scripts/collect_youtube.py --limit 2
+        continue-on-error: true
         env: *env
       - run: python scripts/collect_twitch.py --limit 20
+        continue-on-error: true
         env: *env
       - run: python scripts/collect_apify_creators.py
+        continue-on-error: true
         env: *env
       - run: python scripts/collect_apify_social.py
+        continue-on-error: true
         env: *env
       - run: python scripts/collect_apify_conversations.py
+        continue-on-error: true
         env: *env
       - run: python scripts/collect_forums.py --limit 10
+        continue-on-error: true
         env: *env
       - run: python scripts/collect_blogs.py --limit 10
+        continue-on-error: true
         env: *env
       - run: python scripts/classify_opportunities.py --limit 75
         env: *env
